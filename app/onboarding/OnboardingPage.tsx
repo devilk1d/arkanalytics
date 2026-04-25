@@ -1,14 +1,14 @@
 'use client';
 
-import Navbar from './components/Navbar';
-import HeroSection from './components/HeroSection';
-import StatsBanner from './components/StatsBanner';
-import ProblemsSection from './components/ProblemsSection';
-import FeaturesSection from './components/FeaturesSection';
-import ProcessSection from './components/ProcessSection';
-import TestimonialsSection from './components/TestimonialsSection';
-import CTASection from './components/CTASection';
-import Footer from './components/Footer';
+import Navbar from '../components/onboarding/Navbar';
+import HeroSection from '../components/onboarding/HeroSection';
+import StatsBanner from '../components/onboarding/StatsBanner';
+import ProblemsSection from '../components/onboarding/ProblemsSection';
+import FeaturesSection from '../components/onboarding/FeaturesSection';
+import ProcessSection from '../components/onboarding/ProcessSection';
+import TestimonialsSection from '../components/onboarding/TestimonialsSection';
+import CTASection from '../components/onboarding/CTASection';
+import Footer from '../components/onboarding/Footer';
 
 export default function OnboardingPage() {
   return (

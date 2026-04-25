@@ -2,12 +2,18 @@
 
 import { Space_Grotesk } from 'next/font/google';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useState, useEffect } from 'react';
 
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] });
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+
+  const scrollToHero = () => {
+    const hero = document.getElementById('hero');
+    hero?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -24,12 +30,12 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
 
         {/* Logo */}
-        <div className="flex items-center gap-2 group cursor-pointer">
+        <button type="button" onClick={scrollToHero} className="appearance-none bg-transparent border-0 p-0 cursor-pointer flex items-center gap-2 group focus:outline-none">
           <div className="transition-transform duration-300 group-hover:rotate-12">
             <Image src="/images/logo_arka_hitam.png" alt="Arkanalytics" width={32} height={32} />
           </div>
           <span className="font-semibold text-lg text-black">Arkanalytics</span>
-        </div>
+        </button>
 
         {/* Nav Links */}
         <div className="hidden md:flex items-center gap-8">
@@ -47,12 +53,20 @@ export default function Navbar() {
 
         {/* CTA Buttons */}
         <div className="flex items-center gap-3">
-          <button className="text-sm font-medium text-black hover:text-gray-500 transition-colors duration-200 px-3 py-2">
+          {/* Sign In → /auth/signin */}
+          <Link
+            href="/auth/signin"
+            className="text-sm font-medium text-black hover:text-gray-500 transition-colors duration-200 px-3 py-2"
+          >
             Sign In
-          </button>
-          <button className="text-sm font-medium text-white bg-black hover:bg-gray-800 transition-all duration-200 px-5 py-2.5 rounded-full hover:scale-105 active:scale-95">
+          </Link>
+          {/* Get Started → /auth/signup/selection */}
+          <Link
+            href="/auth/signup/selection"
+            className="text-sm font-medium text-white bg-black hover:bg-gray-800 transition-all duration-200 px-5 py-2.5 rounded-full hover:scale-105 active:scale-95"
+          >
             Get Started
-          </button>
+          </Link>
         </div>
       </div>
     </nav>

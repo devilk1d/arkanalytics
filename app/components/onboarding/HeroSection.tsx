@@ -1,13 +1,14 @@
 'use client';
 
 import { Inter, Space_Grotesk } from 'next/font/google';
+import Link from 'next/link';
 
 const inter = Inter({ subsets: ['latin'] });
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] });
 
 export default function HeroSection() {
   return (
-    <section className="pt-32 pb-20 px-6 max-w-7xl mx-auto">
+    <section id="hero" className="pt-32 pb-20 px-6 max-w-7xl mx-auto">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
 
         {/* Left Content */}
@@ -54,10 +55,10 @@ export default function HeroSection() {
             className="opacity-0 animate-fade-in-up"
             style={{ animationDelay: '0.45s', animationFillMode: 'forwards' }}
           >
-            <button className={`${spaceGrotesk.className} inline-flex items-center gap-3 bg-black text-white font-semibold px-8 py-4 rounded-2xl hover:bg-gray-800 transition-all duration-300 hover:scale-105 hover:gap-5 active:scale-95 group`}>
+            <Link href="/auth/signup/configure-workspace" className={`${spaceGrotesk.className} inline-flex items-center gap-3 bg-black text-white font-semibold px-8 py-4 rounded-2xl hover:bg-gray-800 transition-all duration-300 hover:scale-105 hover:gap-5 active:scale-95 group`}>
               Onboard Your Team
               <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
-            </button>
+            </Link>
           </div>
 
           {/* Trust Badges */}

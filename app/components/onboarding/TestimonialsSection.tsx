@@ -1,6 +1,7 @@
 'use client';
 
 import { Inter, Space_Grotesk } from 'next/font/google';
+import Link from 'next/link';
 import { useState } from 'react';
 
 const inter = Inter({ subsets: ['latin'] });
@@ -150,9 +151,9 @@ export default function TestimonialsSection() {
                 <p className={`${spaceGrotesk.className} text-base font-bold text-black`}>Join 2,000+ teams worldwide</p>
                 <p className={`${inter.className} text-xs text-gray-400`}>Sharing insights and protecting revenue with Arkanalytics</p>
               </div>
-              <button className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white transition-all duration-200 hover:scale-110 hover:rounded-xl active:scale-95">
+              <Link href="/auth/signup/configure-workspace" className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white transition-all duration-200 hover:scale-110 hover:rounded-full active:scale-95">
                 →
-              </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -161,7 +162,7 @@ export default function TestimonialsSection() {
         <div className="flex items-center justify-center gap-3 mt-10">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            className="w-9 h-9 rounded-full bg-black flex items-center justify-center text-white transition-all duration-200 hover:scale-110 hover:rounded-xl active:scale-95 disabled:opacity-30"
+            className="w-9 h-9 rounded-full bg-black flex items-center justify-center text-white transition-all duration-200 hover:scale-110 hover:rounded-full active:scale-95 disabled:opacity-30"
             disabled={currentPage === 1}
           >
             ‹
@@ -169,7 +170,7 @@ export default function TestimonialsSection() {
           <span className={`${inter.className} text-sm text-gray-500 tabular-nums`}>{currentPage}/{totalPages}</span>
           <button
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            className="w-9 h-9 rounded-full bg-black flex items-center justify-center text-white transition-all duration-200 hover:scale-110 hover:rounded-xl active:scale-95 disabled:opacity-30"
+            className="w-9 h-9 rounded-full bg-black flex items-center justify-center text-white transition-all duration-200 hover:scale-110 hover:rounded-full active:scale-95 disabled:opacity-30"
             disabled={currentPage === totalPages}
           >
             ›

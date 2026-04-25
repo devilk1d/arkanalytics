@@ -1,6 +1,7 @@
 'use client';
 
 import { Inter, Space_Grotesk } from 'next/font/google';
+import Link from 'next/link';
 
 const inter = Inter({ subsets: ['latin'] });
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] });
@@ -25,10 +26,10 @@ export default function CTASection() {
           <p className={`${inter.className} text-sm text-gray-400 max-w-md mx-auto mb-10`}>
             Gain clear insights into customer behavior, take timely action, and improve retention across your organization.
           </p>
-          <button className={`${spaceGrotesk.className} inline-flex items-center gap-3 bg-white text-black font-semibold px-10 py-4 rounded-2xl transition-all duration-300 text-base hover:scale-105 hover:gap-5 hover:shadow-2xl active:scale-95 group/btn`}>
+          <Link href="/auth/signup/selection" className={`${spaceGrotesk.className} inline-flex items-center gap-3 bg-white text-black font-semibold px-10 py-4 rounded-2xl transition-all duration-300 text-base hover:scale-105 hover:gap-5 hover:shadow-2xl active:scale-95 group/btn`}>
             Get Started
             <span className="transition-transform duration-300 group-hover/btn:translate-x-1">→</span>
-          </button>
+          </Link>
         </div>
       </div>
     </section>
