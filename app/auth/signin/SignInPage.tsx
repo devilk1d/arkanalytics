@@ -1,24 +1,84 @@
 'use client';
 
-import { Inter, Space_Grotesk } from 'next/font/google';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import AuthLogo from '../../components/auth/AuthLogo';
 import AuthInput from '../../components/auth/AuthInput';
 import AuthButton from '../../components/auth/AuthButton';
 import QuoteSidebar from '../../components/auth/QuoteSidebar';
+import { createClient } from '@/lib/supabase/client';
 
-const inter = Inter({ subsets: ['latin'] });
-const sg = Space_Grotesk({ subsets: ['latin'] });
+type PendingWorkspaceDraft = {
+  company: string;
+  sector: string;
+  email: string;
+  scale: string;
+};
+
+const WORKSPACE_DRAFT_KEY = 'pending_workspace_draft';
 
 export default function SignInPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    setErrorMessage('');
+
+    if (!email.trim() || !password) {
+      setErrorMessage('Email and password are required.');
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => setLoading(false), 2000);
+
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    if (error) {
+      setLoading(false);
+      setErrorMessage(error.message);
+      return;
+    }
+
+    const signedInUserId = data.user?.id;
+    const rawDraft = localStorage.getItem(WORKSPACE_DRAFT_KEY);
+
+    if (signedInUserId && rawDraft) {
+      try {
+        const draft = JSON.parse(rawDraft) as PendingWorkspaceDraft;
+        if (draft.company && draft.sector && draft.email && draft.scale) {
+          const { error: workspaceError } = await supabase.from('workspaces').insert({
+            name: draft.company,
+            industry_sector: draft.sector,
+            support_email: draft.email,
+            team_scale: draft.scale,
+            owner_user_id: signedInUserId,
+          });
+
+          if (workspaceError) {
+            setLoading(false);
+            setErrorMessage(`Login berhasil, tapi create workspace gagal: ${workspaceError.message}`);
+            return;
+          }
+        }
+
+        localStorage.removeItem(WORKSPACE_DRAFT_KEY);
+      } catch {
+        localStorage.removeItem(WORKSPACE_DRAFT_KEY);
+      }
+    }
+
+    setLoading(false);
+
+    router.push('/onboarding');
+    router.refresh();
   };
 
   return (
@@ -36,10 +96,10 @@ export default function SignInPage() {
         <div className="flex-1 flex items-center justify-center px-8 lg:px-0">
           <div className="w-full max-w-sm">
 
-            <h1 className={`${sg.className} text-3xl font-bold text-black mb-1`}>
+            <h1 className="font-display text-3xl font-bold text-black mb-1">
               Welcome Back
             </h1>
-            <p className={`${inter.className} text-gray-400 text-sm mb-10`}>
+            <p className="text-gray-400 text-sm mb-10">
               Access your analytics workspace and predictive insights.
             </p>
 
@@ -55,12 +115,12 @@ export default function SignInPage() {
               {/* Password with inline Forgot link */}
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
-                  <label className={`${inter.className} text-xs font-semibold tracking-widest uppercase text-gray-500`}>
+                  <label className="text-xs font-semibold tracking-widest uppercase text-gray-500">
                     Password
                   </label>
                   <Link
                     href="#"
-                    className={`${sg.className} text-xs font-semibold tracking-widest uppercase text-gray-400 hover:text-black transition-colors duration-200`}
+                    className="font-display text-xs font-semibold tracking-widest uppercase text-gray-400 hover:text-black transition-colors duration-200"
                   >
                     Forgot ?
                   </Link>
@@ -79,8 +139,14 @@ export default function SignInPage() {
               Sign In
             </AuthButton>
 
-            <p className={`${inter.className} text-sm text-gray-400 text-center mt-6`}>
-              Don't have an Arka ID yet?{' '}
+            {errorMessage ? (
+              <p className="mt-3 text-sm text-red-600">
+                {errorMessage}
+              </p>
+            ) : null}
+
+            <p className="text-sm text-gray-400 text-center mt-6">
+              Don&apos;t have an Arka ID yet?{' '}
               <Link href="/auth/signup/selection" className="font-bold text-black hover:underline">
                 Register now
               </Link>

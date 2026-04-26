@@ -1,23 +1,37 @@
 'use client';
 
-import { Inter, Space_Grotesk } from 'next/font/google';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import AuthLogo from '../../../components/auth/AuthLogo';
 import AuthInput from '../../../components/auth/AuthInput';
 import AuthSelect from '../../../components/auth/AuthDropdown';
 import AuthButton from '../../../components/auth/AuthButton';
 import StepIndicator from '../../../components/auth/StepIndicator';
+import { createClient } from '@/lib/supabase/client';
 
-const inter = Inter({ subsets: ['latin'] });
-const sg = Space_Grotesk({ subsets: ['latin'] });
+type WorkspaceDraft = {
+  company: string;
+  sector: string;
+  email: string;
+  scale: string;
+};
+
+const WORKSPACE_DRAFT_KEY = 'pending_workspace_draft';
 
 /* ─── Step 1 ─── */
-function WorkspaceStep({ onNext }: { onNext: () => void }) {
-  const [company, setCompany] = useState('');
-  const [sector, setSector] = useState('');
-  const [email, setEmail] = useState('');
-  const [scale, setScale] = useState('');
+function WorkspaceStep({
+  draft,
+  onNext,
+}: {
+  draft: WorkspaceDraft;
+  onNext: (draft: WorkspaceDraft) => void;
+}) {
+  const [company, setCompany] = useState(draft.company);
+  const [sector, setSector] = useState(draft.sector);
+  const [email, setEmail] = useState(draft.email);
+  const [scale, setScale] = useState(draft.scale);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const sectors = [
   { label: 'Telecommunication', value: 'telecommunication' },
@@ -36,10 +50,27 @@ function WorkspaceStep({ onNext }: { onNext: () => void }) {
     { label: '1000+', value: '1000+' }
   ];
 
+  const handleNext = () => {
+    const nextDraft: WorkspaceDraft = {
+      company: company.trim(),
+      sector,
+      email: email.trim(),
+      scale,
+    };
+
+    if (!nextDraft.company || !nextDraft.sector || !nextDraft.email || !nextDraft.scale) {
+      setErrorMessage('Please complete all workspace fields before continuing.');
+      return;
+    }
+
+    setErrorMessage('');
+    onNext(nextDraft);
+  };
+
   return (
     <div className="w-full max-w-xl">
-      <h1 className={`${sg.className} text-3xl font-bold text-black mb-1`}>Configure Workspace</h1>
-      <p className={`${inter.className} text-gray-400 text-sm mb-8`}>Setup the operational core for your team.</p>
+      <h1 className="font-display text-3xl font-bold text-black mb-1">Configure Workspace</h1>
+      <p className="text-gray-400 text-sm mb-8">Setup the operational core for your team.</p>
 
       <StepIndicator
         steps={[
@@ -76,25 +107,121 @@ function WorkspaceStep({ onNext }: { onNext: () => void }) {
         />
       </div>
 
-      <AuthButton onClick={onNext}>Next</AuthButton>
+      <AuthButton onClick={handleNext}>Next</AuthButton>
+      {errorMessage ? (
+        <p className="mt-3 text-sm text-red-600">
+          {errorMessage}
+        </p>
+      ) : null}
     </div>
   );
 }
 
 /* ─── Step 2 ─── */
-function ArkaIDStep({ onBack }: { onBack: () => void }) {
+function ArkaIDStep({
+  workspaceDraft,
+  onBack,
+}: {
+  workspaceDraft: WorkspaceDraft;
+  onBack: () => void;
+}) {
+  const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const handleSubmit = async () => {
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
+      setErrorMessage('Please complete all account fields.');
+      return;
+    }
+
+    if (password.length < 8) {
+      setErrorMessage('Password must be at least 8 characters.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage('Password confirmation does not match.');
+      return;
+    }
+
+    if (!agreed) {
+      setErrorMessage('You must agree to the terms before continuing.');
+      return;
+    }
+
+    const pendingDraft = {
+      company: workspaceDraft.company,
+      sector: workspaceDraft.sector,
+      email: workspaceDraft.email,
+      scale: workspaceDraft.scale,
+    };
+
+    localStorage.setItem(WORKSPACE_DRAFT_KEY, JSON.stringify(pendingDraft));
+
+    setLoading(true);
+    const supabase = createClient();
+
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: {
+          full_name: name.trim(),
+        },
+      },
+    });
+
+    if (error) {
+      localStorage.removeItem(WORKSPACE_DRAFT_KEY);
+      setLoading(false);
+      setErrorMessage(error.message);
+      return;
+    }
+
+    if (!data.session) {
+      setLoading(false);
+      setSuccessMessage('Account created. Verify your email, then sign in. Workspace akan otomatis dibuat setelah login.');
+      return;
+    }
+
+    const ownerUserId = data.session.user.id;
+
+    const { error: workspaceError } = await supabase.from('workspaces').insert({
+      name: workspaceDraft.company,
+      industry_sector: workspaceDraft.sector,
+      support_email: workspaceDraft.email,
+      team_scale: workspaceDraft.scale,
+      owner_user_id: ownerUserId,
+    });
+
+    setLoading(false);
+
+    if (workspaceError) {
+      setErrorMessage(workspaceError.message);
+      return;
+    }
+
+    localStorage.removeItem(WORKSPACE_DRAFT_KEY);
+
+    router.push('/onboarding');
+    router.refresh();
+  };
 
   return (
     <div className="w-full max-w-xl">
       {/* Header row with back button */}
       <div className="flex items-start justify-between mb-1">
-        <h1 className={`${sg.className} text-3xl font-bold text-black`}>Create Your Arka ID</h1>
+        <h1 className="font-display text-3xl font-bold text-black">Create Your Arka ID</h1>
         <button
           onClick={onBack}
           className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white shrink-0 transition-all duration-200 hover:scale-110 hover:bg-gray-800 active:scale-95"
@@ -104,7 +231,7 @@ function ArkaIDStep({ onBack }: { onBack: () => void }) {
           </svg>
         </button>
       </div>
-      <p className={`${inter.className} text-gray-400 text-sm mb-8`}>Setup the operational core for your team.</p>
+      <p className="text-gray-400 text-sm mb-8">Setup the operational core for your team.</p>
 
       <StepIndicator
         steps={[
@@ -134,7 +261,7 @@ function ArkaIDStep({ onBack }: { onBack: () => void }) {
             </svg>
           )}
         </button>
-        <span className={`${inter.className} text-sm text-gray-500`}>
+        <span className="text-sm text-gray-500">
           I agree to the{' '}
           <Link href="#" className="font-bold text-black hover:underline">Terms of Service</Link>
           {' '}and{' '}
@@ -142,9 +269,20 @@ function ArkaIDStep({ onBack }: { onBack: () => void }) {
         </span>
       </div>
 
-      <AuthButton onClick={() => { setLoading(true); setTimeout(() => setLoading(false), 2000); }} loading={loading}>
+      <AuthButton onClick={handleSubmit} loading={loading}>
         Create My Workspace
       </AuthButton>
+
+      {errorMessage ? (
+        <p className="mt-3 text-sm text-red-600">
+          {errorMessage}
+        </p>
+      ) : null}
+      {successMessage ? (
+        <p className="mt-3 text-sm text-green-700">
+          {successMessage}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -152,9 +290,15 @@ function ArkaIDStep({ onBack }: { onBack: () => void }) {
 /* ─── Page shell ─── */
 export default function ConfigureWorkspacePage() {
   const [step, setStep] = useState<1 | 2>(1);
+  const [workspaceDraft, setWorkspaceDraft] = useState<WorkspaceDraft>({
+    company: '',
+    sector: '',
+    email: '',
+    scale: '',
+  });
 
   return (
-    <div className={`${inter.className} min-h-screen bg-white flex flex-col`}>
+    <div className="min-h-screen bg-white flex flex-col">
 
       {/* Logo — pinned top-left */}
       <div className="absolute top-8 left-8 lg:left-12 z-10">
@@ -168,8 +312,16 @@ export default function ConfigureWorkspacePage() {
           style={{ animation: 'fadeInUp 0.35s ease forwards' }}
         >
           {step === 1
-            ? <WorkspaceStep onNext={() => setStep(2)} />
-            : <ArkaIDStep onBack={() => setStep(1)} />
+            ? (
+              <WorkspaceStep
+                draft={workspaceDraft}
+                onNext={(nextDraft) => {
+                  setWorkspaceDraft(nextDraft);
+                  setStep(2);
+                }}
+              />
+            )
+            : <ArkaIDStep workspaceDraft={workspaceDraft} onBack={() => setStep(1)} />
           }
         </div>
       </div>

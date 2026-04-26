@@ -31,9 +31,29 @@ html {
   box-sizing: border-box;
 }
 
+:root {
+  --app-font-sans: var(--font-inter);
+  --app-font-display: var(--font-space-grotesk);
+}
+
 body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-family: var(--app-font-sans), sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.font-display {
+  font-family: var(--app-font-display), sans-serif;
+}
+
+.font-sans-app {
+  font-family: var(--app-font-sans), sans-serif;
 }
 
 /* ─── Keyframe Animations ─── */

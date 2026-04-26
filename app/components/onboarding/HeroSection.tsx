@@ -1,10 +1,6 @@
 'use client';
 
-import { Inter, Space_Grotesk } from 'next/font/google';
 import Link from 'next/link';
-
-const inter = Inter({ subsets: ['latin'] });
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] });
 
 export default function HeroSection() {
   return (
@@ -15,7 +11,7 @@ export default function HeroSection() {
         <div>
           {/* Badge */}
           <div
-            className={`${spaceGrotesk.className} inline-flex items-center gap-2 border border-gray-200 rounded-full px-4 py-1.5 mb-8 opacity-0 animate-fade-in-up`}
+            className="font-display inline-flex items-center gap-2 border border-gray-200 rounded-full px-4 py-1.5 mb-8 opacity-0 animate-fade-in-up"
             style={{ animationDelay: '0.1s', animationFillMode: 'forwards' }}
           >
             <span className="w-4 h-4 bg-black rounded-full flex items-center justify-center">
@@ -30,7 +26,7 @@ export default function HeroSection() {
 
           {/* Heading */}
           <h1
-            className={`${spaceGrotesk.className} text-5xl lg:text-6xl font-bold leading-tight mb-6 opacity-0 animate-fade-in-up`}
+            className="font-display text-5xl lg:text-6xl font-bold leading-tight mb-6 opacity-0 animate-fade-in-up"
             style={{ animationDelay: '0.2s', animationFillMode: 'forwards' }}
           >
             <span className="text-black">Customer</span>
@@ -44,7 +40,7 @@ export default function HeroSection() {
 
           {/* Description */}
           <p
-            className={`${inter.className} text-base text-gray-500 leading-relaxed mb-10 max-w-md opacity-0 animate-fade-in-up`}
+            className="text-base text-gray-500 leading-relaxed mb-10 max-w-md opacity-0 animate-fade-in-up"
             style={{ animationDelay: '0.35s', animationFillMode: 'forwards' }}
           >
             Empower your Customer Success team with AI-driven foresight. Turn raw behavioral data into proactive retention strategies that actually work.
@@ -55,7 +51,7 @@ export default function HeroSection() {
             className="opacity-0 animate-fade-in-up"
             style={{ animationDelay: '0.45s', animationFillMode: 'forwards' }}
           >
-            <Link href="/auth/signup/configure-workspace" className={`${spaceGrotesk.className} inline-flex items-center gap-3 bg-black text-white font-semibold px-8 py-4 rounded-2xl hover:bg-gray-800 transition-all duration-300 hover:scale-105 hover:gap-5 active:scale-95 group`}>
+            <Link href="/auth/signup/configure-workspace" className="font-display inline-flex items-center gap-3 bg-black text-white font-semibold px-8 py-4 rounded-2xl hover:bg-gray-800 transition-all duration-300 hover:scale-105 hover:gap-5 active:scale-95 group">
               Onboard Your Team
               <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
             </Link>
@@ -77,7 +73,7 @@ export default function HeroSection() {
                 </div>
               ))}
             </div>
-            <span className={`${inter.className} text-sm text-gray-500 ml-1`}>
+            <span className="text-sm text-gray-500 ml-1">
               Trusted by 500+ High-Growth SaaS
             </span>
           </div>

@@ -1,9 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Inter } from 'next/font/google';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export type AuthDropdownOption = {
   label: string;
@@ -67,7 +64,7 @@ export default function AuthDropdown({
   return (
     <div ref={rootRef} className={`flex flex-col gap-1.5 ${className}`}>
       {label ? (
-        <label className={`${inter.className} text-xs font-semibold tracking-widest uppercase text-gray-500`}>
+        <label className="text-xs font-semibold tracking-widest uppercase text-gray-500">
           {label}
         </label>
       ) : null}
@@ -79,7 +76,7 @@ export default function AuthDropdown({
           onClick={() => setOpen((current) => !current)}
           aria-haspopup="listbox"
           aria-expanded={open}
-          className={`${inter.className} w-full bg-gray-100 rounded-2xl px-4 py-3.5 text-sm text-black border-2 border-transparent transition-all duration-200 focus:border-black focus:bg-white flex items-center justify-between gap-4 text-left disabled:cursor-not-allowed disabled:opacity-60`}
+          className="w-full bg-gray-100 rounded-2xl px-4 py-3.5 text-sm text-black border-2 border-transparent transition-all duration-200 focus:border-black focus:bg-white flex items-center justify-between gap-4 text-left disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span className={`truncate ${selectedOption ? 'text-black' : 'text-gray-400'}`}>
             {selectedOption?.label ?? placeholder}
@@ -111,7 +108,7 @@ export default function AuthDropdown({
                     type="button"
                     disabled={option.disabled}
                     onClick={() => selectOption(option.value)}
-                    className={`${inter.className} w-full px-4 py-3 text-left text-sm transition-colors duration-150 ${
+                    className={`w-full px-4 py-3 text-left text-sm transition-colors duration-150 ${
                       active
                         ? 'bg-black text-white'
                         : 'text-black hover:bg-gray-100'

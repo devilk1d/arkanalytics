@@ -1,14 +1,10 @@
 'use client';
 
-import { Inter, Space_Grotesk } from 'next/font/google';
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import AuthInput from '../../components/auth/AuthInput';
 import AuthButton from '../../components/auth/AuthButton';
-
-const inter = Inter({ subsets: ['latin'] });
-const sg = Space_Grotesk({ subsets: ['latin'] });
 
 // The invitation details (in real app would come from URL params / API)
 const INVITE = {
@@ -28,7 +24,7 @@ function InviteCard({ onJoin }: { onJoin: () => void }) {
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-10">
           <Image src="/images/logo_arka_hitam.png" alt="Arkanalytics" width={28} height={28} />
-          <span className={`${sg.className} font-semibold text-lg text-black`}>Arkanalytics</span>
+          <span className="font-display font-semibold text-lg text-black">Arkanalytics</span>
         </div>
 
         {/* Person icon */}
@@ -41,8 +37,8 @@ function InviteCard({ onJoin }: { onJoin: () => void }) {
           </svg>
         </div>
 
-        <h1 className={`${sg.className} text-2xl font-bold text-black mb-3`}>Team Invitation</h1>
-        <p className={`${inter.className} text-sm text-gray-500 leading-relaxed mb-8`}>
+        <h1 className="font-display text-2xl font-bold text-black mb-3">Team Invitation</h1>
+        <p className="text-sm text-gray-500 leading-relaxed mb-8">
           You have been invited by{' '}
           <span className="font-bold text-black">{INVITE.inviterName}</span>{' '}
           to join the{' '}
@@ -56,8 +52,8 @@ function InviteCard({ onJoin }: { onJoin: () => void }) {
             {INVITE.inviteeInitials}
           </div>
           <div>
-            <p className={`${sg.className} text-sm font-semibold text-black`}>{INVITE.inviteeName}</p>
-            <p className={`${inter.className} text-xs text-gray-400`}>
+            <p className="font-display text-sm font-semibold text-black">{INVITE.inviteeName}</p>
+            <p className="text-xs text-gray-400">
               {INVITE.inviteeEmail} ({INVITE.inviteeArkaId})
             </p>
           </div>
@@ -91,7 +87,7 @@ function InviteRegisterForm({ onBack }: { onBack: () => void }) {
           {/* Logo */}
           <div className="flex items-center gap-2 mb-10">
             <Image src="/images/logo_arka_hitam.png" alt="Arkanalytics" width={24} height={24} />
-            <span className={`${sg.className} font-semibold text-base text-black`}>Arkanalytics</span>
+            <span className="font-display font-semibold text-base text-black">Arkanalytics</span>
           </div>
 
           <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-6">
@@ -103,8 +99,8 @@ function InviteRegisterForm({ onBack }: { onBack: () => void }) {
             </svg>
           </div>
 
-          <h2 className={`${sg.className} text-xl font-bold text-black mb-3`}>Team Invitation</h2>
-          <p className={`${inter.className} text-sm text-gray-500 leading-relaxed mb-8`}>
+          <h2 className="font-display text-xl font-bold text-black mb-3">Team Invitation</h2>
+          <p className="text-sm text-gray-500 leading-relaxed mb-8">
             You have been invited by{' '}
             <span className="font-bold text-black">{INVITE.inviterName}</span>{' '}
             to join the{' '}
@@ -129,7 +125,7 @@ function InviteRegisterForm({ onBack }: { onBack: () => void }) {
                 </svg>
               )}
             </button>
-            <span className={`${inter.className} text-xs text-gray-500`}>
+            <span className="text-xs text-gray-500">
               I agree to the{' '}
               <Link href="#" className="font-bold text-black hover:underline">Terms of Service</Link>
               {' '}and{' '}
@@ -144,8 +140,8 @@ function InviteRegisterForm({ onBack }: { onBack: () => void }) {
 
         {/* Right: Arka ID form */}
         <div className="p-10">
-          <h2 className={`${sg.className} text-2xl font-bold text-black mb-1`}>Create Your Arka ID</h2>
-          <p className={`${inter.className} text-sm text-gray-400 mb-8`}>
+          <h2 className="font-display text-2xl font-bold text-black mb-1">Create Your Arka ID</h2>
+          <p className="text-sm text-gray-400 mb-8">
             Your single identity for all ArkaAnalytics teams.
           </p>
 

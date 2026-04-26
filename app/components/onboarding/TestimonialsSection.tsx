@@ -1,11 +1,7 @@
 'use client';
 
-import { Inter, Space_Grotesk } from 'next/font/google';
 import Link from 'next/link';
 import { useState } from 'react';
-
-const inter = Inter({ subsets: ['latin'] });
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] });
 
 const testimonials = [
   {
@@ -69,13 +65,13 @@ export default function TestimonialsSection() {
 
           {/* Left */}
           <div>
-            <div className={`${spaceGrotesk.className} inline-block bg-black text-white text-xs font-semibold tracking-widest uppercase px-4 py-2 rounded-full mb-6`}>
+            <div className="font-display inline-block bg-black text-white text-xs font-semibold tracking-widest uppercase px-4 py-2 rounded-full mb-6">
               Testimonials
             </div>
-            <h2 className={`${spaceGrotesk.className} text-4xl font-bold text-black leading-tight mb-4`}>
+            <h2 className="font-display text-4xl font-bold text-black leading-tight mb-4">
               Loved by high-growth teams.
             </h2>
-            <p className={`${inter.className} text-sm text-gray-400 mb-10`}>
+            <p className="text-sm text-gray-400 mb-10">
               Trusted by the world's most customer-centric companies to protect their revenue
             </p>
             <div className="flex gap-8">
@@ -84,10 +80,10 @@ export default function TestimonialsSection() {
                 { num: '200+', label: 'Global Partners' },
               ].map((s) => (
                 <div key={s.label} className="group cursor-default">
-                  <p className={`${spaceGrotesk.className} text-3xl font-bold text-black transition-all duration-300 group-hover:scale-110 inline-block`}>
+                  <p className="font-display text-3xl font-bold text-black transition-all duration-300 group-hover:scale-110 inline-block">
                     {s.num}
                   </p>
-                  <p className={`${inter.className} text-xs text-gray-400 uppercase tracking-wide mt-1 transition-colors duration-300 group-hover:text-black`}>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide mt-1 transition-colors duration-300 group-hover:text-black">
                     {s.label}
                   </p>
                 </div>
@@ -112,7 +108,7 @@ export default function TestimonialsSection() {
                     <path d="M0 24V14.4C0 6.4 5.6 1.6 16.8 0L18 2.8C13.2 3.6 10 6 9.6 9.6H14.4V24H0ZM14 24V14.4C14 6.4 19.6 1.6 30.8 0L32 2.8C27.2 3.6 24 6 23.6 9.6H28.4V24H14Z" fill={t.dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'} />
                   </svg>
                 </div>
-                <p className={`${inter.className} text-sm leading-relaxed mb-6 ${t.dark ? 'text-gray-300' : 'text-gray-700'}`}>
+                <p className={`text-sm leading-relaxed mb-6 ${t.dark ? 'text-gray-300' : 'text-gray-700'}`}>
                   "{t.quote}"
                 </p>
                 <div className="flex items-center gap-3">
@@ -122,8 +118,8 @@ export default function TestimonialsSection() {
                     {t.initials}
                   </div>
                   <div>
-                    <p className={`${spaceGrotesk.className} text-sm font-semibold`}>{t.name}</p>
-                    <p className={`${inter.className} text-xs uppercase tracking-wide ${t.dark ? 'text-gray-400' : 'text-gray-400'}`}>
+                    <p className="font-display text-sm font-semibold">{t.name}</p>
+                    <p className={`text-xs uppercase tracking-wide ${t.dark ? 'text-gray-400' : 'text-gray-400'}`}>
                       {t.role}
                     </p>
                   </div>
@@ -148,8 +144,8 @@ export default function TestimonialsSection() {
                 </div>
               </div>
               <div className="flex-1 px-6">
-                <p className={`${spaceGrotesk.className} text-base font-bold text-black`}>Join 2,000+ teams worldwide</p>
-                <p className={`${inter.className} text-xs text-gray-400`}>Sharing insights and protecting revenue with Arkanalytics</p>
+                <p className="font-display text-base font-bold text-black">Join 2,000+ teams worldwide</p>
+                <p className="text-xs text-gray-400">Sharing insights and protecting revenue with Arkanalytics</p>
               </div>
               <Link href="/auth/signup/configure-workspace" className="w-10 h-10 rounded-full bg-black flex items-center justify-center text-white transition-all duration-200 hover:scale-110 hover:rounded-full active:scale-95">
                 →
@@ -167,7 +163,7 @@ export default function TestimonialsSection() {
           >
             ‹
           </button>
-          <span className={`${inter.className} text-sm text-gray-500 tabular-nums`}>{currentPage}/{totalPages}</span>
+          <span className="text-sm text-gray-500 tabular-nums">{currentPage}/{totalPages}</span>
           <button
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             className="w-9 h-9 rounded-full bg-black flex items-center justify-center text-white transition-all duration-200 hover:scale-110 hover:rounded-full active:scale-95 disabled:opacity-30"

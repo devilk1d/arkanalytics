@@ -1,9 +1,5 @@
 'use client';
 
-import { Space_Grotesk } from 'next/font/google';
-
-const sg = Space_Grotesk({ subsets: ['latin'] });
-
 interface AuthButtonProps {
   children: React.ReactNode;
   onClick?: () => void;
@@ -30,7 +26,7 @@ export default function AuthButton({
       type={type}
       onClick={onClick}
       disabled={loading}
-      className={`${sg.className} ${base} ${styles[variant]} ${loading ? 'opacity-60 cursor-not-allowed' : ''}`}
+      className={`font-display ${base} ${styles[variant]} ${loading ? 'opacity-60 cursor-not-allowed' : ''}`}
     >
       {loading && (
         <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

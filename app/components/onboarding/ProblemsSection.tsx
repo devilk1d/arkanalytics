@@ -1,10 +1,5 @@
 'use client';
 
-import { Inter, Space_Grotesk } from 'next/font/google';
-
-const inter = Inter({ subsets: ['latin'] });
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] });
-
 const problems = [
   {
     icon: (
@@ -51,10 +46,10 @@ export default function ProblemsSection() {
               <div className="w-14 h-14 bg-black rounded-2xl flex items-center justify-center mb-6 transition-all duration-300 group-hover:scale-110 group-hover:rounded-xl">
                 {p.icon}
               </div>
-              <h3 className={`${spaceGrotesk.className} text-lg font-semibold text-black mb-3 transition-colors duration-200`}>
+              <h3 className="font-display text-lg font-semibold text-black mb-3 transition-colors duration-200">
                 {p.title}
               </h3>
-              <p className={`${inter.className} text-sm text-gray-500 leading-relaxed transition-colors duration-200 group-hover:text-gray-700`}>
+              <p className="text-sm text-gray-500 leading-relaxed transition-colors duration-200 group-hover:text-gray-700">
                 {p.desc}
               </p>
             </div>
@@ -64,12 +59,12 @@ export default function ProblemsSection() {
         {/* Solution Banner */}
         <div className="bg-black rounded-3xl px-10 py-12 text-center group overflow-hidden relative">
           {/* Subtle animated gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none" />
+          <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-in-out pointer-events-none" />
 
-          <h2 className={`${spaceGrotesk.className} text-3xl lg:text-4xl font-bold text-white mb-4`}>
+          <h2 className="font-display text-3xl lg:text-4xl font-bold text-white mb-4">
             Arkanalytics solves all three
           </h2>
-          <p className={`${inter.className} text-sm text-gray-400 mb-8 max-w-lg mx-auto`}>
+          <p className="text-sm text-gray-400 mb-8 max-w-lg mx-auto">
             Identify at-risk customers, take fast action, and improve collaboration across your entire organization.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-6">
@@ -79,7 +74,7 @@ export default function ProblemsSection() {
                   <circle cx="8" cy="8" r="7" stroke="#22c55e" strokeWidth="1.5" />
                   <path d="M5 8l2 2 4-4" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                <span className={`${inter.className} text-sm text-gray-300 transition-colors duration-200 group-hover/item:text-white`}>
+                <span className="text-sm text-gray-300 transition-colors duration-200 group-hover/item:text-white">
                   {item}
                 </span>
               </div>

@@ -1,9 +1,6 @@
 'use client';
 
-import { Inter } from 'next/font/google';
 import { useState } from 'react';
-
-const inter = Inter({ subsets: ['latin'] });
 
 interface AuthInputProps {
   label: string;
@@ -33,7 +30,7 @@ export default function AuthInput({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label className={`${inter.className} text-xs font-semibold tracking-widest uppercase text-gray-500`}>
+      <label className="text-xs font-semibold tracking-widest uppercase text-gray-500">
         {label}
       </label>
       <div className="relative">
@@ -43,13 +40,13 @@ export default function AuthInput({
           value={value}
           readOnly={readOnly}
           onChange={(e) => onChange?.(e.target.value)}
-          className={`${inter.className} w-full bg-gray-100 rounded-2xl px-4 py-3.5 text-sm text-black placeholder-gray-400
+          className="w-full bg-gray-100 rounded-2xl px-4 py-3.5 text-sm text-black placeholder-gray-400
             border-2 border-transparent outline-none transition-all duration-200
             focus:border-black focus:bg-white
             ${readOnly || prefilled ? 'text-black font-medium' : ''}
             ${isPassword ? 'pr-12' : ''}
             ${rightAction ? 'pr-20' : ''}
-          `}
+          "
         />
         {isPassword && (
           <button
@@ -75,7 +72,7 @@ export default function AuthInput({
         )}
       </div>
       {hint && (
-        <p className={`${inter.className} text-xs text-gray-400`}>{hint}</p>
+        <p className="text-xs text-gray-400">{hint}</p>
       )}
     </div>
   );

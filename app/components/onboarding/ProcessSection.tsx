@@ -1,10 +1,5 @@
 'use client';
 
-import { Inter, Space_Grotesk } from 'next/font/google';
-
-const inter = Inter({ subsets: ['latin'] });
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] });
-
 const steps = [
   {
     num: '01',
@@ -28,10 +23,10 @@ export default function ProcessSection() {
     <section id="process" className="py-24 px-6 bg-white">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-20">
-          <h2 className={`${spaceGrotesk.className} text-4xl lg:text-5xl font-bold text-black mb-4`}>
+          <h2 className="font-display text-4xl lg:text-5xl font-bold text-black mb-4">
             The Arka Method
           </h2>
-          <p className={`${inter.className} text-base text-gray-400`}>
+          <p className="text-base text-gray-400">
             Scale your retention efforts in three simple steps.
           </p>
         </div>
@@ -44,11 +39,11 @@ export default function ProcessSection() {
             >
               {/* Step number — turns black on hover */}
               <p
-                className={`${spaceGrotesk.className} text-8xl font-bold leading-none mb-4 select-none
+                  className="font-display text-8xl font-bold leading-none mb-4 select-none
                   transition-all duration-400 ease-out
                   text-gray-100 group-hover:text-black
                   group-hover:-translate-y-1
-                `}
+                  "
                 style={{ transitionDuration: '350ms' }}
               >
                 {step.num}
@@ -57,10 +52,10 @@ export default function ProcessSection() {
               {/* Animated underline accent */}
               <div className="h-0.5 w-0 bg-black transition-all duration-400 mb-4 group-hover:w-12" style={{ transitionDuration: '350ms' }} />
 
-              <h3 className={`${spaceGrotesk.className} text-xl font-semibold text-black mb-3 transition-all duration-300 group-hover:translate-x-1`}>
+              <h3 className="font-display text-xl font-semibold text-black mb-3 transition-all duration-300 group-hover:translate-x-1">
                 {step.title}
               </h3>
-              <p className={`${inter.className} text-sm text-gray-500 leading-relaxed transition-colors duration-300 group-hover:text-gray-700`}>
+              <p className="text-sm text-gray-500 leading-relaxed transition-colors duration-300 group-hover:text-gray-700">
                 {step.desc}
               </p>
             </div>

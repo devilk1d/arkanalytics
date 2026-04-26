@@ -1,8 +1,3 @@
-import { Inter, Space_Grotesk } from 'next/font/google';
-
-const inter = Inter({ subsets: ['latin'] });
-const sg = Space_Grotesk({ subsets: ['latin'] });
-
 interface QuoteSidebarProps {
   quote: string;
   author: string;
@@ -32,15 +27,15 @@ export default function QuoteSidebar({ quote, author }: QuoteSidebarProps) {
       {/* Content */}
       <div className="relative z-10 max-w-xs">
         {/* Big quotation mark */}
-        <div className={`${sg.className} text-7xl text-white/20 leading-none mb-4 select-none`}>"</div>
+        <div className="font-display text-7xl text-white/20 leading-none mb-4 select-none">"</div>
 
-        <p className={`${sg.className} text-white text-2xl font-bold leading-snug mb-8`}>
+        <p className="font-display text-white text-2xl font-bold leading-snug mb-8">
           {quote}
         </p>
 
         <div className="flex items-center gap-3">
           <div className="w-8 h-px bg-gray-600" />
-          <p className={`${inter.className} text-gray-400 text-sm`}>{author}</p>
+          <p className="text-gray-400 text-sm">{author}</p>
         </div>
       </div>
     </div>

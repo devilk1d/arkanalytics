@@ -1,10 +1,5 @@
 'use client';
 
-import { Space_Grotesk, Inter } from 'next/font/google';
-
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] });
-const inter = Inter({ subsets: ['latin'] });
-
 const stats = [
   { value: '32%', label: 'Churn Prediction', sub: 'Average improvement' },
   { value: '1.2B+', label: 'Data Scale', sub: 'Signals processed' },
@@ -22,14 +17,14 @@ export default function StatsBanner() {
             className="text-center group cursor-default"
           >
             <p
-              className={`${spaceGrotesk.className} text-3xl lg:text-4xl font-bold text-white mb-1 transition-all duration-300 group-hover:scale-110 group-hover:text-gray-300 inline-block`}
+              className="font-display text-3xl lg:text-4xl font-bold text-white mb-1 transition-all duration-300 group-hover:scale-110 group-hover:text-gray-300 inline-block"
             >
               {stat.value}
             </p>
-            <p className={`${spaceGrotesk.className} text-xs font-semibold tracking-widest text-gray-400 uppercase mb-1 transition-colors duration-300 group-hover:text-gray-200`}>
+            <p className="font-display text-xs font-semibold tracking-widest text-gray-400 uppercase mb-1 transition-colors duration-300 group-hover:text-gray-200">
               {stat.label}
             </p>
-            <p className={`${inter.className} text-xs text-gray-600 transition-colors duration-300 group-hover:text-gray-400`}>
+            <p className="text-xs text-gray-600 transition-colors duration-300 group-hover:text-gray-400">
               {stat.sub}
             </p>
           </div>

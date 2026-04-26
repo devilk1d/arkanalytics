@@ -1,8 +1,3 @@
-import { Inter, Space_Grotesk } from 'next/font/google';
-
-const inter = Inter({ subsets: ['latin'] });
-const sg = Space_Grotesk({ subsets: ['latin'] });
-
 interface Step {
   label: string;
   status: 'done' | 'active' | 'pending';
@@ -27,10 +22,10 @@ export default function StepIndicator({ steps }: { steps: Step[] }) {
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               ) : (
-                <span className={`${sg.className} text-xs`}>{i + 1}</span>
+                <span className="font-display text-xs">{i + 1}</span>
               )}
             </div>
-            <span className={`${inter.className} text-sm font-medium ${
+            <span className={`text-sm font-medium ${
               step.status === 'pending' ? 'text-gray-400' : 'text-black'
             }`}>
               {step.label}

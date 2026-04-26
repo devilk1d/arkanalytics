@@ -1,11 +1,7 @@
 'use client';
 
-import { Inter, Space_Grotesk } from 'next/font/google';
 import Link from 'next/link';
 import AuthLogo from '../../../components/auth/AuthLogo';
-
-const inter = Inter({ subsets: ['latin'] });
-const sg = Space_Grotesk({ subsets: ['latin'] });
 
 const options = [
   {
@@ -41,7 +37,7 @@ const options = [
 
 export default function SelectionPage() {
   return (
-    <div className={`${inter.className} min-h-screen bg-gray-50 flex flex-col`}>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Top logo centered */}
       <div className="pt-12 flex justify-center">
         <AuthLogo centered />
@@ -50,10 +46,10 @@ export default function SelectionPage() {
       {/* Content */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-16">
         <div className="text-center mb-12">
-          <h1 className={`${sg.className} text-4xl lg:text-5xl font-bold text-black mb-3`}>
+          <h1 className="font-display text-4xl lg:text-5xl font-bold text-black mb-3">
             How would you like to start?
           </h1>
-          <p className={`${inter.className} text-gray-400 text-base`}>
+          <p className="text-gray-400 text-base">
             Choose a corporate setup or create your personal Arka ID.
           </p>
         </div>
@@ -73,13 +69,13 @@ export default function SelectionPage() {
 
               {/* Text */}
               <div>
-                <h2 className={`${sg.className} text-xl font-bold text-black mb-2`}>{opt.title}</h2>
-                <p className={`${inter.className} text-sm text-gray-500 leading-relaxed`}>{opt.desc}</p>
+                <h2 className="font-display text-xl font-bold text-black mb-2">{opt.title}</h2>
+                <p className="text-sm text-gray-500 leading-relaxed">{opt.desc}</p>
               </div>
 
               {/* CTA */}
               <div className="flex items-center gap-2">
-                <span className={`${sg.className} text-xs font-bold tracking-widest text-black uppercase transition-all duration-300 group-hover:translate-x-1`}>
+                <span className="font-display text-xs font-bold tracking-widest text-black uppercase transition-all duration-300 group-hover:translate-x-1">
                   {opt.cta}
                 </span>
                 <span className="transition-transform duration-300 group-hover:translate-x-2 text-black">→</span>
@@ -91,7 +87,7 @@ export default function SelectionPage() {
         {/* Back */}
         <Link
           href="/"
-          className={`${sg.className} mt-10 text-xs font-semibold tracking-widest uppercase text-gray-400 hover:text-black transition-colors duration-200 relative group`}
+          className="font-display mt-10 text-xs font-semibold tracking-widest uppercase text-gray-400 hover:text-black transition-colors duration-200 relative group"
         >
           Back to Home
           <span className="absolute bottom-0 left-0 w-0 h-px bg-black transition-all duration-300 group-hover:w-full" />

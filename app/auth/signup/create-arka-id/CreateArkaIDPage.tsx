@@ -1,27 +1,76 @@
 'use client';
 
-import { Inter, Space_Grotesk } from 'next/font/google';
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import AuthLogo from '../../../components/auth/AuthLogo';
 import AuthInput from '../../../components/auth/AuthInput';
 import AuthButton from '../../../components/auth/AuthButton';
 import QuoteSidebar from '../../../components/auth/QuoteSidebar';
-
-const inter = Inter({ subsets: ['latin'] });
-const sg = Space_Grotesk({ subsets: ['latin'] });
+import { createClient } from '@/lib/supabase/client';
 
 export default function CreateArkaIDPage() {
+  const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
+      setErrorMessage('Please complete all fields.');
+      return;
+    }
+
+    if (password.length < 8) {
+      setErrorMessage('Password must be at least 8 characters.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage('Password confirmation does not match.');
+      return;
+    }
+
+    if (!agreed) {
+      setErrorMessage('You must agree to the terms before continuing.');
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => setLoading(false), 2000);
+
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: {
+          full_name: name.trim(),
+        },
+      },
+    });
+
+    setLoading(false);
+
+    if (error) {
+      setErrorMessage(error.message);
+      return;
+    }
+
+    if (!data.session) {
+      setSuccessMessage('Account created. Please verify your email, then sign in.');
+      return;
+    }
+
+    router.push('/onboarding');
+    router.refresh();
   };
 
   return (
@@ -39,10 +88,10 @@ export default function CreateArkaIDPage() {
         <div className="flex-1 flex items-center justify-center px-8 lg:px-0">
           <div className="w-full max-w-md">
 
-            <h1 className={`${sg.className} text-3xl font-bold text-black mb-1`}>
+            <h1 className="font-display text-3xl font-bold text-black mb-1">
               Create Your Arka ID
             </h1>
-            <p className={`${inter.className} text-gray-400 text-sm mb-10`}>
+            <p className="text-gray-400 text-sm mb-10">
               Your single identity for all ArkaAnalytics teams.
             </p>
 
@@ -93,7 +142,7 @@ export default function CreateArkaIDPage() {
                   </svg>
                 )}
               </button>
-              <span className={`${inter.className} text-sm text-gray-500`}>
+              <span className="text-sm text-gray-500">
                 I agree to the{' '}
                 <Link href="#" className="font-bold text-black hover:underline">Terms of Service</Link>
                 {' '}and{' '}
@@ -105,7 +154,18 @@ export default function CreateArkaIDPage() {
               Create Arka ID
             </AuthButton>
 
-            <p className={`${inter.className} text-sm text-gray-400 text-center mt-6`}>
+            {errorMessage ? (
+              <p className="mt-3 text-sm text-red-600">
+                {errorMessage}
+              </p>
+            ) : null}
+            {successMessage ? (
+              <p className="mt-3 text-sm text-green-700">
+                {successMessage}
+              </p>
+            ) : null}
+
+            <p className="text-sm text-gray-400 text-center mt-6">
               Already have an account?{' '}
               <Link href="/auth/signin" className="font-bold text-black hover:underline">
                 Login

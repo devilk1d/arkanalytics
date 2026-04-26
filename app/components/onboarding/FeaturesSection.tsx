@@ -1,10 +1,5 @@
 'use client';
 
-import { Inter, Space_Grotesk } from 'next/font/google';
-
-const inter = Inter({ subsets: ['latin'] });
-const spaceGrotesk = Space_Grotesk({ subsets: ['latin'] });
-
 const features = [
   {
     icon: (
@@ -49,10 +44,10 @@ export default function FeaturesSection() {
     <section id="features" className="py-20 px-6 bg-white">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
-          <h2 className={`${spaceGrotesk.className} text-4xl lg:text-5xl font-bold text-black mb-4`}>
+          <h2 className="font-display text-4xl lg:text-5xl font-bold text-black mb-4">
             Everything you need to retrain
           </h2>
-          <p className={`${inter.className} text-base text-gray-400`}>
+          <p className="text-base text-gray-400">
             Powerful features that work together seamlessly to drive growth.
           </p>
         </div>
@@ -67,10 +62,10 @@ export default function FeaturesSection() {
                 {feat.icon}
               </div>
               <div>
-                <h3 className={`${spaceGrotesk.className} text-lg font-semibold text-black mb-2 transition-colors duration-200`}>
+                <h3 className="font-display text-lg font-semibold text-black mb-2 transition-colors duration-200">
                   {feat.title}
                 </h3>
-                <p className={`${inter.className} text-sm text-gray-500 leading-relaxed transition-colors duration-200 group-hover:text-gray-700`}>
+                <p className="text-sm text-gray-500 leading-relaxed transition-colors duration-200 group-hover:text-gray-700">
                   {feat.desc}
                 </p>
               </div>
