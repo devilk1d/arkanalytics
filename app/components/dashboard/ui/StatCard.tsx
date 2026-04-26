@@ -1,0 +1,33 @@
+import { ReactNode } from 'react';
+import Card from './Card';
+
+interface StatCardProps {
+  label: string;
+  value: string;
+  change?: string;
+  changePositive?: boolean;
+  icon?: ReactNode;
+  iconBg?: string;
+}
+
+export default function StatCard({ label, value, change, changePositive = true, icon, iconBg = 'bg-blue-50' }: StatCardProps) {
+  return (
+    <Card className="flex-1 min-w-0">
+      <div className="flex items-start justify-between mb-3">
+        <p className="text-sm text-gray-500 font-medium">{label}</p>
+        {icon && (
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconBg}`}>
+            {icon}
+          </div>
+        )}
+      </div>
+      <p className="text-3xl font-black text-black mb-2 tracking-tight">{value}</p>
+      {change && (
+        <p className={`text-sm font-medium ${changePositive ? 'text-green-600' : 'text-red-500'}`}>
+          {change}{' '}
+          <span className="text-gray-400 font-normal">vs last month</span>
+        </p>
+      )}
+    </Card>
+  );
+}
