@@ -2,8 +2,10 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Avatar from '../ui/Avatar';
+import { getInitials, useDashboardContext } from '../context/DashboardContext';
+import { createClient } from '@/lib/supabase/client';
 
 const navItems = [
   {
@@ -63,9 +65,19 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { profile } = useDashboardContext();
+  const initials = getInitials(profile?.fullName || 'User');
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/auth/signin');
+    router.refresh();
+  };
 
   return (
-    <aside className="w-[68px] bg-white border-r border-gray-100 flex flex-col items-center py-4 gap-2 shrink-0 h-screen sticky top-0 z-30">
+    <aside className="w-17 bg-white border-r border-gray-100 flex flex-col items-center py-4 gap-2 shrink-0 h-screen sticky top-0 z-30">
       {/* Logo */}
       <Link href="/dashboard/overview" className="w-10 h-10 flex items-center justify-center mb-3 hover:opacity-75 transition-opacity">
         <Image src="/images/logo_arka_hitam.png" alt="Arka" width={28} height={28} />
@@ -105,8 +117,21 @@ export default function Sidebar() {
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
         </Link>
+        <button
+          onClick={() => {
+            void handleLogout();
+          }}
+          title="Log Out"
+          className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all duration-200"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </button>
         <div className="cursor-pointer hover:opacity-80 transition-opacity">
-          <Avatar initials="AM" size="sm" />
+          <Avatar initials={initials} src={profile?.avatarUrl || undefined} size="md" />
         </div>
       </div>
     </aside>

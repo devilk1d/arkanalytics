@@ -10,10 +10,68 @@ import CustomerFlowChart from '../../charts/CustomerFlowChart';
 import DonutChart from '../../charts/DonutChart';
 
 const segments = [
-  { name: 'Loyal Champions', pct: '17.1%', mrr: '$2,845', color: 'text-green-600', bg: 'bg-green-50', icon: '⭐' },
-  { name: 'At Risk',         pct: '11.4%', mrr: '$456',   color: 'text-red-500',   bg: 'bg-red-50',   icon: '⚠️' },
-  { name: 'New Adopters',    pct: '31.3%', mrr: '$187',   color: 'text-blue-600',  bg: 'bg-blue-50',  icon: '📈' },
-  { name: 'High Value',      pct: '50.2%', mrr: '$1,268', color: 'text-purple-600',bg: 'bg-purple-50',icon: '👥' },
+  {
+    name: 'Loyal Champions',
+    pct: '17.1%',
+    mrr: '$2,845',
+    color: 'text-emerald-600',
+    panelBg: 'bg-emerald-50/70',
+    panelBorder: 'border-emerald-100',
+    iconBg: 'bg-emerald-100/90',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      </svg>
+    ),
+  },
+  {
+    name: 'At Risk',
+    pct: '11.4%',
+    mrr: '$456',
+    color: 'text-red-500',
+    panelBg: 'bg-red-50/70',
+    panelBorder: 'border-red-100',
+    iconBg: 'bg-red-100/90',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="7" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+    ),
+  },
+  {
+    name: 'New Adopters',
+    pct: '31.3%',
+    mrr: '$187',
+    color: 'text-blue-600',
+    panelBg: 'bg-blue-50/70',
+    panelBorder: 'border-blue-100',
+    iconBg: 'bg-blue-100/90',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="18 8 18 14 12 14" />
+        <path d="M18 8l-8.5 8.5L6 13" />
+      </svg>
+    ),
+  },
+  {
+    name: 'High Value',
+    pct: '50.2%',
+    mrr: '$1,268',
+    color: 'text-violet-600',
+    panelBg: 'bg-violet-50/70',
+    panelBorder: 'border-violet-100',
+    iconBg: 'bg-violet-100/90',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
 ];
 
 const chatMessages = [
@@ -27,33 +85,73 @@ export default function OverviewPage() {
   return (
     <DashboardLayout page="Dashboard Overview">
       {/* Stat cards row */}
-      <div className="flex gap-4 mb-4">
+      <div className="grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2 2xl:grid-cols-4">
         <StatCard label="Total Customers" value="13,000" change="+12.5%" changePositive
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}
-          iconBg="bg-blue-50"
+          iconBg="bg-slate-100"
         />
         <StatCard label="Active Customers" value="3,510" change="+8.5%" changePositive
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>}
-          iconBg="bg-blue-50"
+          iconBg="bg-slate-100"
         />
         <StatCard label="Churn Rate" value="5.4%" change="-1.7%" changePositive={false}
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></svg>}
-          iconBg="bg-blue-50"
+          iconBg="bg-slate-100"
         />
         <StatCard label="Predicted Churn" value="229" change="+3.4%" changePositive={false}
           icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
-          iconBg="bg-blue-50"
+          iconBg="bg-slate-100"
         />
       </div>
 
-      {/* Charts + Chat row */}
-      <div className="grid grid-cols-12 gap-4 mb-4">
-        {/* Churn Trend */}
-        <Card className="col-span-5"><ChurnTrendChart /></Card>
-        {/* Customer Flow */}
-        <Card className="col-span-4"><CustomerFlowChart /></Card>
-        {/* Team Chat */}
-        <Card className="col-span-3 flex flex-col gap-3">
+      <div className="grid grid-cols-12 gap-4">
+        <div className="col-span-9 grid gap-4">
+          {/* Charts row */}
+          <div className="grid grid-cols-9 gap-4">
+            <Card className="col-span-5"><ChurnTrendChart /></Card>
+            <Card className="col-span-4"><CustomerFlowChart /></Card>
+          </div>
+
+          {/* Distribution + Segments row */}
+          <div className="grid grid-cols-12 gap-4">
+            <Card className="col-span-4"><DonutChart /></Card>
+
+            <Card className="col-span-8">
+              <h3 className="text-sm font-bold text-black mb-4">Customer Segment</h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+                {segments.map(s => (
+                  <div key={s.name} className={`rounded-xl border border-gray-200 bg-white overflow-hidden flex min-h-29`}>
+                    <div className={`w-8 border-r flex items-start justify-center pt-3 ${s.panelBg} ${s.panelBorder}`}>
+                      <div className={`h-6 w-6 rounded-md flex items-center justify-center ${s.iconBg}`}>
+                        {s.icon}
+                      </div>
+                    </div>
+                    <div className="flex-1 p-2.5 flex flex-col gap-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-xs font-semibold text-gray-900 leading-tight">{s.name}</p>
+                        <span className={`text-[10px] font-semibold ${s.color}`}>{s.pct}</span>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-400">Percentage</p>
+                        <p className={`text-sm font-black leading-tight ${s.color}`}>{s.pct}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-gray-400">Avg MRR</p>
+                        <p className="text-sm font-black leading-tight text-gray-900">{s.mrr}</p>
+                      </div>
+                      <button className="mt-auto text-[10px] font-semibold text-gray-600 border border-gray-200 rounded-md py-1 hover:bg-gray-50 transition-colors">
+                        View
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* Team Chat spans both rows */}
+        <Card className="col-span-3 flex h-full flex-col gap-3">
           <h3 className="text-sm font-bold text-black">Team Chat</h3>
           <Button variant="blue" className="w-full justify-center">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -70,36 +168,6 @@ export default function OverviewPage() {
                   </div>
                   <p className="text-[11px] text-gray-500 truncate">{m.msg}</p>
                 </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      {/* Distribution + Segments row */}
-      <div className="grid grid-cols-12 gap-4">
-        {/* Donut */}
-        <Card className="col-span-4"><DonutChart /></Card>
-
-        {/* Customer Segments */}
-        <Card className="col-span-8">
-          <h3 className="text-sm font-bold text-black mb-4">Customer Segment</h3>
-          <div className="grid grid-cols-4 gap-3">
-            {segments.map(s => (
-              <div key={s.name} className={`${s.bg} rounded-2xl p-4 flex flex-col gap-2`}>
-                <div className="text-xl">{s.icon}</div>
-                <p className="text-xs font-bold text-black">{s.name}</p>
-                <div>
-                  <p className="text-[10px] text-gray-500">Percentage</p>
-                  <p className={`text-sm font-black ${s.color}`}>{s.pct}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-500">Avg MRR</p>
-                  <p className="text-sm font-black text-black">{s.mrr}</p>
-                </div>
-                <button className="text-[10px] font-semibold border border-current rounded-lg py-1 hover:bg-white/50 transition-colors">
-                  View
-                </button>
               </div>
             ))}
           </div>

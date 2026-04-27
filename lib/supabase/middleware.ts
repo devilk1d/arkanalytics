@@ -38,7 +38,49 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { pathname } = request.nextUrl;
+  const isDashboardRoute = pathname.startsWith('/dashboard');
+  const isSignInRoute = pathname === '/auth/signin';
+
+  if (!user && isDashboardRoute) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/auth/signin';
+    redirectUrl.searchParams.set('redirectedFrom', pathname);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (user && isSignInRoute) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/dashboard/overview';
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (user && isDashboardRoute) {
+    const supabaseForActivity = createServerClient(url, anonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => {
+            request.cookies.set(name, value);
+          });
+
+          response = NextResponse.next({ request });
+
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    });
+
+    await supabaseForActivity.from('users').update({ last_active_at: new Date().toISOString() }).eq('id', user.id);
+  }
 
   return response;
 }

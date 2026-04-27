@@ -1,38 +1,199 @@
 'use client';
 
-import { useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../../layout/DashboardLayout';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Avatar from '../../ui/Avatar';
 import Badge from '../../ui/Badge';
+import {
+  formatRoleLabel,
+  formatRolePermission,
+  getInitials,
+  useDashboardContext,
+} from '../../context/DashboardContext';
 
-const members = [
-  { name: 'Naufal Putra',      email: 'naufal@arka.com',   role: 'Admin', status: 'active'  as const, lastActive: '2 hours ago' },
-  { name: 'Rizqy Pratama',     email: 'rizqy@arka.com',    role: 'Team',  status: 'active'  as const, lastActive: '5 hours ago' },
-  { name: 'Fawwaz Aiman',      email: 'fawwaz@arka.com',   role: 'Team',  status: 'active'  as const, lastActive: '1 day ago' },
-  { name: 'Muhibuddin Muklish',email: 'muklish@arka.com',  role: 'Team',  status: 'invited' as const, lastActive: '—' },
-  { name: 'Ibnu Abimanyu',     email: 'abimanyu@arka.com', role: 'Admin', status: 'active'  as const, lastActive: '30 minutes ago' },
-];
+function formatLastActive(lastActiveAt: string | null) {
+  if (!lastActiveAt) {
+    return 'Belum aktif';
+  }
 
-const roles = [
-  { role: 'Admin', desc: 'Full system access',                   perms: 'All Permissions',                        users: 'All Permissions' },
-  { role: 'Team',  desc: 'Manage customer data',                 perms: 'View Reports, Manage Customers, Export Data', users: 'All Permissions' },
-];
-
-const initialsMap: Record<string, string> = {
-  'Naufal Putra': 'NP', 'Rizqy Pratama': 'RP', 'Fawwaz Aiman': 'FA',
-  'Muhibuddin Muklish': 'MM', 'Ibnu Abimanyu': 'IA',
-};
+  const date = new Date(lastActiveAt);
+  return new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date) + ' WIB';
+}
 
 export default function SettingsPage() {
+  return (
+    <DashboardLayout page="Settings">
+      <SettingsContent />
+    </DashboardLayout>
+  );
+}
+
+function SettingsContent() {
+  const {
+    loading,
+    actionLoading,
+    profile,
+    workspace,
+    members,
+    roleSummary,
+    error,
+    saveCompanyInfo,
+    uploadCompanyLogo,
+    removeCompanyLogo,
+    inviteMember,
+    updateMemberRole,
+    deleteMember,
+  } = useDashboardContext();
+
   const [isDark, setIsDark] = useState(false);
   const [companyName, setCompanyName] = useState('');
   const [website, setWebsite] = useState('');
   const [supportEmail, setSupportEmail] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!workspace) {
+      return;
+    }
+    setCompanyName(workspace.name || '');
+    setWebsite(workspace.websiteUrl || '');
+    setSupportEmail(workspace.supportEmail || '');
+  }, [workspace]);
+
+  const roleRows = useMemo(
+    () =>
+      roleSummary.map((role) => ({
+        role: formatRoleLabel(role.role),
+        desc: role.role.toLowerCase() === 'admin' ? 'Workspace administrators' : 'Workspace members',
+        perms: formatRolePermission(role.role),
+        users: `${role.users} users`,
+      })),
+    [roleSummary],
+  );
+
+  const handleSaveCompany = async () => {
+    setSaving(true);
+    setStatusMessage('');
+    const result = await saveCompanyInfo({
+      name: companyName.trim(),
+      supportEmail: supportEmail.trim(),
+      websiteUrl: website.trim(),
+    });
+    setSaving(false);
+
+    if (result.error) {
+      setStatusMessage(result.error);
+      return;
+    }
+
+    setStatusMessage('Company information updated.');
+  };
+
+  const handleLogoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setStatusMessage('');
+    const result = await uploadCompanyLogo(file);
+    if (result.error) {
+      setStatusMessage(result.error);
+      return;
+    }
+    setStatusMessage('Company logo updated.');
+  };
+
+  const handleRemoveLogo = async () => {
+    setStatusMessage('');
+    const result = await removeCompanyLogo();
+    if (result.error) {
+      setStatusMessage(result.error);
+      return;
+    }
+    setStatusMessage('Company logo removed.');
+  };
+
+  const handleInviteMember = async () => {
+    const invitedEmail = window.prompt('Masukkan email user yang ingin diundang:');
+    if (!invitedEmail?.trim()) {
+      return;
+    }
+
+    const roleToAssign = window.prompt('Masukkan role untuk user ini (contoh: member, admin, sales):', 'member');
+    if (!roleToAssign?.trim()) {
+      return;
+    }
+
+    setStatusMessage('');
+    const result = await inviteMember({
+      invitedEmail: invitedEmail.trim(),
+      roleToAssign: roleToAssign.trim().toLowerCase(),
+    });
+
+    if (result.error) {
+      setStatusMessage(result.error);
+      return;
+    }
+
+    setStatusMessage('Invitation sent successfully.');
+  };
+
+  const handleEditMemberRole = async (memberUserId: string, currentRole: string) => {
+    const newRole = window.prompt('Ubah role user:', currentRole);
+    if (!newRole?.trim() || newRole.trim().toLowerCase() === currentRole.toLowerCase()) {
+      return;
+    }
+
+    setStatusMessage('');
+    const result = await updateMemberRole({
+      memberUserId,
+      newRole: newRole.trim().toLowerCase(),
+    });
+
+    if (result.error) {
+      setStatusMessage(result.error);
+      return;
+    }
+
+    setStatusMessage('Member role updated.');
+  };
+
+  const handleDeleteMember = async (memberUserId: string, memberName: string) => {
+    const isSelf = profile?.id === memberUserId;
+    if (isSelf) {
+      setStatusMessage('Kamu tidak bisa menghapus akun sendiri.');
+      return;
+    }
+
+    const confirmed = window.confirm(`Hapus member ${memberName}?`);
+    if (!confirmed) {
+      return;
+    }
+
+    setStatusMessage('');
+    const result = await deleteMember({ memberUserId });
+
+    if (result.error) {
+      setStatusMessage(result.error);
+      return;
+    }
+
+    setStatusMessage('Member deleted.');
+  };
 
   return (
-    <DashboardLayout page="Settings">
       <div className="grid grid-cols-3 gap-4">
 
         {/* Left column */}
@@ -45,14 +206,21 @@ export default function SettingsPage() {
             {/* Logo upload */}
             <div className="flex gap-4 mb-4">
               <div className="flex flex-col items-center gap-2">
-                <div className="w-16 h-16 bg-gray-100 rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-gray-200 cursor-pointer hover:border-gray-400 transition-colors">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round">
-                    <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
-                    <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
-                  </svg>
-                  <p className="text-[9px] text-gray-400 mt-0.5 text-center">Upload Logo</p>
-                </div>
-                <button className="text-xs text-red-400 hover:text-red-600">Remove</button>
+                <label className="w-16 h-16 bg-gray-100 rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-gray-200 cursor-pointer hover:border-gray-400 transition-colors overflow-hidden">
+                  {workspace?.logoUrl ? (
+                    <img src={workspace.logoUrl} alt="Company logo" className="w-full h-full object-cover" />
+                  ) : (
+                    <>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round">
+                        <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+                        <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                      </svg>
+                      <p className="text-[9px] text-gray-400 mt-0.5 text-center">Upload Logo</p>
+                    </>
+                  )}
+                  <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                </label>
+                <button onClick={handleRemoveLogo} className="text-xs text-red-400 hover:text-red-600">Remove</button>
               </div>
               <div className="flex-1 flex flex-col gap-3">
                 <div>
@@ -77,7 +245,12 @@ export default function SettingsPage() {
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-black transition-colors" />
             </div>
 
-            <Button className="w-full justify-center" size="sm">Save Changes</Button>
+            <Button onClick={handleSaveCompany} className="w-full justify-center" size="sm" disabled={saving}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+            {(statusMessage || error) ? (
+              <p className="mt-3 text-xs text-gray-500">{statusMessage || error}</p>
+            ) : null}
           </Card>
 
           {/* Theme toggle */}
@@ -119,7 +292,13 @@ export default function SettingsPage() {
                 <h3 className="text-sm font-bold text-black">Team Members</h3>
                 <p className="text-xs text-gray-400">Manage user access and permissions</p>
               </div>
-              <Button size="sm" variant="secondary"
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  void handleInviteMember();
+                }}
+                disabled={actionLoading}
                 icon={<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}
               >
                 Invite User
@@ -135,21 +314,35 @@ export default function SettingsPage() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {members.map(m => (
-                  <tr key={m.email} className="hover:bg-gray-50 transition-colors">
+                  <tr key={m.userId} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2">
-                        <Avatar initials={initialsMap[m.name] || 'XX'} size="sm" />
-                        <span className="text-sm font-medium text-black">{m.name}</span>
+                        <Avatar initials={getInitials(m.fullName)} src={m.avatarUrl || undefined} size="sm" />
+                        <span className="text-sm font-medium text-black">{m.fullName}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-sm text-gray-500">{m.email}</td>
-                    <td className="px-5 py-3 text-sm text-gray-700 font-medium">{m.role}</td>
-                    <td className="px-5 py-3"><Badge label={m.status.charAt(0).toUpperCase() + m.status.slice(1)} variant={m.status} /></td>
-                    <td className="px-5 py-3 text-sm text-gray-500">{m.lastActive}</td>
+                    <td className="px-5 py-3 text-sm text-gray-500">{m.email || 'Hidden by policy'}</td>
+                    <td className="px-5 py-3 text-sm text-gray-700 font-medium">{formatRoleLabel(m.role)}</td>
+                    <td className="px-5 py-3"><Badge label="Active" variant="active" /></td>
+                    <td className="px-5 py-3 text-sm text-gray-500">{formatLastActive(m.lastActiveAt)}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
-                        <button className="text-xs font-semibold text-gray-600 hover:text-black transition-colors">Edit</button>
-                        <button className="text-red-400 hover:text-red-600 transition-colors">
+                        <button
+                          className="text-xs font-semibold text-gray-600 hover:text-black transition-colors disabled:opacity-50"
+                          onClick={() => {
+                            void handleEditMemberRole(m.userId, m.role);
+                          }}
+                          disabled={actionLoading}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className="text-red-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                          onClick={() => {
+                            void handleDeleteMember(m.userId, m.fullName);
+                          }}
+                          disabled={actionLoading}
+                        >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                             <polyline points="3 6 5 6 21 6"/>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
@@ -159,6 +352,11 @@ export default function SettingsPage() {
                     </td>
                   </tr>
                 ))}
+                {!loading && members.length === 0 ? (
+                  <tr>
+                    <td className="px-5 py-5 text-sm text-gray-500" colSpan={6}>No members found for this workspace.</td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </Card>
@@ -178,7 +376,7 @@ export default function SettingsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {roles.map(r => (
+                {roleRows.map(r => (
                   <tr key={r.role} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3 text-sm font-bold text-black">{r.role}</td>
                     <td className="px-5 py-3 text-sm text-gray-500">{r.desc}</td>
@@ -197,11 +395,15 @@ export default function SettingsPage() {
                     </td>
                   </tr>
                 ))}
+                {!loading && roleRows.length === 0 ? (
+                  <tr>
+                    <td className="px-5 py-5 text-sm text-gray-500" colSpan={5}>No roles available in this workspace.</td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </Card>
         </div>
       </div>
-    </DashboardLayout>
   );
 }

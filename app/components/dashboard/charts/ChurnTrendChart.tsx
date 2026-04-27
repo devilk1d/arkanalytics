@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceDot } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Tabs from '../ui/Tabs';
 
 const data = {
@@ -49,8 +49,8 @@ export default function ChurnTrendChart() {
   const chartData = data[period as keyof typeof data];
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-bold text-black">Churn Trend</h3>
         <Tabs
           tabs={[{ label: 'Day', value: 'Day' }, { label: 'Week', value: 'Week' }, { label: 'Month', value: 'Month' }]}
@@ -60,11 +60,11 @@ export default function ChurnTrendChart() {
         />
       </div>
 
-      <ResponsiveContainer width="100%" height={160}>
-        <LineChart data={chartData} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+      <ResponsiveContainer width="100%" height={210}>
+        <LineChart data={chartData} margin={{ top: 8, right: 6, bottom: 0, left: -14 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-          <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+          <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} width={32} />
           <Tooltip content={<CustomTooltip />} cursor={false} />
           <Line type="monotone" dataKey="retention" stroke="#22c55e" strokeWidth={2.5} dot={false}
             activeDot={{ r: 5, fill: '#22c55e', stroke: 'white', strokeWidth: 2 }} />
@@ -73,7 +73,7 @@ export default function ChurnTrendChart() {
         </LineChart>
       </ResponsiveContainer>
 
-      <div className="flex items-center gap-4 mt-3">
+      <div className="flex items-center gap-4 mt-2">
         <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" /><span className="text-xs text-gray-500">Retention</span></div>
         <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block" /><span className="text-xs text-gray-500">Churn</span></div>
       </div>

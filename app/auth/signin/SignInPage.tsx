@@ -77,7 +77,7 @@ export default function SignInPage() {
 
     setLoading(false);
 
-    router.push('/onboarding');
+    router.push('/dashboard/overview');
     router.refresh();
   };
 

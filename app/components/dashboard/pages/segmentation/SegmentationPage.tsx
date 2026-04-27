@@ -2,9 +2,8 @@
 
 import { useState } from 'react';
 import DashboardLayout from '../../layout/DashboardLayout';
-import StatCard from '../../ui/StatCard';
+import SegmentStatCard from '../../ui/SegmentStatCard';
 import Card from '../../ui/Card';
-import Badge from '../../ui/Badge';
 import SearchBar from '../../ui/SearchBar';
 import Select from '../../ui/Select';
 import ProgressBar from '../../ui/ProgressBar';
@@ -12,10 +11,68 @@ import ClusterChart from '../../charts/ClusterChart';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 'recharts';
 
 const segmentStats = [
-  { label: 'Loyal Champions', value: '487',   badge: '17.1%', avgMrr: '$2,845', totalMrr: '$1388K', color: 'text-green-500',  iconBg: 'bg-green-50',  icon: '⭐', badgeBg: 'bg-green-100 text-green-700' },
-  { label: 'At Risk',         value: '324',   badge: '11.4%', avgMrr: '$456',   totalMrr: '$148K',  color: 'text-red-500',    iconBg: 'bg-red-50',    icon: '⚠️', badgeBg: 'bg-red-100 text-red-700'   },
-  { label: 'New Adopters',    value: '892',   badge: '31.3%', avgMrr: '$187',   totalMrr: '$167K',  color: 'text-blue-500',   iconBg: 'bg-blue-50',   icon: '📈', badgeBg: 'bg-blue-100 text-blue-700' },
-  { label: 'High Value',      value: '1,144', badge: '40.3%', avgMrr: '$1,234', totalMrr: '$1412K', color: 'text-purple-500', iconBg: 'bg-purple-50', icon: '👥', badgeBg: 'bg-purple-100 text-purple-700' },
+  {
+    label: 'Loyal Champions',
+    value: '487',
+    badge: '17.1%',
+    avgMrr: '$2,845',
+    totalMrr: '$1386K',
+    metricColorClass: 'text-emerald-600',
+    iconBgClass: 'bg-emerald-100',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      </svg>
+    ),
+  },
+  {
+    label: 'At Risk',
+    value: '324',
+    badge: '11.4%',
+    avgMrr: '$456',
+    totalMrr: '$148K',
+    metricColorClass: 'text-red-500',
+    iconBgClass: 'bg-red-100',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="7" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+    ),
+  },
+  {
+    label: 'New Adopters',
+    value: '892',
+    badge: '31.3%',
+    avgMrr: '$187',
+    totalMrr: '$167K',
+    metricColorClass: 'text-blue-600',
+    iconBgClass: 'bg-blue-100',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="18 8 18 14 12 14" />
+        <path d="M18 8l-8.5 8.5L6 13" />
+      </svg>
+    ),
+  },
+  {
+    label: 'High Value',
+    value: '1,144',
+    badge: '40.3%',
+    avgMrr: '$1,234',
+    totalMrr: '$1412K',
+    metricColorClass: 'text-violet-600',
+    iconBgClass: 'bg-violet-100',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9333ea" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
 ];
 
 const customers = [
@@ -48,21 +105,19 @@ export default function SegmentationPage() {
   return (
     <DashboardLayout page="Customer Segmentation">
       {/* Segment stat cards */}
-      <div className="flex gap-4 mb-4">
+      <div className="grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2 2xl:grid-cols-4">
         {segmentStats.map(s => (
-          <Card key={s.label} className="flex-1">
-            <div className="flex items-start justify-between mb-2">
-              <div>
-                <p className="text-xs text-gray-500 font-medium">{s.label}</p>
-                <p className={`text-3xl font-black ${s.color}`}>{s.value}</p>
-              </div>
-              <span className={`text-xs font-bold px-2 py-1 rounded-lg ${s.badgeBg}`}>{s.badge}</span>
-            </div>
-            <p className="text-xs text-gray-400">
-              Avg MRR: <span className="text-blue-600 font-semibold">{s.avgMrr}</span>
-              {' · '}Total MRR: <span className="text-blue-600 font-semibold">{s.totalMrr}</span>
-            </p>
-          </Card>
+          <SegmentStatCard
+            key={s.label}
+            label={s.label}
+            value={s.value}
+            percentage={s.badge}
+            avgMrr={s.avgMrr}
+            totalMrr={s.totalMrr}
+            icon={s.icon}
+            iconBgClass={s.iconBgClass}
+            metricColorClass={s.metricColorClass}
+          />
         ))}
       </div>
 
