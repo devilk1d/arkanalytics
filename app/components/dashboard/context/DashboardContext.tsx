@@ -37,6 +37,15 @@ type RoleSummary = {
   users: number;
 };
 
+type CustomRole = {
+  id: string;
+  name: string;
+  description: string;
+  permissions: string[];
+  userId: string;
+  createdAt: string;
+};
+
 type DashboardContextValue = {
   loading: boolean;
   error: string;
@@ -46,13 +55,17 @@ type DashboardContextValue = {
   myRole: string;
   members: WorkspaceMember[];
   roleSummary: RoleSummary[];
+  customRoles: CustomRole[];
   refresh: () => Promise<void>;
   saveCompanyInfo: (payload: { name: string; supportEmail: string; websiteUrl: string }) => Promise<{ error?: string }>;
+  createCustomRole: (payload: { name: string; description: string; permissions: string[] }) => Promise<{ error?: string }>;
   uploadCompanyLogo: (file: File) => Promise<{ error?: string; logoUrl?: string }>;
   removeCompanyLogo: () => Promise<{ error?: string }>;
   inviteMember: (payload: { invitedEmail: string; roleToAssign: string }) => Promise<{ error?: string }>;
   updateMemberRole: (payload: { memberUserId: string; newRole: string }) => Promise<{ error?: string }>;
   deleteMember: (payload: { memberUserId: string }) => Promise<{ error?: string }>;
+  saveUserProfile: (payload: { fullName: string }) => Promise<{ error?: string }>;
+  uploadUserAvatar: (file: File) => Promise<{ error?: string; avatarUrl?: string }>;
 };
 
 type DashboardInitialState = {
@@ -92,6 +105,7 @@ export function DashboardProvider({ children, initialState }: { children: React.
   const [workspace, setWorkspace] = useState<WorkspaceInfo | null>(initialState?.workspace ?? null);
   const [myRole, setMyRole] = useState(initialState?.myRole || '');
   const [members, setMembers] = useState<WorkspaceMember[]>(initialState?.members ?? []);
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -163,9 +177,18 @@ export function DashboardProvider({ children, initialState }: { children: React.
     });
 
     if (memberError || !memberRows || memberRows.length === 0) {
-      setWorkspace(null);
-      setMyRole('');
+      // Don't clear workspace immediately - fallback to empty members but keep workspace context
+      if (memberError && !/no rows/i.test(memberError.message || '')) {
+        setError(memberError.message);
+        setMembers([]);
+        setCustomRoles([]);
+        setLoading(false);
+        return;
+      }
+      // Allow empty members list but keep workspace loaded
       setMembers([]);
+      setMyRole('');
+      setCustomRoles([]);
       setLoading(false);
       return;
     }
@@ -224,6 +247,31 @@ export function DashboardProvider({ children, initialState }: { children: React.
       p_workspace_id: activeMembership.workspace_id,
     });
 
+    // Fetch custom roles in parallel
+    const { data: rolesData, error: rolesError } = await supabase
+      .from('workspace_roles')
+      .select('id, name, description, permissions, user_id, created_at')
+      .eq('workspace_id', activeMembership.workspace_id)
+      .order('created_at', { ascending: true });
+
+    // Debug: log roles fetch result
+    if (rolesError) {
+      console.error('Roles fetch error:', rolesError);
+    } else {
+      console.log('Roles fetched:', rolesData?.length || 0);
+    }
+
+    const mappedRoles: CustomRole[] = (rolesData || []).map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      description: row.description || '',
+      permissions: row.permissions || [],
+      userId: row.user_id,
+      createdAt: row.created_at,
+    }));
+
+    setCustomRoles(mappedRoles);
+
     if (memberListError) {
       setError(memberListError.message);
       setMembers([]);
@@ -246,10 +294,13 @@ export function DashboardProvider({ children, initialState }: { children: React.
   }, []);
 
   useEffect(() => {
-    if (!initialState?.profile || !initialState?.workspace) {
-      refresh();
-    }
-  }, [initialState?.profile, initialState?.workspace, refresh]);
+    // Always refresh on mount to ensure customRoles (and other runtime-only data)
+    // are fetched even when initialState is provided via SSR.
+    // initialState never includes customRoles, so without this call they stay empty
+    // until the user triggers another action (e.g. createCustomRole).
+    void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount only
 
   const saveCompanyInfo = useCallback(
     async (payload: { name: string; supportEmail: string; websiteUrl: string }) => {
@@ -469,6 +520,104 @@ export function DashboardProvider({ children, initialState }: { children: React.
     [profile, refresh, workspace],
   );
 
+  const saveUserProfile = useCallback(
+    async (payload: { fullName: string }) => {
+      if (!profile) {
+        return { error: 'User profile not found.' };
+      }
+
+      const supabase = createClient();
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ full_name: payload.fullName })
+        .eq('id', profile.id);
+
+      if (updateError) {
+        return { error: updateError.message };
+      }
+
+      setProfile((prev) => (prev ? { ...prev, fullName: payload.fullName } : prev));
+      return {};
+    },
+    [profile],
+  );
+
+  const uploadUserAvatar = useCallback(
+    async (file: File) => {
+      if (!profile) {
+        return { error: 'User profile not found.' };
+      }
+
+      const supabase = createClient();
+      const safeFileName = file.name.replace(/\s+/g, '-').toLowerCase();
+      const path = `user-avatar/${profile.id}/${Date.now()}-${safeFileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('files')
+        .upload(path, file, { cacheControl: '3600', upsert: true });
+
+      if (uploadError) {
+        return { error: uploadError.message };
+      }
+
+      const { data: publicUrlData } = supabase.storage.from('files').getPublicUrl(path);
+      const avatarUrl = publicUrlData.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ avatar_url: avatarUrl })
+        .eq('id', profile.id);
+
+      if (updateError) {
+        return { error: updateError.message };
+      }
+
+      setProfile((prev) => (prev ? { ...prev, avatarUrl } : prev));
+      return { avatarUrl };
+    },
+    [profile],
+  );
+
+  const createCustomRole = useCallback(
+    async (payload: { name: string; description: string; permissions: string[] }) => {
+      if (!workspace || !profile) {
+        return { error: 'Workspace or user not found.' };
+      }
+
+      setActionLoading(true);
+      const supabase = createClient();
+
+      // Get current user ID
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData.user) {
+        setActionLoading(false);
+        return { error: 'User not authenticated.' };
+      }
+
+      // Insert new role into workspace_roles table
+      const { error: insertError } = await supabase
+        .from('workspace_roles')
+        .insert({
+          workspace_id: workspace.id,
+          name: payload.name.trim(),
+          description: payload.description.trim(),
+          permissions: payload.permissions,
+          user_id: authData.user.id,
+        });
+
+      setActionLoading(false);
+
+      if (insertError) {
+        return { error: insertError.message };
+      }
+
+      // Refresh to get the new role
+      await refresh();
+      return {};
+    },
+    [workspace, profile, refresh],
+  );
+
   const roleSummary = useMemo<RoleSummary[]>(() => {
     const grouped = members.reduce<Record<string, number>>((acc, member) => {
       const key = member.role?.trim() || 'member';
@@ -491,6 +640,7 @@ export function DashboardProvider({ children, initialState }: { children: React.
       myRole,
       members,
       roleSummary,
+      customRoles,
       refresh,
       saveCompanyInfo,
       uploadCompanyLogo,
@@ -498,9 +648,14 @@ export function DashboardProvider({ children, initialState }: { children: React.
       inviteMember,
       updateMemberRole,
       deleteMember,
+      saveUserProfile,
+      uploadUserAvatar,
+      createCustomRole,
     }),
     [
       actionLoading,
+      createCustomRole,
+      customRoles,
       deleteMember,
       error,
       inviteMember,
@@ -512,8 +667,10 @@ export function DashboardProvider({ children, initialState }: { children: React.
       removeCompanyLogo,
       roleSummary,
       saveCompanyInfo,
+      saveUserProfile,
       updateMemberRole,
       uploadCompanyLogo,
+      uploadUserAvatar,
       workspace,
     ],
   );

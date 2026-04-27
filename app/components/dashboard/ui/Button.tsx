@@ -4,6 +4,7 @@ import { ReactNode } from 'react';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'blue';
 type ButtonSize = 'sm' | 'md' | 'lg';
+type ButtonType = 'button' | 'submit' | 'reset';
 
 interface ButtonProps {
   children: ReactNode;
@@ -13,6 +14,7 @@ interface ButtonProps {
   className?: string;
   disabled?: boolean;
   icon?: ReactNode;
+  type?: ButtonType;
 }
 
 const variantStyles: Record<ButtonVariant, string> = {
@@ -37,9 +39,11 @@ export default function Button({
   className = '',
   disabled = false,
   icon,
+  type = 'button',
 }: ButtonProps) {
   return (
     <button
+      type={type}
       onClick={onClick}
       disabled={disabled}
       className={`

@@ -21,20 +21,23 @@ export default function Modal({ open, onClose, title, subtitle, children, width 
     return () => document.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-end">
+    <div className={`fixed inset-0 z-50 flex items-center justify-end transition-opacity duration-300 ${
+      open ? 'opacity-100' : 'opacity-0 pointer-events-none'
+    }`}>
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60"
+        className={`absolute inset-0 bg-black/60 transition-opacity duration-300 ${
+          open ? 'opacity-100' : 'opacity-0'
+        }`}
         onClick={onClose}
       />
 
       {/* Panel — slides in from right like design */}
       <div
-        className={`relative h-full ${widthMap[width]} w-full bg-white shadow-2xl flex flex-col overflow-hidden`}
-        style={{ animation: 'slideInRight 0.25s ease forwards' }}
+        className={`relative h-full ${widthMap[width]} w-full bg-white shadow-2xl flex flex-col overflow-hidden transition-transform duration-300 ${
+          open ? 'translate-x-0' : 'translate-x-full'
+        }`}
       >
         {/* Header */}
         <div className="flex items-start justify-between p-6 border-b border-gray-100">
