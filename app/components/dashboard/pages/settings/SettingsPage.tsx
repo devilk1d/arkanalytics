@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import DashboardLayout from '../../layout/DashboardLayout';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
@@ -40,6 +41,9 @@ const labelCls = 'block text-xs font-medium text-gray-500 mb-1';
 // Default roles (hardcoded)
 const DEFAULT_ROLES = ['admin', 'members'];
 
+type TabType = 'profile' | 'company' | 'appearance' | 'members';
+const VALID_TABS: TabType[] = ['profile', 'company', 'appearance', 'members'];
+
 export default function SettingsPage() {
   return (
     <DashboardLayout page="Settings">
@@ -49,6 +53,18 @@ export default function SettingsPage() {
 }
 
 function SettingsContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  // Ambil tab dari URL, default ke 'profile' jika tidak ada atau tidak valid
+  const tabFromUrl = searchParams.get('tab');
+  const getInitialTab = (): TabType => {
+    if (tabFromUrl && VALID_TABS.includes(tabFromUrl as TabType)) {
+      return tabFromUrl as TabType;
+    }
+    return 'profile';
+  };
+  
   const {
     loading,
     actionLoading,
@@ -70,7 +86,7 @@ function SettingsContent() {
   } = useDashboardContext();
 
   const [isDark, setIsDark] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'company' | 'appearance'>('profile');
+  const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
 
   // Modal states
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
@@ -106,6 +122,24 @@ function SettingsContent() {
     if (!profile) return;
     setFullName(profile.fullName || '');
   }, [profile]);
+
+  // Sinkronkan activeTab dengan URL jika URL berubah dari luar
+  useEffect(() => {
+    const currentTab = searchParams.get('tab');
+    if (currentTab && VALID_TABS.includes(currentTab as TabType) && currentTab !== activeTab) {
+      setActiveTab(currentTab as TabType);
+    } else if (!currentTab && activeTab !== 'profile') {
+      setActiveTab('profile');
+    }
+  }, [searchParams]);
+
+  // Fungsi untuk mengganti tab dan update URL
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', tab);
+    router.push(`?${params.toString()}`, { scroll: false });
+  };
 
   const roleRows = useMemo(
     () => {
@@ -283,7 +317,7 @@ function SettingsContent() {
           </div>
           {[
             {
-              key: 'profile',
+              key: 'profile' as TabType,
               label: 'My Profile',
               sub: 'Name, photo, Arka ID',
               icon: (
@@ -294,7 +328,7 @@ function SettingsContent() {
               ),
             },
             {
-              key: 'company',
+              key: 'company' as TabType,
               label: 'Company',
               sub: 'Name, logo, website',
               icon: (
@@ -305,7 +339,7 @@ function SettingsContent() {
               ),
             },
             {
-              key: 'appearance',
+              key: 'appearance' as TabType,
               label: 'Appearance',
               sub: 'Light / dark mode',
               icon: (
@@ -321,7 +355,7 @@ function SettingsContent() {
           ].map(item => (
             <button
               key={item.key}
-              onClick={() => setActiveTab(item.key as any)}
+              onClick={() => handleTabChange(item.key)}
               className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-l-2 ${
                 activeTab === item.key
                   ? 'bg-gray-50 border-gray-900 text-gray-900'
@@ -341,7 +375,7 @@ function SettingsContent() {
           </div>
           {[
             {
-              key: 'members',
+              key: 'members' as TabType,
               label: 'Team Members',
               sub: `${members.length} member${members.length !== 1 ? 's' : ''}`,
               icon: (
@@ -356,7 +390,7 @@ function SettingsContent() {
           ].map(item => (
             <button
               key={item.key}
-              onClick={() => setActiveTab(item.key as any)}
+              onClick={() => handleTabChange(item.key)}
               className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-l-2 ${
                 activeTab === item.key
                   ? 'bg-gray-50 border-gray-900 text-gray-900'
@@ -536,7 +570,7 @@ function SettingsContent() {
         )}
 
         {/* Members tab (always shown, or via nav) */}
-        {(activeTab as string) === 'members' && (
+        {activeTab === 'members' && (
           <>
             <div className="bg-white rounded-2xl border border-gray-100">
               <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
