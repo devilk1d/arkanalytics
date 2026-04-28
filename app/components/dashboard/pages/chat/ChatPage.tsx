@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, JSX, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, JSX, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import DashboardLayout from '../../layout/DashboardLayout';
 import Card from '../../ui/Card';
 import Avatar from '../../ui/Avatar';
@@ -161,22 +161,13 @@ function RightPanelTabs({ active, onChange }: { active: RightTab; onChange: (val
 }
 
 function formatTime(ts: string | null) {
-  if (!ts) {
-    return '';
-  }
+  if (!ts) return '';
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function ActionsPanel({
-  tasks,
-  notes,
-  newTask,
-  newNote,
-  onTaskChange,
-  onNoteChange,
-  onCreateTask,
-  onCreateNote,
-  onToggleTask,
+  tasks, notes, newTask, newNote,
+  onTaskChange, onNoteChange, onCreateTask, onCreateNote, onToggleTask,
 }: {
   tasks: TaskItem[];
   notes: NoteItem[];
@@ -188,7 +179,6 @@ function ActionsPanel({
   onCreateNote: () => void;
   onToggleTask: (task: TaskItem) => void;
 }) {
-
   return (
     <div className="flex flex-col gap-3">
       <Card padding="sm" className="rounded-[20px] border-gray-200 shadow-none">
@@ -200,11 +190,7 @@ function ActionsPanel({
           <input
             value={newTask}
             onChange={(e) => onTaskChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                onCreateTask();
-              }
-            }}
+            onKeyDown={(e) => { if (e.key === 'Enter') onCreateTask(); }}
             placeholder="Task title..."
             className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
           />
@@ -216,7 +202,11 @@ function ActionsPanel({
                 onClick={() => onToggleTask(t)}
                 className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${t.taskStatus === 'done' ? 'border-gray-900 bg-white' : 'border-gray-300 bg-white hover:border-gray-500'}`}
               >
-                {t.taskStatus === 'done' && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                {t.taskStatus === 'done' && (
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
               </button>
               <div className="min-w-0 flex-1">
                 <p className={`text-[13px] font-medium leading-5 ${t.taskStatus === 'done' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>{t.title}</p>
@@ -267,9 +257,7 @@ function CustomersPanel() {
 }
 
 function FilesPanel({
-  files,
-  onUpload,
-  uploadLoading,
+  files, onUpload, uploadLoading,
 }: {
   files: AttachmentItem[];
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
@@ -302,20 +290,20 @@ function FilesPanel({
 export default function ChatPage() {
   const supabase = useMemo(() => createClient(), []);
   const { workspace, profile, members } = useDashboardContext();
+
   const memberNameById = useMemo(
-    () =>
-      members.reduce<Record<string, string>>((acc, member) => {
-        acc[member.userId] = member.fullName;
-        return acc;
-      }, {}),
+    () => members.reduce<Record<string, string>>((acc, member) => {
+      acc[member.userId] = member.fullName;
+      return acc;
+    }, {}),
     [members],
   );
+
   const memberAvatarById = useMemo(
-    () =>
-      members.reduce<Record<string, string | null>>((acc, member) => {
-        acc[member.userId] = member.avatarUrl;
-        return acc;
-      }, {}),
+    () => members.reduce<Record<string, string | null>>((acc, member) => {
+      acc[member.userId] = member.avatarUrl;
+      return acc;
+    }, {}),
     [members],
   );
 
@@ -331,7 +319,7 @@ export default function ChatPage() {
   const [rightTab, setRightTab] = useState<RightTab>('actions');
   const [search, setSearch] = useState('');
   const [sidebarMode, setSidebarMode] = useState<'list' | 'compose'>('list');
-  const [autoSelectEnabled, setAutoSelectEnabled] = useState(true);
+  const [composeTab, setComposeTab] = useState<'direct' | 'group'>('direct');
   const [newTask, setNewTask] = useState('');
   const [newNote, setNewNote] = useState('');
   const [groupName, setGroupName] = useState('');
@@ -339,16 +327,23 @@ export default function ChatPage() {
   const [inviteUserId, setInviteUserId] = useState('');
   const [conversationReads, setConversationReads] = useState<Record<string, Record<string, string>>>({});
   const [uploadLoading, setUploadLoading] = useState(false);
+
+  // Auto-select uses ref to avoid stale closure in polling
+  const autoSelectEnabledRef = useRef(false);
+  const setAutoSelect = useCallback((val: boolean) => {
+    autoSelectEnabledRef.current = val;
+  }, []);
+
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Scroll to bottom instantly whenever messages change
+  useLayoutEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'instant' });
   }, [messages]);
 
+  /* ─── Fetch conversations ─── */
   const fetchConversations = useCallback(async () => {
-    if (!workspace?.id || !profile?.id) {
-      return;
-    }
+    if (!workspace?.id || !profile?.id) return;
 
     const { data: myMemberships } = await supabase
       .from('workspace_conversation_members')
@@ -393,10 +388,7 @@ export default function ChatPage() {
     const latestByConversation = new Map<string, { body: string; createdAt: string }>();
     latestRows.forEach((row) => {
       if (!latestByConversation.has(row.conversation_id)) {
-        latestByConversation.set(row.conversation_id, {
-          body: row.body || '',
-          createdAt: row.created_at,
-        });
+        latestByConversation.set(row.conversation_id, { body: row.body || '', createdAt: row.created_at });
       }
     });
 
@@ -407,9 +399,7 @@ export default function ChatPage() {
 
     const readMap: Record<string, Record<string, string>> = {};
     ((readRows || []) as ConversationReadRow[]).forEach((row) => {
-      if (!readMap[row.conversation_id]) {
-        readMap[row.conversation_id] = {};
-      }
+      if (!readMap[row.conversation_id]) readMap[row.conversation_id] = {};
       readMap[row.conversation_id][row.user_id] = row.last_read_at;
     });
     setConversationReads(readMap);
@@ -420,21 +410,16 @@ export default function ChatPage() {
       const myLastReadAt = readMap[row.id]?.[profile.id] || null;
 
       const unreadCount = latestRows.filter((msg) => {
-        if (msg.conversation_id !== row.id) {
-          return false;
-        }
-        if (msg.sender_user_id === profile.id) {
-          return false;
-        }
-        if (!myLastReadAt) {
-          return true;
-        }
+        if (msg.conversation_id !== row.id) return false;
+        if (msg.sender_user_id === profile.id) return false;
+        if (!myLastReadAt) return true;
         return new Date(msg.created_at).getTime() > new Date(myLastReadAt).getTime();
       }).length;
 
       let displayName = row.name || 'Group';
       let avatarUrl: string | null = null;
       let memberCount = convMembers.length;
+
       if (row.conversation_type === 'direct') {
         const peerFromMembers = convMembers.find((m) => m.id !== profile.id);
         const keyParts = (row.direct_key || '').split(':');
@@ -458,19 +443,19 @@ export default function ChatPage() {
       };
     });
 
-    mapped.sort((a, b) => (new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime()));
+    mapped.sort((a, b) => new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime());
     setConversations(mapped);
+
     setActiveConvo((prev) => {
-      if (prev && mapped.some((item) => item.id === prev)) {
-        return prev;
-      }
-      if (!autoSelectEnabled) {
-        return '';
-      }
+      // Keep current selection if still valid
+      if (prev && mapped.some((item) => item.id === prev)) return prev;
+      // Don't auto-select — only select if user explicitly triggered it
+      if (!autoSelectEnabledRef.current) return '';
       return mapped[0]?.id || '';
     });
-  }, [autoSelectEnabled, memberAvatarById, memberNameById, profile, supabase, workspace]);
+  }, [memberAvatarById, memberNameById, profile, supabase, workspace]);
 
+  /* ─── Fetch messages ─── */
   const fetchMessages = useCallback(async () => {
     if (!activeConvo) {
       setMessages([]);
@@ -493,36 +478,19 @@ export default function ChatPage() {
     setMessages(mapped);
   }, [activeConvo, memberAvatarById, memberNameById, supabase]);
 
+  /* ─── Fetch actions & files ─── */
   const fetchActionsAndFiles = useCallback(async () => {
-    if (!workspace?.id) {
-      return;
-    }
+    if (!workspace?.id) return;
 
     const convoId = activeConvo || null;
-    const conversationFilter = convoId ? `conversation_id.eq.${convoId},conversation_id.is.null` : 'conversation_id.is.null';
+    const conversationFilter = convoId
+      ? `conversation_id.eq.${convoId},conversation_id.is.null`
+      : 'conversation_id.is.null';
 
     const [{ data: notesData }, { data: tasksData }, { data: attachmentsData }] = await Promise.all([
-      supabase
-        .from('workspace_notes')
-        .select('id, title, content')
-        .eq('workspace_id', workspace.id)
-        .or(conversationFilter)
-        .order('updated_at', { ascending: false })
-        .limit(20),
-      supabase
-        .from('workspace_tasks')
-        .select('id, title, task_status')
-        .eq('workspace_id', workspace.id)
-        .or(conversationFilter)
-        .order('updated_at', { ascending: false })
-        .limit(20),
-      supabase
-        .from('workspace_attachments')
-        .select('id, file_name, media_kind, created_at, storage_path')
-        .eq('workspace_id', workspace.id)
-        .or(conversationFilter)
-        .order('created_at', { ascending: false })
-        .limit(20),
+      supabase.from('workspace_notes').select('id, title, content').eq('workspace_id', workspace.id).or(conversationFilter).order('updated_at', { ascending: false }).limit(20),
+      supabase.from('workspace_tasks').select('id, title, task_status').eq('workspace_id', workspace.id).or(conversationFilter).order('updated_at', { ascending: false }).limit(20),
+      supabase.from('workspace_attachments').select('id, file_name, media_kind, created_at, storage_path').eq('workspace_id', workspace.id).or(conversationFilter).order('created_at', { ascending: false }).limit(20),
     ]);
 
     setNotes(((notesData || []) as NoteRow[]).map((row) => ({ id: row.id, title: row.title, content: row.content })));
@@ -530,10 +498,9 @@ export default function ChatPage() {
     setAttachments(((attachmentsData || []) as AttachmentRow[]).map((row) => ({ id: row.id, fileName: row.file_name, mediaKind: row.media_kind, createdAt: row.created_at, storagePath: row.storage_path })));
   }, [activeConvo, supabase, workspace]);
 
+  /* ─── Effects ─── */
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void fetchConversations();
-    }, 0);
+    const timer = window.setTimeout(() => { void fetchConversations(); }, 0);
     return () => window.clearTimeout(timer);
   }, [fetchConversations]);
 
@@ -546,16 +513,12 @@ export default function ChatPage() {
   }, [fetchActionsAndFiles, fetchMessages]);
 
   const markConversationRead = useCallback(async () => {
-    if (!activeConvo) {
-      return;
-    }
+    if (!activeConvo) return;
     await supabase.rpc('mark_conversation_read', { p_conversation_id: activeConvo });
   }, [activeConvo, supabase]);
 
   useEffect(() => {
-    if (!activeConvo) {
-      return;
-    }
+    if (!activeConvo) return;
     const timer = window.setTimeout(() => {
       void markConversationRead();
       void fetchConversations();
@@ -563,21 +526,21 @@ export default function ChatPage() {
     return () => window.clearTimeout(timer);
   }, [activeConvo, fetchConversations, markConversationRead, messages.length]);
 
+  // Escape key → close conversation
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setAutoSelectEnabled(false);
+        setAutoSelect(false);
         setActiveConvo('');
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [setAutoSelect]);
 
+  // Realtime subscription
   useEffect(() => {
-    if (!workspace?.id) {
-      return;
-    }
+    if (!workspace?.id) return;
     const channel = supabase
       .channel(`workspace-chat-${workspace.id}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'workspace_messages', filter: `workspace_id=eq.${workspace.id}` }, () => {
@@ -588,16 +551,12 @@ export default function ChatPage() {
         void fetchConversations();
       })
       .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
+    return () => { void supabase.removeChannel(channel); };
   }, [fetchConversations, fetchMessages, supabase, workspace?.id]);
 
+  // Polling every 2.5s
   useEffect(() => {
-    if (!workspace?.id) {
-      return;
-    }
+    if (!workspace?.id) return;
     const interval = window.setInterval(() => {
       void fetchConversations();
       void fetchMessages();
@@ -605,42 +564,34 @@ export default function ChatPage() {
     return () => window.clearInterval(interval);
   }, [fetchConversations, fetchMessages, workspace?.id]);
 
+  /* ─── Derived ─── */
   const convo = conversations.find((c) => c.id === activeConvo);
-  const filtered = conversations.filter((c) => (chatFilter === 'all' || (chatFilter === 'personal' && c.type === 'direct') || (chatFilter === 'groups' && c.type === 'group')) && c.name.toLowerCase().includes(search.toLowerCase()));
-
+  const filtered = conversations.filter((c) =>
+    (chatFilter === 'all' || (chatFilter === 'personal' && c.type === 'direct') || (chatFilter === 'groups' && c.type === 'group'))
+    && c.name.toLowerCase().includes(search.toLowerCase()),
+  );
   const availableMembers = members.filter((m) => m.userId !== profile?.id);
   const groupInviteCandidates = convo?.type === 'group'
-    ? availableMembers.filter((member) => !convo.members.some((convMember) => convMember.id === member.userId))
+    ? availableMembers.filter((member) => !convo.members.some((cm) => cm.id === member.userId))
     : [];
 
   const getReadReceipt = (msg: MessageItem) => {
-    if (!convo || msg.senderId !== profile?.id) {
-      return '';
-    }
+    if (!convo || msg.senderId !== profile?.id) return '';
     const reads = conversationReads[convo.id] || {};
     const seenBy = convo.members.filter((member) => {
-      if (member.id === profile.id) {
-        return false;
-      }
+      if (member.id === profile.id) return false;
       const readAt = reads[member.id];
-      if (!readAt) {
-        return false;
-      }
+      if (!readAt) return false;
       return new Date(readAt).getTime() >= new Date(msg.createdAt).getTime();
     });
-    if (seenBy.length === 0) {
-      return '';
-    }
-    if (convo.type === 'direct') {
-      return 'Seen';
-    }
+    if (seenBy.length === 0) return '';
+    if (convo.type === 'direct') return 'Seen';
     return `Seen by ${seenBy.length}`;
   };
 
+  /* ─── Actions ─── */
   const sendMessage = useCallback(async () => {
-    if (!activeConvo || !message.trim() || !profile?.id) {
-      return;
-    }
+    if (!activeConvo || !message.trim() || !profile?.id) return;
     await supabase.from('workspace_messages').insert({
       conversation_id: activeConvo,
       sender_user_id: profile.id,
@@ -653,9 +604,7 @@ export default function ChatPage() {
   }, [activeConvo, fetchConversations, fetchMessages, message, profile, supabase]);
 
   const createDirectConversation = useCallback(async (peerId: string) => {
-    if (!workspace?.id || !peerId) {
-      return;
-    }
+    if (!workspace?.id || !peerId) return;
     await supabase.rpc('create_workspace_conversation', {
       p_workspace_id: workspace.id,
       p_conversation_type: 'direct',
@@ -663,15 +612,13 @@ export default function ChatPage() {
       p_peer_user_id: peerId,
       p_member_ids: [],
     });
-    setAutoSelectEnabled(true);
+    setAutoSelect(true);
     setSidebarMode('list');
     await fetchConversations();
-  }, [fetchConversations, supabase, workspace]);
+  }, [fetchConversations, setAutoSelect, supabase, workspace]);
 
   const createGroupConversation = useCallback(async () => {
-    if (!workspace?.id || groupName.trim().length < 2) {
-      return;
-    }
+    if (!workspace?.id || groupName.trim().length < 2) return;
     await supabase.rpc('create_workspace_conversation', {
       p_workspace_id: workspace.id,
       p_conversation_type: 'group',
@@ -679,17 +626,15 @@ export default function ChatPage() {
       p_peer_user_id: null,
       p_member_ids: groupMemberIds,
     });
-    setAutoSelectEnabled(true);
+    setAutoSelect(true);
     setGroupName('');
     setGroupMemberIds([]);
     setSidebarMode('list');
     await fetchConversations();
-  }, [fetchConversations, groupMemberIds, groupName, supabase, workspace]);
+  }, [fetchConversations, groupMemberIds, groupName, setAutoSelect, supabase, workspace]);
 
   const inviteToGroup = useCallback(async () => {
-    if (!inviteUserId || !activeConvo || !profile?.id) {
-      return;
-    }
+    if (!inviteUserId || !activeConvo || !profile?.id) return;
     await supabase.from('workspace_conversation_members').insert({
       conversation_id: activeConvo,
       user_id: inviteUserId,
@@ -701,9 +646,7 @@ export default function ChatPage() {
   }, [activeConvo, fetchConversations, inviteUserId, profile, supabase]);
 
   const createTask = useCallback(async () => {
-    if (!workspace?.id || !profile?.id || !newTask.trim()) {
-      return;
-    }
+    if (!workspace?.id || !profile?.id || !newTask.trim()) return;
     await supabase.from('workspace_tasks').insert({
       workspace_id: workspace.id,
       conversation_id: activeConvo || null,
@@ -717,21 +660,16 @@ export default function ChatPage() {
 
   const toggleTask = useCallback(async (task: TaskItem) => {
     const nextStatus = task.taskStatus === 'done' ? 'open' : 'done';
-    await supabase
-      .from('workspace_tasks')
-      .update({
-        task_status: nextStatus,
-        completed_at: nextStatus === 'done' ? new Date().toISOString() : null,
-        completed_by_user_id: nextStatus === 'done' ? profile?.id || null : null,
-      })
-      .eq('id', task.id);
+    await supabase.from('workspace_tasks').update({
+      task_status: nextStatus,
+      completed_at: nextStatus === 'done' ? new Date().toISOString() : null,
+      completed_by_user_id: nextStatus === 'done' ? profile?.id || null : null,
+    }).eq('id', task.id);
     await fetchActionsAndFiles();
   }, [fetchActionsAndFiles, profile, supabase]);
 
   const createNote = useCallback(async () => {
-    if (!workspace?.id || !profile?.id || !newNote.trim()) {
-      return;
-    }
+    if (!workspace?.id || !profile?.id || !newNote.trim()) return;
     await supabase.from('workspace_notes').insert({
       workspace_id: workspace.id,
       conversation_id: activeConvo || null,
@@ -745,9 +683,7 @@ export default function ChatPage() {
 
   const uploadFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !workspace?.id || !profile?.id || !activeConvo) {
-      return;
-    }
+    if (!file || !workspace?.id || !profile?.id || !activeConvo) return;
     setUploadLoading(true);
     const safeName = file.name.replace(/\s+/g, '-').toLowerCase();
     const storagePath = `${workspace.id}/chat/${activeConvo}/${Date.now()}-${safeName}`;
@@ -761,25 +697,25 @@ export default function ChatPage() {
       file_name: file.name,
       mime_type: file.type || 'application/octet-stream',
       file_size: file.size,
-      media_kind: file.type.startsWith('image/')
-        ? 'image'
-        : file.type.startsWith('video/')
-          ? 'video'
-          : file.type.startsWith('audio/')
-            ? 'audio'
-            : 'document',
+      media_kind: file.type.startsWith('image/') ? 'image'
+        : file.type.startsWith('video/') ? 'video'
+        : file.type.startsWith('audio/') ? 'audio'
+        : 'document',
     });
     setUploadLoading(false);
     event.target.value = '';
     await fetchActionsAndFiles();
   }, [activeConvo, fetchActionsAndFiles, profile, supabase, workspace]);
 
+  /* ─── Render ─── */
   return (
     <DashboardLayout page="Team Chat">
       <div className="flex gap-0 h-[calc(100vh-88px)] -m-6 overflow-hidden rounded-2xl border border-gray-100 bg-white">
 
-        {/* ── Conversation list ── */}
+        {/* ── Sidebar ── */}
         <div className="w-72 border-r border-gray-100 flex flex-col shrink-0">
+
+          {/* Sidebar header */}
           <div className="p-4 border-b border-gray-100">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-black">Chats</h3>
@@ -788,93 +724,175 @@ export default function ChatPage() {
                 className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-black"
                 aria-label="Toggle compose panel"
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 3h7v7" />
-                  <path d="M21 3 10 14" />
-                  <path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5" />
-                </svg>
+                {sidebarMode === 'list' ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 3h7v7" /><path d="M21 3 10 14" /><path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                )}
               </button>
             </div>
-            {sidebarMode === 'list' ? (
+
+            {/* Search + filter — only in list mode */}
+            {sidebarMode === 'list' && (
               <>
                 <div className="relative mb-3">
                   <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                     <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
                   </svg>
-                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search" className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-100 rounded-xl outline-none placeholder-gray-400" />
+                  <input
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Search"
+                    className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-100 rounded-xl outline-none placeholder-gray-400"
+                  />
                 </div>
                 <div className="flex gap-1">
                   {['all', 'personal', 'groups'].map(f => (
                     <button key={f} onClick={() => setChatFilter(f)}
-                      className={`px-3 py-1 text-xs font-semibold rounded-lg capitalize transition-all
-                        ${chatFilter === f ? 'bg-black text-white' : 'text-gray-500 hover:text-black'}`}>
+                      className={`px-3 py-1 text-xs font-semibold rounded-lg capitalize transition-all ${chatFilter === f ? 'bg-black text-white' : 'text-gray-500 hover:text-black'}`}>
                       {f.charAt(0).toUpperCase() + f.slice(1)}
                     </button>
                   ))}
                 </div>
               </>
-            ) : (
-              <div className="mb-1 grid grid-cols-1 gap-2">
-                <input value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="Group name" className="rounded-lg border border-gray-200 px-2 py-1.5 text-xs" />
-                <select
-                  multiple
-                  value={groupMemberIds}
-                  onChange={(e) => setGroupMemberIds(Array.from(e.target.selectedOptions).map((opt) => opt.value))}
-                  className="h-24 rounded-lg border border-gray-200 px-2 py-1 text-xs"
-                >
-                  {availableMembers.map((member) => (
-                    <option key={member.userId} value={member.userId}>{member.fullName}</option>
-                  ))}
-                </select>
-                <button onClick={createGroupConversation} className="rounded-lg bg-blue-600 px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-blue-700">
-                  Create Group
-                </button>
-                <p className="mt-1 text-[11px] font-semibold text-gray-500">Start direct chat</p>
-                <div className="max-h-32 overflow-y-auto rounded-lg border border-gray-200">
-                  {availableMembers.map((member) => (
-                    <button
-                      key={member.userId}
-                      onClick={() => { void createDirectConversation(member.userId); }}
-                      className="flex w-full items-center gap-2 border-b border-gray-100 px-2 py-1.5 text-left text-xs last:border-b-0 hover:bg-gray-50"
-                    >
-                      <Avatar initials={getInitials(member.fullName)} size="sm" />
-                      <span className="truncate">{member.fullName}</span>
-                    </button>
-                  ))}
+            )}
+
+            {/* Compose mode */}
+            {sidebarMode === 'compose' && (
+              <div className="flex flex-col gap-3">
+
+                {/* Direct / Group toggle */}
+                <div className="flex gap-1 rounded-xl border border-gray-200 p-1">
+                  <button
+                    onClick={() => setComposeTab('direct')}
+                    className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all ${composeTab === 'direct' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'}`}
+                  >
+                    Direct
+                  </button>
+                  <button
+                    onClick={() => setComposeTab('group')}
+                    className={`flex-1 rounded-lg py-1.5 text-xs font-medium transition-all ${composeTab === 'group' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'}`}
+                  >
+                    Group
+                  </button>
                 </div>
+
+                {/* Group form */}
+                {composeTab === 'group' && (
+                  <>
+                    <input
+                      value={groupName}
+                      onChange={(e) => setGroupName(e.target.value)}
+                      placeholder="Group name"
+                      className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs outline-none focus:border-gray-400"
+                    />
+                    <div className="overflow-hidden rounded-xl border border-gray-200">
+                      <div className="border-b border-gray-100 bg-gray-50 px-3 py-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Add members</p>
+                      </div>
+                      <div className="max-h-36 overflow-y-auto">
+                        {availableMembers.map((member) => (
+                          <label
+                            key={member.userId}
+                            className="flex cursor-pointer items-center gap-2.5 border-b border-gray-100 px-3 py-2.5 last:border-b-0 hover:bg-gray-50"
+                          >
+                            <Avatar initials={getInitials(member.fullName)} size="sm" />
+                            <span className="flex-1 truncate text-xs font-medium text-gray-800">{member.fullName}</span>
+                            <input
+                              type="checkbox"
+                              checked={groupMemberIds.includes(member.userId)}
+                              onChange={(e) =>
+                                setGroupMemberIds((prev) =>
+                                  e.target.checked ? [...prev, member.userId] : prev.filter((id) => id !== member.userId),
+                                )
+                              }
+                              className="h-4 w-4 rounded border-gray-300 accent-gray-900"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      onClick={createGroupConversation}
+                      className="w-full rounded-xl bg-gray-900 py-2 text-xs font-semibold text-white hover:bg-black"
+                    >
+                      Create group
+                    </button>
+                  </>
+                )}
+
+                {/* Direct chat list */}
+                {composeTab === 'direct' && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <div className="h-px flex-1 bg-gray-100" />
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Select member</p>
+                      <div className="h-px flex-1 bg-gray-100" />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      {availableMembers.map((member) => (
+                        <button
+                          key={member.userId}
+                          onClick={() => { void createDirectConversation(member.userId); }}
+                          className="flex items-center gap-2.5 rounded-xl px-2 py-2 text-left hover:bg-gray-50"
+                        >
+                          <Avatar initials={getInitials(member.fullName)} size="sm" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-medium text-gray-900">{member.fullName}</p>
+                            <p className="text-[10px] text-gray-400">Member</p>
+                          </div>
+                          <svg className="shrink-0 text-gray-300" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                          </svg>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+
               </div>
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto">
-            {filtered.map(c => (
-              <button key={c.id} onClick={() => { setAutoSelectEnabled(true); setActiveConvo(c.id); }}
-                className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50
-                  ${activeConvo === c.id ? 'bg-gray-50' : ''}`}
-              >
-                {c.type === 'group'
-                  ? <div className="w-9 h-9 bg-black rounded-full flex items-center justify-center shrink-0">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+          {/* Conversation list — only in list mode */}
+          {sidebarMode === 'list' && (
+            <div className="flex-1 overflow-y-auto">
+              {filtered.map(c => (
+                <button
+                  key={c.id}
+                  onClick={() => { setAutoSelect(true); setActiveConvo(c.id); }}
+                  className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 ${activeConvo === c.id ? 'bg-gray-50' : ''}`}
+                >
+                  {c.type === 'group'
+                    ? (
+                      <div className="w-9 h-9 bg-black rounded-full flex items-center justify-center shrink-0">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+                      </div>
+                    )
+                    : <Avatar initials={getInitials(c.name)} size="md" src={c.avatarUrl || undefined} />
+                  }
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-black truncate">{c.name}</p>
+                      <p className="text-[10px] text-gray-400 shrink-0 ml-1">{formatTime(c.lastAt)}</p>
+                    </div>
+                    <div className="flex items-center justify-between mt-0.5">
+                      <p className="text-xs text-gray-500 truncate">{c.lastMessage}</p>
+                      {c.unreadCount > 0 && (
+                        <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
+                          {c.unreadCount}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  : <Avatar initials={getInitials(c.name)} size="md" src={c.avatarUrl || undefined} />
-                }
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-black truncate">{c.name}</p>
-                    <p className="text-[10px] text-gray-400 shrink-0 ml-1">{formatTime(c.lastAt)}</p>
-                  </div>
-                  <div className="flex items-center justify-between mt-0.5">
-                    <p className="text-xs text-gray-500 truncate">{c.lastMessage}</p>
-                    {c.unreadCount > 0 && (
-                      <span className="ml-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white">
-                        {c.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ── Chat messages ── */}
@@ -960,7 +978,7 @@ export default function ChatPage() {
               </div>
             </>
           ) : (
-            <div className="flex h-full items-center justify-center border-b border-gray-100">
+            <div className="flex h-full items-center justify-center">
               <div className="text-center">
                 <p className="text-base font-semibold text-gray-900">No chat selected</p>
                 <p className="mt-1 text-sm text-gray-500">Select a conversation from the left to start messaging.</p>
@@ -989,9 +1007,16 @@ export default function ChatPage() {
               />
             )}
             {rightTab === 'customers' && <CustomersPanel />}
-            {rightTab === 'files' && <FilesPanel files={attachments} onUpload={(event) => void uploadFile(event)} uploadLoading={uploadLoading} />}
+            {rightTab === 'files' && (
+              <FilesPanel
+                files={attachments}
+                onUpload={(event) => void uploadFile(event)}
+                uploadLoading={uploadLoading}
+              />
+            )}
           </div>
         </div>
+
       </div>
     </DashboardLayout>
   );
