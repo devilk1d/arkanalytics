@@ -59,6 +59,8 @@ type DashboardContextValue = {
   refresh: () => Promise<void>;
   saveCompanyInfo: (payload: { name: string; supportEmail: string; websiteUrl: string }) => Promise<{ error?: string }>;
   createCustomRole: (payload: { name: string; description: string; permissions: string[] }) => Promise<{ error?: string }>;
+  updateCustomRole: (payload: { roleId: string; name: string; description: string; permissions: string[] }) => Promise<{ error?: string }>;
+  deleteCustomRole: (payload: { roleId: string }) => Promise<{ error?: string }>;
   uploadCompanyLogo: (file: File) => Promise<{ error?: string; logoUrl?: string }>;
   removeCompanyLogo: () => Promise<{ error?: string }>;
   inviteMember: (payload: { invitedEmail: string; roleToAssign: string }) => Promise<{ error?: string }>;
@@ -453,6 +455,31 @@ export function DashboardProvider({ children, initialState }: { children: React.
         return { error: data.error || 'Failed to invite member.' };
       }
 
+      const invitationToken = data?.invitation_token as string | undefined;
+
+      if (!invitationToken) {
+        return { error: 'Invitation created, but token is missing. Run migration 015 to enable email dispatch.' };
+      }
+
+      const emailDispatchResponse = await fetch('/api/invitations/dispatch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          workspaceId: workspace.id,
+          invitedEmail: payload.invitedEmail,
+          invitationToken,
+        }),
+      });
+
+      if (!emailDispatchResponse.ok) {
+        const payload = (await emailDispatchResponse.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        return { error: payload?.error || 'Invitation created, but failed to send email.' };
+      }
+
       await refresh();
       return {};
     },
@@ -618,6 +645,64 @@ export function DashboardProvider({ children, initialState }: { children: React.
     [workspace, profile, refresh],
   );
 
+  const updateCustomRole = useCallback(
+    async (payload: { roleId: string; name: string; description: string; permissions: string[] }) => {
+      if (!workspace || !profile) {
+        return { error: 'Workspace or user not found.' };
+      }
+
+      setActionLoading(true);
+      const supabase = createClient();
+
+      const { error: updateError } = await supabase
+        .from('workspace_roles')
+        .update({
+          name: payload.name.trim(),
+          description: payload.description.trim(),
+          permissions: payload.permissions,
+        })
+        .eq('id', payload.roleId)
+        .eq('workspace_id', workspace.id);
+
+      setActionLoading(false);
+
+      if (updateError) {
+        return { error: updateError.message };
+      }
+
+      await refresh();
+      return {};
+    },
+    [profile, refresh, workspace],
+  );
+
+  const deleteCustomRole = useCallback(
+    async (payload: { roleId: string }) => {
+      if (!workspace || !profile) {
+        return { error: 'Workspace or user not found.' };
+      }
+
+      setActionLoading(true);
+      const supabase = createClient();
+
+      const { error: deleteError } = await supabase
+        .from('workspace_roles')
+        .delete()
+        .eq('id', payload.roleId)
+        .eq('workspace_id', workspace.id);
+
+      setActionLoading(false);
+
+      if (deleteError) {
+        return { error: deleteError.message };
+      }
+
+      await refresh();
+      return {};
+    },
+    [profile, refresh, workspace],
+  );
+
   const roleSummary = useMemo<RoleSummary[]>(() => {
     const grouped = members.reduce<Record<string, number>>((acc, member) => {
       const key = member.role?.trim() || 'member';
@@ -643,6 +728,9 @@ export function DashboardProvider({ children, initialState }: { children: React.
       customRoles,
       refresh,
       saveCompanyInfo,
+      createCustomRole,
+      updateCustomRole,
+      deleteCustomRole,
       uploadCompanyLogo,
       removeCompanyLogo,
       inviteMember,
@@ -650,12 +738,12 @@ export function DashboardProvider({ children, initialState }: { children: React.
       deleteMember,
       saveUserProfile,
       uploadUserAvatar,
-      createCustomRole,
     }),
     [
       actionLoading,
       createCustomRole,
       customRoles,
+      deleteCustomRole,
       deleteMember,
       error,
       inviteMember,
@@ -668,6 +756,7 @@ export function DashboardProvider({ children, initialState }: { children: React.
       roleSummary,
       saveCompanyInfo,
       saveUserProfile,
+      updateCustomRole,
       updateMemberRole,
       uploadCompanyLogo,
       uploadUserAvatar,

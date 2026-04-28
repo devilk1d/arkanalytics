@@ -11,12 +11,26 @@ import ActionConfirmation from '../../ui/ActionConfirmation';
 import InviteMemberModal from '../../modals/InviteMemberModal';
 import EditRoleModal from '../../modals/EditRoleModal';
 import CreateCustomRoleModal from '../../modals/CreateCustomRoleModal';
+import { toastError, toastInfo, toastSuccess, toastWarning } from '../../../ui/AppToast';
 import {
   formatRoleLabel,
   formatRolePermission,
   getInitials,
   useDashboardContext,
 } from '../../context/DashboardContext';
+
+type DeleteTarget =
+  | { type: 'member'; id: string; name: string }
+  | { type: 'role'; id: string; name: string; users: number };
+
+type RoleRow = {
+  role: string;
+  desc: string;
+  perms: string;
+  users: number;
+  isCustom: boolean;
+  roleId?: string;
+};
 
 function formatLastActive(lastActiveAt: string | null) {
   if (!lastActiveAt) return 'Offline';
@@ -83,6 +97,8 @@ function SettingsContent() {
     saveUserProfile,
     uploadUserAvatar,
     createCustomRole,
+    updateCustomRole,
+    deleteCustomRole,
   } = useDashboardContext();
 
   const [isDark, setIsDark] = useState(false);
@@ -93,7 +109,13 @@ function SettingsContent() {
   const [editRoleModalOpen, setEditRoleModalOpen] = useState(false);
   const [createRoleModalOpen, setCreateRoleModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ type: 'member' | 'role'; id: string; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [editingCustomRole, setEditingCustomRole] = useState<{
+    id: string;
+    name: string;
+    description: string;
+    permissions: string[];
+  } | null>(null);
 
   // Edit role state
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
@@ -141,7 +163,7 @@ function SettingsContent() {
     router.push(`?${params.toString()}`, { scroll: false });
   };
 
-  const roleRows = useMemo(
+  const roleRows = useMemo<RoleRow[]>(
     () => {
       // Built-in roles from members
       const builtInRoles = DEFAULT_ROLES.map(role => {
@@ -181,6 +203,11 @@ function SettingsContent() {
     setProfileStatus('');
     const result = await saveUserProfile({ fullName: fullName.trim() });
     setSavingProfile(false);
+    if (result.error) {
+      toastError('Gagal menyimpan profile', result.error);
+    } else {
+      toastSuccess('Profile berhasil diperbarui');
+    }
     setProfileStatus(result.error ?? 'Profile updated successfully.');
   };
 
@@ -189,6 +216,11 @@ function SettingsContent() {
     if (!file) return;
     setProfileStatus('');
     const result = await uploadUserAvatar(file);
+    if (result.error) {
+      toastError('Gagal upload foto profile', result.error);
+    } else {
+      toastSuccess('Foto profile diperbarui');
+    }
     setProfileStatus(result.error ?? 'Profile photo updated.');
   };
 
@@ -201,6 +233,11 @@ function SettingsContent() {
       websiteUrl: website.trim(),
     });
     setSaving(false);
+    if (result.error) {
+      toastError('Gagal menyimpan company info', result.error);
+    } else {
+      toastSuccess('Company information diperbarui');
+    }
     setCompanyStatus(result.error ?? 'Company information updated.');
   };
 
@@ -209,25 +246,37 @@ function SettingsContent() {
     if (!file) return;
     setCompanyStatus('');
     const result = await uploadCompanyLogo(file);
+    if (result.error) {
+      toastError('Gagal upload logo', result.error);
+    } else {
+      toastSuccess('Logo company diperbarui');
+    }
     setCompanyStatus(result.error ?? 'Company logo updated.');
   };
 
   const handleRemoveLogo = async () => {
     setCompanyStatus('');
     const result = await removeCompanyLogo();
+    if (result.error) {
+      toastError('Gagal menghapus logo', result.error);
+    } else {
+      toastInfo('Logo company dihapus');
+    }
     setCompanyStatus(result.error ?? 'Company logo removed.');
   };
 
-  const handleInviteMember = async () => {
+  const handleInviteMember = () => {
     setInviteModalOpen(true);
   };
 
   const handleSubmitInvite = async (email: string, role: string) => {
     const result = await inviteMember({ invitedEmail: email, roleToAssign: role });
     if (result.error) {
+      toastError('Undangan gagal dikirim', result.error);
       setCompanyStatus(result.error);
       throw new Error(result.error);
     }
+    toastSuccess('Invitation sent', `${email} diundang sebagai ${formatRoleLabel(role)}`);
     setCompanyStatus('Invitation sent successfully.');
   };
 
@@ -241,15 +290,18 @@ function SettingsContent() {
     if (!editingMemberId) return;
     const result = await updateMemberRole({ memberUserId: editingMemberId, newRole });
     if (result.error) {
+      toastError('Gagal mengubah role member', result.error);
       setCompanyStatus(result.error);
       throw new Error(result.error);
     }
+    toastSuccess('Role member diperbarui');
     setCompanyStatus('Member role updated.');
     setEditingMemberId(null);
   };
 
   const handleDeleteMember = (memberUserId: string, memberName: string) => {
     if (profile?.id === memberUserId) {
+      toastWarning('Aksi ditolak', 'Kamu tidak bisa menghapus akun sendiri.');
       setCompanyStatus('Kamu tidak bisa menghapus akun sendiri.');
       return;
     }
@@ -257,24 +309,88 @@ function SettingsContent() {
     setDeleteModalOpen(true);
   };
 
-  const handleConfirmDelete = async () => {
-    if (!deleteTarget || deleteTarget.type !== 'member') return;
-    const result = await deleteMember({ memberUserId: deleteTarget.id });
-    if (result.error) {
-      setCompanyStatus(result.error);
-      throw new Error(result.error);
+  const handleEditCustomRole = (roleId: string) => {
+    const targetRole = customRoles.find((role) => role.id === roleId);
+    if (!targetRole) {
+      toastError('Role tidak ditemukan');
+      return;
     }
-    setCompanyStatus('Member deleted.');
+
+    setEditingCustomRole({
+      id: targetRole.id,
+      name: targetRole.name,
+      description: targetRole.description,
+      permissions: targetRole.permissions,
+    });
+    setCreateRoleModalOpen(true);
+  };
+
+  const handleDeleteRole = (roleId: string, roleName: string, users: number) => {
+    if (users > 0) {
+      toastWarning('Role masih dipakai', 'Pindahkan semua member dari role ini sebelum menghapus.');
+      return;
+    }
+
+    setDeleteTarget({ type: 'role', id: roleId, name: roleName, users });
+    setDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+
+    if (deleteTarget.type === 'member') {
+      const result = await deleteMember({ memberUserId: deleteTarget.id });
+      if (result.error) {
+        toastError('Gagal menghapus member', result.error);
+        setCompanyStatus(result.error);
+        throw new Error(result.error);
+      }
+
+      toastSuccess('Member dihapus', `${deleteTarget.name} telah dihapus dari workspace.`);
+      setCompanyStatus('Member deleted.');
+    }
+
+    if (deleteTarget.type === 'role') {
+      const result = await deleteCustomRole({ roleId: deleteTarget.id });
+      if (result.error) {
+        toastError('Gagal menghapus role', result.error);
+        setCompanyStatus(result.error);
+        throw new Error(result.error);
+      }
+
+      toastSuccess('Role dihapus', `${deleteTarget.name} berhasil dihapus.`);
+      setCompanyStatus('Role deleted.');
+    }
+
     setDeleteTarget(null);
   };
 
-  const handleCreateCustomRole = async (roleData: { name: string; description: string; permissions: string[] }) => {
-    const result = await createCustomRole({ name: roleData.name, description: roleData.description, permissions: roleData.permissions });
+  const handleSubmitCustomRole = async (roleData: { name: string; description: string; permissions: string[] }) => {
+    const result = editingCustomRole
+      ? await updateCustomRole({
+          roleId: editingCustomRole.id,
+          name: roleData.name,
+          description: roleData.description,
+          permissions: roleData.permissions,
+        })
+      : await createCustomRole({
+          name: roleData.name,
+          description: roleData.description,
+          permissions: roleData.permissions,
+        });
+
     if (result.error) {
+      toastError(editingCustomRole ? 'Failed to update role' : 'Failed to create role', result.error);
       setCompanyStatus(result.error);
       throw new Error(result.error);
     }
-    setCompanyStatus('Role created successfully.');
+
+    toastSuccess(
+      editingCustomRole ? 'Role updated successfully' : 'Role created successfully',
+      roleData.name,
+    );
+    setCompanyStatus(editingCustomRole ? 'Role updated successfully.' : 'Role created successfully.');
+    setEditingCustomRole(null);
     setCreateRoleModalOpen(false);
   };
 
@@ -581,7 +697,7 @@ function SettingsContent() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={() => { void handleInviteMember(); }}
+                  onClick={handleInviteMember}
                   disabled={actionLoading}
                   icon={
                     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -690,10 +806,20 @@ function SettingsContent() {
                           {!r.isCustom ? (
                             <button disabled className="text-xs font-medium text-gray-300 cursor-not-allowed">Edit</button>
                           ) : (
-                            <button disabled className="text-xs font-medium text-gray-300 cursor-not-allowed">Edit</button>
+                            <button
+                              className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors disabled:opacity-40"
+                              onClick={() => r.roleId && handleEditCustomRole(r.roleId)}
+                              disabled={actionLoading}
+                            >
+                              Edit
+                            </button>
                           )}
                           {r.isCustom && (
-                            <button className="text-red-300 hover:text-red-500 transition-colors disabled:opacity-40" disabled={actionLoading}>
+                            <button
+                              className="text-red-300 hover:text-red-500 transition-colors disabled:opacity-40"
+                              onClick={() => r.roleId && handleDeleteRole(r.roleId, r.role, r.users)}
+                              disabled={actionLoading}
+                            >
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                                 <polyline points="3 6 5 6 21 6"/>
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
@@ -735,16 +861,26 @@ function SettingsContent() {
 
       <CreateCustomRoleModal
         isOpen={createRoleModalOpen}
-        onClose={() => setCreateRoleModalOpen(false)}
-        onSubmit={handleCreateCustomRole}
+        onClose={() => {
+          setCreateRoleModalOpen(false);
+          setEditingCustomRole(null);
+        }}
+        onSubmit={handleSubmitCustomRole}
+        existingRole={editingCustomRole}
         isLoading={actionLoading}
       />
 
       <ActionConfirmation
         isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        title="Delete Member"
-        description={`Are you sure you want to delete ${deleteTarget?.name}? This action cannot be undone.`}
+        onClose={() => {
+          setDeleteModalOpen(false);
+        }}
+        title={deleteTarget?.type === 'role' ? 'Delete Role' : 'Delete Member'}
+        description={
+          deleteTarget?.type === 'role'
+            ? `Are you sure you want to delete role ${deleteTarget.name}? This action cannot be undone.`
+            : `Are you sure you want to delete ${deleteTarget?.name}? This action cannot be undone.`
+        }
         actionLabel="Delete"
         isDangerous
         isLoading={actionLoading}

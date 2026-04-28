@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AuthLogo from '../../components/auth/AuthLogo';
 import AuthInput from '../../components/auth/AuthInput';
 import AuthButton from '../../components/auth/AuthButton';
@@ -20,10 +20,14 @@ const WORKSPACE_DRAFT_KEY = 'pending_workspace_draft';
 
 export default function SignInPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const redirectTo = searchParams.get('redirectTo');
+  const safeRedirectTo = redirectTo && redirectTo.startsWith('/') ? redirectTo : null;
 
   const handleSubmit = async () => {
     setErrorMessage('');
@@ -77,7 +81,7 @@ export default function SignInPage() {
 
     setLoading(false);
 
-    router.push('/dashboard/overview');
+    router.push(safeRedirectTo || '/dashboard/overview');
     router.refresh();
   };
 
