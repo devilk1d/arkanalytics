@@ -69,6 +69,7 @@ type DashboardContextValue = {
   deleteMember: (payload: { memberUserId: string }) => Promise<{ error?: string }>;
   saveUserProfile: (payload: { fullName: string }) => Promise<{ error?: string }>;
   uploadUserAvatar: (file: File) => Promise<{ error?: string; avatarUrl?: string }>;
+  unreadChatCount: number;
 };
 
 type DashboardInitialState = {
@@ -109,6 +110,7 @@ export function DashboardProvider({ children, initialState }: { children: React.
   const [myRole, setMyRole] = useState(initialState?.myRole || '');
   const [members, setMembers] = useState<WorkspaceMember[]>(initialState?.members ?? []);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -295,7 +297,111 @@ export function DashboardProvider({ children, initialState }: { children: React.
 
     setMembers(mappedMembers);
     setLoading(false);
+
+    // Initial unread fetch
+    void fetchUnreadCount(userId, activeMembership.workspace_id);
   }, []);
+
+  const fetchUnreadCount = useCallback(async (userId: string, workspaceId: string) => {
+    const supabase = createClient();
+    
+    // 1. Get all conversations user belongs to
+    const { data: memberships } = await supabase
+      .from('workspace_conversation_members')
+      .select('conversation_id')
+      .eq('user_id', userId);
+
+    if (!memberships || memberships.length === 0) {
+      setUnreadChatCount(0);
+      return;
+    }
+
+    const conversationIds = memberships.map(m => m.conversation_id);
+
+    // 2. Get last read timestamps
+    const { data: reads } = await supabase
+      .from('workspace_conversation_reads')
+      .select('conversation_id, last_read_at')
+      .eq('user_id', userId)
+      .in('conversation_id', conversationIds);
+
+    const readMap = new Map(reads?.map(r => [r.conversation_id, r.last_read_at]) || []);
+
+    // 3. Count messages after last_read_at
+    // This is a bit manual without a custom RPC, but works for breadcrumb counts
+    let totalUnread = 0;
+    
+    // We fetch counts for each conversation
+    // Performance optimization: only fetch for conversations that have messages after our last read or never read
+    const countPromises = conversationIds.map(async (cid) => {
+      const lastRead = readMap.get(cid);
+      let query = supabase
+        .from('workspace_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('conversation_id', cid)
+        .neq('sender_user_id', userId);
+      
+      if (lastRead) {
+        query = query.gt('created_at', lastRead);
+      }
+
+      const { count } = await query;
+      return count || 0;
+    });
+
+    const counts = await Promise.all(countPromises);
+    totalUnread = counts.reduce((acc, curr) => acc + curr, 0);
+    setUnreadChatCount(totalUnread);
+  }, []);
+
+  useEffect(() => {
+    if (!profile?.id || !workspace?.id) return;
+
+    const supabase = createClient();
+    
+    // Listen for changes and filter manually for higher reliability
+    const messageChannel = supabase
+      .channel(`unread-sync-${profile.id}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'workspace_messages'
+      }, (payload: any) => {
+        // Only trigger if it belongs to current workspace and isn't from us (for new msgs)
+        const data = payload.new || payload.old;
+        if (data && data.workspace_id === workspace.id) {
+          void fetchUnreadCount(profile.id, workspace.id);
+        }
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'workspace_conversation_reads'
+      }, (payload: any) => {
+        const data = payload.new || payload.old;
+        if (data && data.workspace_id === workspace.id) {
+          void fetchUnreadCount(profile.id, workspace.id);
+        }
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Unread count realtime subscribed');
+        }
+      });
+
+    return () => {
+      void supabase.removeChannel(messageChannel);
+    };
+  }, [profile?.id, workspace?.id, fetchUnreadCount]);
+
+  // Periodic sync fallback
+  useEffect(() => {
+    if (!profile?.id || !workspace?.id) return;
+    const interval = setInterval(() => {
+      void fetchUnreadCount(profile.id, workspace.id);
+    }, 60000); // Sync every minute
+    return () => clearInterval(interval);
+  }, [profile?.id, workspace?.id, fetchUnreadCount]);
 
   useEffect(() => {
     // Always refresh on mount to ensure customRoles (and other runtime-only data)
@@ -740,6 +846,7 @@ export function DashboardProvider({ children, initialState }: { children: React.
       deleteMember,
       saveUserProfile,
       uploadUserAvatar,
+      unreadChatCount,
     }),
     [
       actionLoading,
@@ -763,6 +870,7 @@ export function DashboardProvider({ children, initialState }: { children: React.
       uploadCompanyLogo,
       uploadUserAvatar,
       workspace,
+      unreadChatCount,
     ],
   );
 
