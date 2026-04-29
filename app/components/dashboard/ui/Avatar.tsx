@@ -1,11 +1,11 @@
 interface AvatarProps {
   initials: string;
   color?: string;   // tailwind bg color like 'bg-blue-500'
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   src?: string;
 }
 
-const sizes = { sm: 'w-8 h-8 text-xs', md: 'w-9 h-9 text-sm', lg: 'w-11 h-11 text-base' };
+const sizes = { sm: 'w-8 h-8 text-xs', md: 'w-9 h-9 text-sm', lg: 'w-11 h-11 text-base', xl: 'w-20 h-20 text-2xl' };
 
 const colorMap: Record<string, string> = {
   NP: 'bg-blue-500',

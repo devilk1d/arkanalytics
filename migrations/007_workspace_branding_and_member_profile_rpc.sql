@@ -12,8 +12,10 @@ returns table (
   full_name text,
   email citext,
   avatar_url text,
+  arka_id text,
   role text,
-  joined_at timestamptz
+  joined_at timestamptz,
+  last_active_at timestamptz
 )
 language plpgsql
 security definer
@@ -30,8 +32,10 @@ begin
     u.full_name,
     u.email,
     u.avatar_url,
+    u.arka_id,
     wm.role,
-    wm.joined_at
+    wm.joined_at,
+    u.last_active_at
   from public.workspace_members wm
   join public.users u on u.id = wm.user_id
   where wm.workspace_id = p_workspace_id

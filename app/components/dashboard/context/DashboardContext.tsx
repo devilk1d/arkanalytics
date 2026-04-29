@@ -22,11 +22,12 @@ type WorkspaceInfo = {
   logoUrl: string | null;
 };
 
-type WorkspaceMember = {
+export type WorkspaceMember = {
   userId: string;
   fullName: string;
   email: string | null;
   avatarUrl: string | null;
+  arkaId: string | null;
   role: string;
   joinedAt: string;
   lastActiveAt: string | null;
@@ -286,6 +287,7 @@ export function DashboardProvider({ children, initialState }: { children: React.
       fullName: row.full_name || 'User',
       email: row.email || null,
       avatarUrl: row.avatar_url || null,
+      arkaId: row.arka_id || null,
       role: row.role,
       joinedAt: row.joined_at,
       lastActiveAt: row.last_active_at,
