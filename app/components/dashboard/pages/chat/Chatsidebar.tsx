@@ -108,7 +108,7 @@ function SearchIcon({ size = 13 }: { size?: number }) {
 // ── Filter button labels ──────────────────────────────────────────────────────
 const FILTERS = [
   { key: 'all', label: 'All' },
-  { key: 'personal', label: 'DM' },
+  { key: 'personal', label: 'Personal' },
   { key: 'groups', label: 'Groups' },
 ];
 

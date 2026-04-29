@@ -30,15 +30,24 @@ export type MessageItem = {
     id: string;
     body: string;
     senderName: string;
+    messageType?: 'text' | 'attachment' | 'system';
+    metadata?: any;
   } | null;
   mentions?: string[];
   mentionAll?: boolean;
+  messageType?: 'text' | 'attachment' | 'system';
+  metadata?: any;
 };
 
 export type TaskItem = {
   id: string;
   title: string;
+  details?: string;
   taskStatus: 'open' | 'done' | 'archived';
+  dueAt?: string | null;
+  priority?: 'low' | 'normal' | 'high';
+  assigneeUserId?: string | null;
+  createdByUserId?: string;
 };
 
 export type NoteItem = {
@@ -53,6 +62,8 @@ export type AttachmentItem = {
   mediaKind: string;
   createdAt: string;
   storagePath: string;
+  fileSize: number;
+  mimeType: string;
 };
 
 export type RightTab = 'info' | 'actions' | 'customers' | 'files';
@@ -95,11 +106,21 @@ export type MessageRow = {
   replied_to_message_id: string | null;
   mentions: string[] | null;
   mention_all: boolean | null;
+  message_type: 'text' | 'attachment' | 'system';
+  metadata: any;
 };
 
 export type NoteRow = { id: string; title: string; content: string };
 export type TaskRow = { id: string; title: string; task_status: 'open' | 'done' | 'archived' };
-export type AttachmentRow = { id: string; file_name: string; media_kind: string; created_at: string; storage_path: string };
+export type AttachmentRow = { 
+  id: string; 
+  file_name: string; 
+  media_kind: string; 
+  created_at: string; 
+  storage_path: string;
+  file_size: number;
+  mime_type: string;
+};
 export type ConversationReadRow = { conversation_id: string; user_id: string; last_read_at: string };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

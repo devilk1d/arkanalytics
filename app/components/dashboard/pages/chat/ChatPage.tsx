@@ -313,6 +313,8 @@ export default function ChatPage() {
         replied_to_message_id,
         mentions,
         mention_all,
+        message_type,
+        metadata,
         users (
           full_name,
           avatar_url
@@ -332,6 +334,8 @@ export default function ChatPage() {
             id: repliedMsg.id,
             body: repliedMsg.body || '',
             senderName: repliedMsg.users?.full_name || 'User',
+            messageType: repliedMsg.message_type,
+            metadata: repliedMsg.metadata,
           };
         }
       }
@@ -346,6 +350,8 @@ export default function ChatPage() {
         replyTo: replyToData,
         mentions: row.mentions || [],
         mentionAll: !!row.mention_all,
+        messageType: row.message_type,
+        metadata: row.metadata,
       };
     });
     setMessages(mapped);
@@ -361,13 +367,36 @@ export default function ChatPage() {
 
     const [{ data: notesData }, { data: tasksData }, { data: attachmentsData }] = await Promise.all([
       supabase.from('workspace_notes').select('id, title, content').eq('workspace_id', workspace.id).or(conversationFilter).order('updated_at', { ascending: false }).limit(20),
-      supabase.from('workspace_tasks').select('id, title, task_status').eq('workspace_id', workspace.id).or(conversationFilter).order('updated_at', { ascending: false }).limit(20),
-      supabase.from('workspace_attachments').select('id, file_name, media_kind, created_at, storage_path').eq('workspace_id', workspace.id).or(conversationFilter).order('created_at', { ascending: false }).limit(20),
+      supabase.from('workspace_tasks').select('id, title, details, task_status, due_at, priority, assignee_user_id, created_by_user_id').eq('workspace_id', workspace.id).or(conversationFilter).order('updated_at', { ascending: false }).limit(20),
+      supabase.from('workspace_attachments').select('id, file_name, media_kind, created_at, storage_path, file_size, mime_type').eq('workspace_id', workspace.id).or(conversationFilter).order('created_at', { ascending: false }).limit(20),
     ]);
 
     setNotes(((notesData || []) as NoteRow[]).map((row) => ({ id: row.id, title: row.title, content: row.content })));
-    setTasks(((tasksData || []) as TaskRow[]).map((row) => ({ id: row.id, title: row.title, taskStatus: row.task_status })));
-    setAttachments(((attachmentsData || []) as AttachmentRow[]).map((row) => ({ id: row.id, fileName: row.file_name, mediaKind: row.media_kind, createdAt: row.created_at, storagePath: row.storage_path })));
+    setTasks(((tasksData || []) as any[]).map((row) => ({ 
+      id: row.id, 
+      title: row.title, 
+      details: row.details,
+      taskStatus: row.task_status,
+      dueAt: row.due_at,
+      priority: row.priority,
+      assigneeUserId: row.assignee_user_id,
+      createdByUserId: row.created_by_user_id
+    })));
+    setAttachments(((attachmentsData || []) as AttachmentRow[]).map((row) => {
+      const { data: { publicUrl } } = supabase.storage
+        .from('workspace-media')
+        .getPublicUrl(row.storage_path);
+
+      return { 
+        id: row.id, 
+        fileName: row.file_name, 
+        mediaKind: row.media_kind, 
+        createdAt: row.created_at, 
+        storagePath: publicUrl, // Using full URL
+        fileSize: row.file_size,
+        mimeType: row.mime_type
+      };
+    }));
   }, [activeConvo, supabase, workspace]);
 
   useEffect(() => {
@@ -579,18 +608,22 @@ export default function ChatPage() {
     await fetchConversations();
   }, [activeConvo, fetchConversations, profile, supabase]);
 
-  const createTask = useCallback(async () => {
-    if (!workspace?.id || !profile?.id || !newTask.trim()) return;
+  const createTask = useCallback(async (taskData: Partial<TaskItem>) => {
+    if (!workspace?.id || !profile?.id || !taskData.title?.trim()) return;
     await supabase.from('workspace_tasks').insert({
       workspace_id: workspace.id,
       conversation_id: activeConvo || null,
       created_by_user_id: profile.id,
-      title: newTask.trim(),
+      title: taskData.title.trim(),
+      details: taskData.details || '',
+      due_at: taskData.dueAt || null,
+      priority: taskData.priority || 'normal',
+      assignee_user_id: taskData.assigneeUserId || null,
       task_status: 'open',
     });
     setNewTask('');
     await fetchActionsAndFiles();
-  }, [activeConvo, fetchActionsAndFiles, newTask, profile, supabase, workspace]);
+  }, [activeConvo, fetchActionsAndFiles, profile, supabase, workspace]);
 
   const toggleTask = useCallback(async (task: TaskItem) => {
     const nextStatus = task.taskStatus === 'done' ? 'open' : 'done';
@@ -615,16 +648,28 @@ export default function ChatPage() {
     await fetchActionsAndFiles();
   }, [activeConvo, fetchActionsAndFiles, newNote, profile, supabase, workspace]);
 
-  const uploadFile = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !workspace?.id || !profile?.id || !activeConvo) return;
+  const handleFileUpload = useCallback(async (file: File, kind: 'image' | 'video' | 'document') => {
+    if (!activeConvo || !workspace?.id || !profile?.id) return;
 
     setUploadLoading(true);
     const safeName = file.name.replace(/\s+/g, '-').toLowerCase();
     const storagePath = `${workspace.id}/chat/${activeConvo}/${Date.now()}-${safeName}`;
 
-    await supabase.storage.from('workspace-media').upload(storagePath, file, { upsert: false });
-    await supabase.from('workspace_attachments').insert({
+    const { error: uploadError } = await supabase.storage
+      .from('workspace-media')
+      .upload(storagePath, file, { upsert: false });
+
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      setUploadLoading(false);
+      return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('workspace-media')
+      .getPublicUrl(storagePath);
+
+    const { data: attachment, error: attachError } = await supabase.from('workspace_attachments').insert({
       workspace_id: workspace.id,
       conversation_id: activeConvo,
       uploaded_by_user_id: profile.id,
@@ -633,16 +678,31 @@ export default function ChatPage() {
       file_name: file.name,
       mime_type: file.type || 'application/octet-stream',
       file_size: file.size,
-      media_kind: file.type.startsWith('image/') ? 'image'
-        : file.type.startsWith('video/') ? 'video'
-        : file.type.startsWith('audio/') ? 'audio'
-        : 'document',
-    });
+      media_kind: kind,
+    }).select().single();
+
+    if (!attachError && attachment) {
+      await supabase.from('workspace_messages').insert({
+        workspace_id: workspace.id,
+        conversation_id: activeConvo,
+        sender_user_id: profile.id,
+        message_type: 'attachment',
+        body: `Shared a ${kind}: ${file.name}`,
+        metadata: {
+          attachment_id: attachment.id,
+          file_url: publicUrl,
+          file_name: file.name,
+          file_size: file.size,
+          mime_type: file.type,
+          media_kind: kind
+        }
+      });
+    }
 
     setUploadLoading(false);
-    event.target.value = '';
-    await fetchActionsAndFiles();
-  }, [activeConvo, fetchActionsAndFiles, profile, supabase, workspace]);
+    void fetchMessages();
+    void fetchActionsAndFiles();
+  }, [activeConvo, fetchActionsAndFiles, fetchMessages, profile, supabase, workspace]);
 
   const handleSelectConversation = useCallback((id: string) => {
     setAutoSelect(true);
@@ -761,6 +821,7 @@ export default function ChatPage() {
             onInviteUserChange={setInviteUserId}
             onInvite={() => { void inviteToGroup(); }}
             groupInviteCandidates={groupInviteCandidates}
+            onFileUpload={handleFileUpload}
           />
         </section>
 
@@ -785,11 +846,17 @@ export default function ChatPage() {
             newNote={newNote}
             onTaskChange={setNewTask}
             onNoteChange={setNewNote}
-            onCreateTask={() => { void createTask(); }}
+            onCreateTask={createTask}
             onCreateNote={() => { void createNote(); }}
             onToggleTask={(task) => { void toggleTask(task); }}
             files={attachments}
-            onUpload={(event) => { void uploadFile(event); }}
+            onUpload={(e: any) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                const type = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'document';
+                void handleFileUpload(file, type);
+              }
+            }}
             uploadLoading={uploadLoading}
           />
         </aside>

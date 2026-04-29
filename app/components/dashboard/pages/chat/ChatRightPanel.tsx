@@ -1,10 +1,88 @@
-'use client';
-
-import { ChangeEvent, JSX, useState } from 'react';
+import { ChangeEvent, JSX, useState, useRef, useEffect } from 'react';
 import Card from '../../ui/Card';
 import { AttachmentItem, ConversationItem, NoteItem, RightTab, TaskItem, formatTime } from './chat-types';
 import { getInitials, type WorkspaceMember } from '../../context/DashboardContext';
 import Avatar from '../../ui/Avatar';
+import MediaLightbox from '../../../ui/MediaLightbox';
+import AuthDropdown from '../../../auth/AuthDropdown';
+
+
+// ─── Internal Components for Modal ──────────────────────────────────────────
+
+function TaskDatePicker({ value, onChange }: { value: string, onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(new Date());
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const selectedDate = value ? new Date(value) : null;
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+  const firstDayOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
+  const monthName = viewDate.toLocaleString('default', { month: 'long' });
+
+  const handleSelect = (day: number) => {
+    const newDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+    onChange(newDate.toISOString().split('T')[0]);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={rootRef} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full bg-gray-50 rounded-xl px-4 py-2.5 text-xs font-bold text-gray-700 border border-transparent outline-none flex items-center justify-between"
+      >
+        <span>{selectedDate ? selectedDate.toLocaleDateString('en-GB') : 'dd/mm/yyyy'}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="text-gray-400"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-[calc(100%+8px)] z-[1002] bg-white rounded-3xl border border-gray-100 shadow-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-200 w-[260px]">
+          <div className="flex items-center justify-between mb-4">
+            <h5 className="text-sm font-extrabold text-gray-900">{monthName} {viewDate.getFullYear()}</h5>
+            <div className="flex gap-1">
+              <button type="button" onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() - 1)))} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="15 18 9 12 15 6" /></svg>
+              </button>
+              <button type="button" onClick={() => setViewDate(new Date(viewDate.setMonth(viewDate.getMonth() + 1)))} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="9 18 15 12 9 6" /></svg>
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-7 gap-1 text-center mb-2">
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => <span key={`${d}-${i}`} className="text-[10px] font-black text-gray-400">{d}</span>)}
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {Array.from({ length: firstDayOfMonth }).map((_, i) => <div key={`empty-${i}`} />)}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const day = i + 1;
+              const isSelected = selectedDate?.getDate() === day && selectedDate?.getMonth() === viewDate.getMonth() && selectedDate?.getFullYear() === viewDate.getFullYear();
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => handleSelect(day)}
+                  className={`aspect-square text-xs font-bold rounded-xl flex items-center justify-center transition-all ${isSelected ? 'bg-blue-600 text-white shadow-md' : 'text-gray-700 hover:bg-gray-100'}`}
+                >
+                  {day}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 
 // ─── Tab config ──────────────────────────────────────────────────────────────
@@ -128,7 +206,7 @@ function InfoPanel({
   const peerId = convo.type === 'direct'
     ? (convo.members.find(m => m.id !== currentUserId)?.id || convo.members.find(m => m.id === currentUserId)?.id)
     : null;
-  
+
   const peer = peerId ? workspaceMembers.find(m => m.userId === peerId) : null;
 
   return (
@@ -136,14 +214,14 @@ function InfoPanel({
       {/* Avatar */}
       <div className="mb-6 mt-4 relative group/avatar">
         <div className="relative">
-          <Avatar 
-            initials={getInitials(convo.name)} 
-            size="xl" 
-            src={convo.avatarUrl || undefined} 
+          <Avatar
+            initials={getInitials(convo.name)}
+            size="xl"
+            src={convo.avatarUrl || undefined}
           />
           {convo.type === 'group' && onAvatarChange && (
             <label className="absolute bottom-0 right-0 p-2 bg-white rounded-full shadow-xl border border-gray-100 cursor-pointer hover:bg-gray-50 transition-all opacity-0 group-hover/avatar:opacity-100 translate-y-1 group-hover/avatar:translate-y-0">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-gray-600"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-gray-600"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
               <input type="file" className="hidden" accept="image/*" onChange={handleAvatarSelect} />
             </label>
           )}
@@ -292,8 +370,14 @@ function InfoPanel({
 }
 
 function ActionsPanel({
-  tasks, notes, newTask, newNote,
-  onTaskChange, onNoteChange, onCreateTask, onCreateNote, onToggleTask,
+  tasks,
+  notes,
+  newNote,
+  onNoteChange,
+  onCreateTask,
+  onCreateNote,
+  onToggleTask,
+  workspaceMembers,
 }: {
   tasks: TaskItem[];
   notes: NoteItem[];
@@ -301,79 +385,236 @@ function ActionsPanel({
   newNote: string;
   onTaskChange: (v: string) => void;
   onNoteChange: (v: string) => void;
-  onCreateTask: () => void;
+  onCreateTask: (task: Partial<TaskItem>) => void;
   onCreateNote: () => void;
   onToggleTask: (task: TaskItem) => void;
+  workspaceMembers: WorkspaceMember[];
 }) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalData, setModalData] = useState<{
+    title: string;
+    priority: 'normal' | 'low' | 'high';
+    dueAt: string;
+    details: string;
+  }>({ title: '', priority: 'normal', dueAt: '', details: '' });
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+
+  const resetModal = () => {
+    setModalData({ title: '', priority: 'normal', dueAt: '', details: '' });
+    setIsModalOpen(false);
+  };
+
   return (
-    <div className="flex flex-col gap-3">
-      <Card padding="sm" className="rounded-[20px] border-gray-200 shadow-none">
-        <div className="mb-3 flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-gray-900">To-do List</h4>
-          <button onClick={onCreateTask} className="text-xs font-medium text-blue-600 hover:text-blue-700">
-            + Add task
+    <div className="flex flex-col gap-4">
+      <Card padding="none" className="rounded-2xl border-gray-200 shadow-none bg-white p-5">
+        <div className="mb-6 flex items-center justify-between">
+          <h4 className="text-base font-bold text-gray-900">To-do List</h4>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1"
+          >
+            <span className="text-sm">+</span> Add task
           </button>
         </div>
-        <div className="mb-3">
-          <input
-            value={newTask}
-            onChange={(e) => onTaskChange(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') onCreateTask(); }}
-            placeholder="Task title..."
-            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
-          />
-        </div>
-        <div className="flex flex-col gap-3">
-          {tasks.map((t) => (
-            <div key={t.id} className="flex items-start gap-3">
-              <button
-                onClick={() => onToggleTask(t)}
-                className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${t.taskStatus === 'done' ? 'border-gray-900 bg-white' : 'border-gray-300 bg-white hover:border-gray-500'}`}
-              >
-                {t.taskStatus === 'done' && (
-                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
+
+        <div className="flex flex-col gap-5">
+          {tasks.map((t) => {
+            const isExpanded = expandedTaskId === t.id;
+            const creator = workspaceMembers.find(m => m.userId === t.createdByUserId);
+            const isDone = t.taskStatus === 'done';
+
+            return (
+              <div key={t.id} className="flex flex-col animate-in fade-in slide-in-from-bottom-1 duration-300">
+                <div className="flex items-start gap-4">
+                  <button
+                    onClick={() => onToggleTask(t)}
+                    className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border-2 transition-all ${isDone
+                        ? 'border-gray-200 bg-gray-50 text-gray-400'
+                        : 'border-gray-300 bg-white hover:border-blue-500'
+                      }`}
+                  >
+                    {isDone && (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                  </button>
+
+                  <div 
+                    className="min-w-0 flex-1 cursor-pointer group"
+                    onClick={() => setExpandedTaskId(isExpanded ? null : t.id)}
+                  >
+                    <p className={`text-sm font-bold leading-tight mb-1 transition-all group-hover:text-blue-600 ${isDone ? 'text-gray-400 line-through' : 'text-gray-900 text-opacity-90'}`}>
+                      {t.title}
+                    </p>
+                    <p className={`text-[11px] font-medium transition-all ${isDone ? 'text-gray-400' : 'text-gray-500 text-opacity-70'}`}>
+                      {(() => {
+                        if (isDone) return 'Completed';
+                        if (!t.dueAt) return 'No due date';
+                        const d = new Date(t.dueAt);
+                        const today = new Date();
+                        const tomorrow = new Date(today);
+                        tomorrow.setDate(today.getDate() + 1);
+
+                        if (d.toDateString() === today.toDateString()) return 'Due today';
+                        if (d.toDateString() === tomorrow.toDateString()) return 'Due tomorrow';
+
+                        return `Due ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+                      })()}
+                    </p>
+                  </div>
+
+                  {creator && (
+                    <div className="shrink-0 scale-90">
+                      <Avatar
+                        initials={getInitials(creator.fullName)}
+                        size="sm"
+                        src={creator.avatarUrl || undefined}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {isExpanded && t.details && (
+                  <div className="mt-3 ml-9 p-3 bg-gray-50/50 rounded-xl border border-gray-100 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <p className="text-[11px] text-gray-600 leading-relaxed font-medium whitespace-pre-wrap">
+                      {t.details}
+                    </p>
+                    {t.priority && (
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <div className={`w-1.5 h-1.5 rounded-full ${t.priority === 'high' ? 'bg-red-500' : t.priority === 'low' ? 'bg-green-500' : 'bg-blue-500'}`} />
+                        <span className="text-[9px] font-black uppercase tracking-tighter text-gray-400">{t.priority} priority</span>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </button>
-              <div className="min-w-0 flex-1">
-                <p className={`text-[13px] font-medium leading-5 ${t.taskStatus === 'done' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
-                  {t.title}
-                </p>
-                <p className={`text-[11px] leading-4 ${t.taskStatus === 'done' ? 'text-gray-400' : 'text-gray-500'}`}>
-                  {t.taskStatus}
-                </p>
               </div>
+            );
+          })}
+          {tasks.length === 0 && (
+            <div className="py-6 flex flex-col items-center justify-center text-center opacity-50">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="mb-2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+              <p className="text-xs font-medium italic">No tasks active</p>
             </div>
-          ))}
+          )}
         </div>
       </Card>
 
-      <Card padding="none" className="overflow-hidden rounded-[20px] border-gray-200 shadow-none">
-        <div className="border-b border-gray-100 p-3">
+      <Card padding="none" className="rounded-2xl border-gray-200 shadow-none bg-white p-5">
+        <h4 className="text-base font-bold text-gray-900 mb-4">Notes</h4>
+        <div className="group relative overflow-hidden rounded-xl bg-gray-50/50 border border-gray-100 focus-within:border-blue-200 transition-all">
           <textarea
             value={newNote}
             onChange={(e) => onNoteChange(e.target.value)}
             placeholder="Write some notes..."
-            rows={3}
-            className="w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500"
+            className="w-full min-h-[160px] bg-transparent p-4 text-sm font-medium text-gray-600 outline-none placeholder:text-gray-400"
           />
-          <button
-            onClick={onCreateNote}
-            className="mt-2 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
-          >
-            Save note
-          </button>
+          <div className="flex justify-end p-2 border-t border-gray-100 bg-white">
+            <button
+              onClick={onCreateNote}
+              disabled={!newNote.trim()}
+              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-30 disabled:hover:bg-blue-600 text-white text-[11px] font-bold rounded-lg transition-all shadow-sm"
+            >
+              Save Note
+            </button>
+          </div>
         </div>
-        <div className="max-h-56 overflow-y-auto p-3">
-          {notes.map((n) => (
-            <div key={n.id} className="mb-2 rounded-xl bg-gray-50 p-3 last:mb-0">
-              <p className="text-xs font-semibold text-gray-800">{n.title}</p>
-              <p className="mt-1 text-xs text-gray-600">{n.content}</p>
-            </div>
-          ))}
-        </div>
+
+        {notes.length > 0 && (
+          <div className="mt-4 flex flex-col gap-2">
+            {notes.map(note => (
+              <div key={note.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-gray-200 transition-all cursor-pointer">
+                <p className="text-[11px] font-bold text-gray-900 mb-0.5 truncate">{note.title || 'Untitled Note'}</p>
+                <p className="text-[10px] text-gray-500 line-clamp-1">{note.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
+
+      {/* Task Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[1001] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div
+            className="w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-300"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">New Task</h3>
+                <button onClick={resetModal} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                </button>
+              </div>
+
+              <div className="space-y-5">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Title</label>
+                  <input
+                    autoFocus
+                    value={modalData.title}
+                    onChange={(e) => setModalData({ ...modalData, title: e.target.value })}
+                    placeholder="Task title..."
+                    className="w-full bg-gray-50 rounded-xl px-4 py-3 text-sm font-semibold text-gray-900 border border-transparent focus:border-blue-400 focus:bg-white outline-none transition-all"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <AuthDropdown
+                      label="Priority"
+                      options={[
+                        { label: 'Normal', value: 'normal' },
+                        { label: 'High', value: 'high' },
+                        { label: 'Low', value: 'low' }
+                      ]}
+                      value={modalData.priority}
+                      onChange={(val) => setModalData({ ...modalData, priority: val as any })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Due Date</label>
+                    <TaskDatePicker
+                      value={modalData.dueAt}
+                      onChange={(val) => setModalData({ ...modalData, dueAt: val })}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Details</label>
+                  <textarea
+                    value={modalData.details}
+                    onChange={(e) => setModalData({ ...modalData, details: e.target.value })}
+                    placeholder="Add more information here..."
+                    className="w-full bg-gray-50 rounded-xl px-4 py-3 text-sm font-medium text-gray-600 border border-transparent focus:border-blue-400 focus:bg-white outline-none transition-all min-h-[100px]"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-8 flex gap-3">
+                <button
+                  onClick={resetModal}
+                  className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold rounded-2xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (modalData.title.trim()) {
+                      onCreateTask(modalData);
+                      resetModal();
+                    }
+                  }}
+                  className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-2xl transition-all shadow-md"
+                >
+                  Create Task
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -381,7 +622,7 @@ function ActionsPanel({
 function CustomersPanel() {
   return (
     <div className="flex flex-col gap-3">
-      <Card padding="sm" className="rounded-[20px] border-gray-200 shadow-none">
+      <Card padding="sm" className="rounded-2xl border-gray-200 shadow-none">
         <h4 className="mb-3 text-sm font-semibold text-gray-900">Customers</h4>
         <p className="text-xs text-gray-500">
           Customer insights panel belum dihubungkan ke data chat. Fokus tahap ini adalah conversation, message, notes, tasks, dan files.
@@ -392,33 +633,110 @@ function CustomersPanel() {
 }
 
 function FilesPanel({
-  files, onUpload, uploadLoading,
+  files,
 }: {
   files: AttachmentItem[];
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   uploadLoading: boolean;
 }) {
+  const [previewMedia, setPreviewMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+
+  const mediaFiles = files.filter(f => f.mediaKind === 'image' || f.mediaKind === 'video');
+  const docFiles = files.filter(f => f.mediaKind === 'document' || f.mediaKind === 'other');
+
+  const groupedMedia = groupFilesByMonth(mediaFiles);
+
   return (
     <div className="flex flex-col gap-3">
-      <Card padding="sm" className="rounded-[20px] border-gray-200 shadow-none">
-        <div className="mb-3 flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-gray-900">Media & Docs</h4>
-          <label className="cursor-pointer rounded-lg bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-blue-700">
-            {uploadLoading ? 'Uploading...' : 'Upload'}
-            <input type="file" className="hidden" onChange={onUpload} disabled={uploadLoading} />
-          </label>
-        </div>
-        <div className="flex flex-col gap-2">
-          {files.map((file) => (
-            <div key={file.id} className="rounded-xl border border-gray-200 px-3 py-2">
-              <p className="truncate text-xs font-semibold text-gray-900">{file.fileName}</p>
-              <p className="mt-0.5 text-[11px] text-gray-500">{file.mediaKind} • {formatTime(file.createdAt)}</p>
+      {/* Media Section */}
+      <section className="bg-white rounded-2xl border border-gray-200 p-4">
+        <h4 className="text-xs font-extrabold text-gray-900 mb-4 tracking-tight opacity-70">Media</h4>
+        <div className="space-y-4">
+          {Object.entries(groupedMedia).map(([month, items]) => (
+            <div key={month} className="animate-in fade-in slide-in-from-bottom-1 duration-500">
+              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">{month}</p>
+              <div className="grid grid-cols-4 gap-1.5">
+                {items.map(item => (
+                  <div
+                    key={item.id}
+                    className="aspect-square rounded-lg bg-gray-50 overflow-hidden cursor-pointer hover:opacity-80 transition-all relative group ring-1 ring-black/5"
+                    onClick={() => setPreviewMedia({ url: item.storagePath, type: item.mediaKind as any })}
+                  >
+                    {item.mediaKind === 'image' ? (
+                      <img src={item.storagePath} className="w-full h-full object-cover" alt={item.fileName} />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
+          {mediaFiles.length === 0 && <p className="text-[10px] text-gray-400 italic opacity-60">No media yet</p>}
         </div>
-      </Card>
+      </section>
+
+      {/* Docs Section */}
+      <section className="bg-white rounded-2xl border border-gray-200 p-4">
+        <h4 className="text-xs font-extrabold text-gray-900 mb-4 tracking-tight opacity-70">Docs</h4>
+        <div className="flex flex-col gap-3">
+          {docFiles.map(file => (
+            <div
+              key={file.id}
+              className="group flex flex-col rounded-xl border border-blue-500/20 bg-white cursor-pointer animate-in fade-in slide-in-from-bottom-1 duration-500"
+              onClick={() => window.open(file.storagePath, '_blank')}
+            >
+              <div className="h-20 bg-gray-50/50 flex items-center justify-center relative overflow-hidden rounded-t-[inherit]">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="1.2" className="relative z-10"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+              </div>
+              <div className="bg-blue-600 p-2.5 flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center backdrop-blur-md">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-bold text-white truncate leading-tight">{file.fileName}</p>
+                  <p className="text-[8px] text-white/70 font-semibold uppercase tracking-tight">{(file.fileSize / 1024).toFixed(0)} KB • {file.fileName.split('.').pop()}</p>
+                </div>
+              </div>
+              <div className="px-3 py-1.5 flex justify-between items-center bg-blue-500/90 backdrop-blur-sm rounded-b-[inherit]">
+                <span className="text-[9px] font-bold text-white/90">{new Date(file.createdAt).toLocaleDateString('en-GB')}</span>
+                <div className="bg-white/20 rounded-full p-0.5">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5"><polyline points="20 6 9 17 4 12" /></svg>
+                </div>
+              </div>
+            </div>
+          ))}
+          {docFiles.length === 0 && <p className="text-[10px] text-gray-400 italic opacity-60">No documents yet</p>}
+        </div>
+      </section>
+
+      {/* Reusable Lightbox */}
+      <MediaLightbox
+        isOpen={!!previewMedia}
+        onClose={() => setPreviewMedia(null)}
+        url={previewMedia?.url || ''}
+        type={previewMedia?.type || 'image'}
+      />
     </div>
   );
+}
+
+// Grouping helper
+function groupFilesByMonth(files: AttachmentItem[]) {
+  const groups: Record<string, AttachmentItem[]> = {};
+  files.forEach(f => {
+    const d = new Date(f.createdAt);
+    const month = d.toLocaleString('en-US', { month: 'long' });
+    const year = d.getFullYear();
+    const now = new Date();
+    const isThisMonth = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    const label = isThisMonth ? 'THIS MONTH' : `${month.toUpperCase()} ${year}`;
+    if (!groups[label]) groups[label] = [];
+    groups[label].push(f);
+  });
+  return groups;
 }
 
 // ─── Main export ─────────────────────────────────────────────────────────────
@@ -435,7 +753,7 @@ interface ChatRightPanelProps {
   newNote: string;
   onTaskChange: (v: string) => void;
   onNoteChange: (v: string) => void;
-  onCreateTask: () => void;
+  onCreateTask: (task: Partial<TaskItem>) => void;
   onCreateNote: () => void;
   onToggleTask: (task: TaskItem) => void;
 
@@ -521,6 +839,7 @@ export default function ChatRightPanel({
                 onCreateTask={onCreateTask}
                 onCreateNote={onCreateNote}
                 onToggleTask={onToggleTask}
+                workspaceMembers={workspaceMembers}
               />
             )}
 
