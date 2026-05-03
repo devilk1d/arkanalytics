@@ -24,8 +24,16 @@ export async function POST(req: NextRequest) {
 
   // Belum ada → panggil Railway
   const form = await req.formData()
+  let url = RAILWAY_URL;
+  if (!url.startsWith('http')) {
+    url = `https://${url}`;
+  }
+  if (url.endsWith('/')) {
+    url = url.slice(0, -1);
+  }
+
   const railwayRes = await fetch(
-    `${RAILWAY_URL}/predict/single?customer_id=${encodeURIComponent(customerId)}`,
+    `${url}/predict/single?customer_id=${encodeURIComponent(customerId)}`,
     { method: 'POST', body: form }
   )
 

@@ -20,16 +20,31 @@ export async function POST(req: NextRequest) {
   // Update status → analyzing
   await updateDatasetStatus(datasetId, 'analyzing')
 
-  // Forward ke Railway
-  const railwayRes = await fetch(
-    `${RAILWAY_URL}/predict?generate_xai=${generateXai}`,
-    { method: 'POST', body: form }
-  )
+  let railwayRes: Response;
+  try {
+    let url = RAILWAY_URL;
+    if (!url.startsWith('http')) {
+      url = `https://${url}`;
+    }
+    // Remove trailing slash if exists to prevent //predict 404 error
+    if (url.endsWith('/')) {
+      url = url.slice(0, -1);
+    }
+    railwayRes = await fetch(
+      `${url}/predict?generate_xai=${generateXai}`,
+      { method: 'POST', body: form }
+    )
+  } catch (err: any) {
+    console.error("Railway Fetch Error:", err);
+    await updateDatasetStatus(datasetId, 'error', { error_message: 'Failed to connect to ML Backend' });
+    return NextResponse.json({ error: 'Failed to connect to ML Backend' }, { status: 500 })
+  }
 
   if (!railwayRes.ok) {
-    await updateDatasetStatus(datasetId, 'error', { error_message: `Railway ${railwayRes.status}` })
-    const err = await railwayRes.json().catch(() => ({}))
-    return NextResponse.json({ error: err.detail ?? 'Railway error' }, { status: railwayRes.status })
+    const statusText = railwayRes.statusText || 'Railway Server Error';
+    const err = await railwayRes.json().catch(() => ({ detail: statusText }))
+    await updateDatasetStatus(datasetId, 'error', { error_message: err.detail ?? statusText })
+    return NextResponse.json({ error: err.detail ?? statusText }, { status: railwayRes.status })
   }
 
   const data = await railwayRes.json()
