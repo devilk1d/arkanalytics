@@ -11,6 +11,7 @@ import SearchBar from '../../ui/SearchBar';
 import Select from '../../ui/Select';
 import ProgressBar from '../../ui/ProgressBar';
 import Pagination from '../../ui/Pagination';
+import AuthDropdown from '@/app/components/auth/AuthDropdown';
 import { RetainModal, SendOfferModal } from './ActionModals';
 import { createClient } from '@/lib/supabase/client';
 import type { CustomerPrediction } from '@/types/churn';
@@ -23,6 +24,7 @@ interface PredictionRow {
   churn_score: number;
   risk_level: 'Low' | 'Medium' | 'High';
   segment_label: string;
+  nlp_red_flag: number;
 }
 
 interface ChurnXai {
@@ -45,13 +47,28 @@ const planColors: Record<string, string> = {
 
 const riskColors = { Low: 'text-green-500', Medium: 'text-yellow-500', High: 'text-red-500' };
 
-const PAGE_SIZE = 9;
+const PAGE_SIZE_OPTIONS = [
+  { label: '10 items', value: '10' },
+  { label: '25 items', value: '25' },
+  { label: '50 items', value: '50' },
+  { label: '100 items', value: '100' }
+];
+
+// ── NLP Red Flag Badge ─────────────────────────────────────────────────────────
+function RedFlagBadge({ show }: { show: boolean }) {
+  if (!show) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">
+      <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
+      Hidden Risk
+    </span>
+  );
+}
 
 // ── XAI Panel ─────────────────────────────────────────────────────────────────
 function XaiPanel({ raw }: { raw: string | null }) {
   if (!raw) return null;
 
-  // Try parse JSON; fallback to plain text display
   let xai: ChurnXai | null = null;
   try {
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
@@ -60,7 +77,6 @@ function XaiPanel({ raw }: { raw: string | null }) {
     // not JSON — show as plain fallback
   }
 
-  // Plain text fallback (e.g. old cached rows or parse error)
   if (!xai || xai.error) {
     return (
       <div className="border border-blue-100 bg-blue-50 rounded-2xl p-4 mb-4">
@@ -104,14 +120,13 @@ function XaiPanel({ raw }: { raw: string | null }) {
             ))}
           </div>
         </div>
-
         <div className="bg-gray-50 border border-gray-100 rounded-xl p-3">
           <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Sinyal Feedback</p>
           <p className="text-[11px] text-gray-700 leading-relaxed">{xai.feedback_signal}</p>
         </div>
       </div>
 
-      {/* Action Recommendation */}
+      {/* Action Recommendation — now free-text from Qwen, not hardcoded */}
       {xai.action && (
         <div className="border border-gray-200 rounded-xl p-3">
           <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Rekomendasi Tindakan</p>
@@ -139,8 +154,6 @@ function XaiPanel({ raw }: { raw: string | null }) {
 }
 
 // ── Dataset file cache (module-level, lives for the full browser session) ─────
-// Key: datasetId → Value: map of fileKey → Blob
-// This prevents re-downloading the same 5 CSVs on every Analyze click.
 const datasetFileCache = new Map<string, Map<string, Blob>>();
 
 const FILE_KEYS = [
@@ -173,7 +186,7 @@ function AnalyzeModal({
     setLoading(true); setError(''); setLoadingStage('db'); setDownloadProgress(0);
 
     async function load() {
-      // ── Path A: DB has full data including XAI → instant return ────────────
+      // ── Path A: DB has full data including XAI → instant return ─────────
       const { data: existing } = await supabase
         .from('predictions').select('*')
         .eq('dataset_id', datasetId).eq('customer_id', customerId).maybeSingle();
@@ -183,18 +196,12 @@ function AnalyzeModal({
         setLoading(false); return;
       }
 
-      // ── Path B: DB has prediction row but XAI is NULL ───────────────────────
-      // This happens after the auto-analyze on upload (generate_xai=false).
-      // Show the existing data immediately, then generate only the XAI narrative.
+      // ── Path B: DB has prediction row but XAI is NULL ────────────────────
       if (existing && existing.churn_score != null) {
-        // Show data right away — no download needed
         setData(existing as unknown as CustomerPrediction);
         setLoading(false);
         setXaiGenerating(true);
 
-        // Fire XAI generation in background via predict-single.
-        // The route.ts will skip re-prediction (row exists) and only generate XAI.
-        // We need to pass files so Railway can rebuild the XAI prompt — use cache or download.
         setLoadingStage('predicting');
         const form = new FormData();
         const cached = datasetFileCache.get(datasetId);
@@ -206,7 +213,7 @@ function AnalyzeModal({
           setLoadingStage('downloading');
           const { data: ds } = await supabase.from('datasets').select('storage_path')
             .eq('id', datasetId).single();
-          if (!ds) { setXaiGenerating(false); return; } // XAI stays null — not a blocking error, data already shown
+          if (!ds) { setXaiGenerating(false); return; }
           const fileBlobs = new Map<string, Blob>();
           for (let i = 0; i < FILE_KEYS.length; i++) {
             const key = FILE_KEYS[i];
@@ -226,17 +233,16 @@ function AnalyzeModal({
         );
         if (xaiRes.ok) {
           const updated = await xaiRes.json();
-          setData(updated as CustomerPrediction); // refresh with XAI now filled
+          setData(updated as CustomerPrediction);
         }
         setXaiGenerating(false);
         return;
       }
 
-      // ── Path C: No DB row at all → full predict (first-ever analyze) ────────
+      // ── Path C: No DB row → full predict ────────────────────────────────
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setError('Not authenticated'); setLoading(false); return; }
 
-      // Build FormData from cache or download
       const form = new FormData();
       const cached = datasetFileCache.get(datasetId);
       if (cached && cached.size === FILE_KEYS.length) {
@@ -301,10 +307,7 @@ function AnalyzeModal({
                 <div className="flex flex-col items-center gap-2 w-48">
                   <p className="text-xs text-gray-500 font-medium">Downloading dataset files…</p>
                   <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-1.5 bg-black rounded-full transition-all duration-300"
-                      style={{ width: `${downloadProgress}%` }}
-                    />
+                    <div className="h-1.5 bg-black rounded-full transition-all duration-300" style={{ width: `${downloadProgress}%` }} />
                   </div>
                   <p className="text-[11px] text-gray-400">{downloadProgress}% — cached for next analyze</p>
                 </div>
@@ -330,9 +333,15 @@ function AnalyzeModal({
               {/* Score header */}
               <div className="flex items-start justify-between mb-5">
                 <div>
-                  <h3 className="text-xl font-bold text-black">{data.customer_id}</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">{data.plan_type} · {data.contract_type}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Segment: <span className="font-semibold text-black">{data.segment_label}</span></p>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h3 className="text-xl font-bold text-black">{data.customer_id}</h3>
+                    {/* NLP red flag indicator — hidden risk */}
+                    <RedFlagBadge show={data.nlp_red_flag === 1} />
+                  </div>
+                  <p className="text-xs text-gray-400">{data.plan_type} · {data.contract_type}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Segment: <span className="font-semibold text-black">{data.segment_label}</span>
+                  </p>
                 </div>
                 <div className="border border-gray-200 rounded-2xl p-4 text-right min-w-28">
                   <p className="text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Churn Score</p>
@@ -342,13 +351,28 @@ function AnalyzeModal({
                   <div className="mt-1">
                     <Badge label={data.risk_level} variant={data.risk_level === 'Low' ? 'low' : data.risk_level === 'High' ? 'high' : 'med'} />
                   </div>
+                  {/* v2.1: tampilkan tabular_proba saja; nlp_proba dihapus (selalu null) */}
                   <p className="text-[10px] text-gray-400 mt-1">
-                    ML: {(data.tabular_proba * 100).toFixed(0)}% · NLP: {(data.nlp_proba * 100).toFixed(0)}%
+                    ML: {(data.tabular_proba * 100).toFixed(0)}%
                   </p>
                 </div>
               </div>
 
-              {/* ── AI Explanation — structured JSON render ── */}
+              {/* NLP Red Flag explanation — only shown when nlp_red_flag = 1 */}
+              {data.nlp_red_flag === 1 && (
+                <div className="flex items-start gap-2.5 bg-orange-50 border border-orange-200 rounded-xl p-3 mb-4">
+                  <span className="text-orange-500 mt-0.5 shrink-0">⚠</span>
+                  <div>
+                    <p className="text-[11px] font-semibold text-orange-700 mb-0.5">Hidden Risk Detected</p>
+                    <p className="text-[11px] text-orange-600 leading-relaxed">
+                      Churn score tergolong aman, namun feedback customer menunjukkan sentimen negatif kuat
+                      dan kata-kata churn intent. Perlu perhatian ekstra.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* AI Explanation */}
               {xaiGenerating ? (
                 <div className="border border-blue-100 bg-blue-50 rounded-2xl p-4 mb-4">
                   <div className="flex items-center gap-2 mb-3">
@@ -451,23 +475,25 @@ export default function AnalyticsPage() {
   const [plan, setPlan] = useState('all');
   const [risk, setRisk] = useState('all');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const [analyzeId, setAnalyzeId] = useState<string | null>(null);
   const [retainCustomer, setRetain] = useState<CustomerPrediction | null>(null);
   const [offerCustomer, setOffer] = useState<CustomerPrediction | null>(null);
 
   const loadPage = useCallback(async (
-    currentPage: number, searchVal: string, planVal: string, riskVal: string, dsId: string,
+    currentPage: number, searchVal: string, planVal: string, riskVal: string, dsId: string, pageSizeVal: number
   ) => {
     setLoading(true);
-    const from = (currentPage - 1) * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
+    const from = (currentPage - 1) * pageSizeVal;
+    const to = from + pageSizeVal - 1;
 
+    // include nlp_red_flag in table query for row-level badge display
     let query = supabase
       .from('predictions')
-      .select('customer_id,plan_type,contract_type,churn_score,risk_level,segment_label', { count: 'exact' })
+      .select('customer_id,plan_type,contract_type,churn_score,risk_level,segment_label,nlp_red_flag', { count: 'exact' })
       .eq('dataset_id', dsId)
-      .order('churn_score', { ascending: false })
+      .order('customer_id', { ascending: true })
       .range(from, to);
 
     if (planVal !== 'all') query = query.ilike('plan_type', planVal);
@@ -477,6 +503,9 @@ export default function AnalyticsPage() {
     }
 
     const { data, count, error } = await query;
+    if (error) {
+      console.error('Fetch predictions error:', error);
+    }
     if (!error && data) { setRows(data as PredictionRow[]); setTotalCount(count ?? 0); }
     setLoading(false);
   }, [supabase]);
@@ -494,21 +523,22 @@ export default function AnalyticsPage() {
         } else { setLoading(false); }
         return;
       }
-      await loadPage(page, search, plan, risk, datasetId);
+      await loadPage(page, search, plan, risk, datasetId, pageSize);
     }
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasetId, workspace, router]);
+  }, [datasetId, workspace, router, pageSize]);
 
   useEffect(() => {
     if (!datasetId) return;
-    loadPage(page, search, plan, risk, datasetId);
-  }, [page, search, plan, risk, datasetId, loadPage]);
+    loadPage(page, search, plan, risk, datasetId, pageSize);
+  }, [page, search, plan, risk, datasetId, pageSize, loadPage]);
 
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const totalPages = Math.ceil(totalCount / pageSize);
   const handleSearch = (v: string) => { setSearch(v); setPage(1); };
   const handlePlan = (v: string) => { setPlan(v); setPage(1); };
   const handleRisk = (v: string) => { setRisk(v); setPage(1); };
+  const handlePageSizeChange = (v: number) => { setPageSize(v); setPage(1); };
 
   if (!datasetId) {
     return (
@@ -538,72 +568,103 @@ export default function AnalyticsPage() {
     <DashboardLayout page="Customer Analytics">
       <div className="flex items-center gap-3 mb-4">
         <SearchBar value={search} onChange={handleSearch} placeholder="Search by customer ID or plan..." className="w-72" />
-        <Select value={plan} onChange={handlePlan} prefix="filter" options={[
-          { label: 'All Plans', value: 'all' },
-          { label: 'Enterprise', value: 'enterprise' },
-          { label: 'Professional', value: 'professional' },
-          { label: 'Starter', value: 'starter' },
-        ]} />
-        <Select value={risk} onChange={handleRisk} prefix="filter" options={[
-          { label: 'All Risk', value: 'all' },
-          { label: 'High', value: 'high' },
-          { label: 'Medium', value: 'medium' },
-          { label: 'Low', value: 'low' },
-        ]} />
+        <AuthDropdown 
+          value={plan} 
+          onChange={handlePlan} 
+          className="w-44"
+          placeholder="Filter Plan"
+          variant="filter"
+          options={[
+            { label: 'All Plans', value: 'all' },
+            { label: 'Enterprise', value: 'enterprise' },
+            { label: 'Professional', value: 'professional' },
+            { label: 'Starter', value: 'starter' },
+          ]} 
+        />
+        <AuthDropdown 
+          value={risk} 
+          onChange={handleRisk} 
+          className="w-44"
+          placeholder="Filter Risk"
+          variant="filter"
+          options={[
+            { label: 'All Risk', value: 'all' },
+            { label: 'High', value: 'high' },
+            { label: 'Medium', value: 'medium' },
+            { label: 'Low', value: 'low' },
+          ]} 
+        />
         {loading && (
           <svg className="animate-spin text-gray-400 ml-auto" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
         )}
       </div>
 
       <Card padding="none">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-gray-100">
-              {['Customer ID', 'Plan', 'Contract', 'Churn Score', 'Risk Level', 'Segment', 'Actions'].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {loading ? (
-              Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i}>{Array.from({ length: 7 }).map((_, j) => (
-                  <td key={j} className="px-4 py-3">
-                    <div className="h-3 bg-gray-100 rounded animate-pulse" style={{ width: `${60 + ((i * 7 + j) % 4) * 10}%` }} />
-                  </td>
-                ))}</tr>
-              ))
-            ) : rows.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-12 text-center text-xs text-gray-400">No customers found</td></tr>
-            ) : (
-              rows.map(c => (
-                <tr key={c.customer_id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-4 py-3 text-xs font-mono text-gray-600">{c.customer_id}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${planColors[c.plan_type] ?? 'bg-gray-100 text-gray-600'}`}>{c.plan_type}</span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-600">{c.contract_type}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-20">
-                        <ProgressBar value={c.churn_score} height="sm" color={c.risk_level === 'High' ? 'red' : c.risk_level === 'Low' ? 'green' : 'yellow'} />
+        <div className="min-h-[600px]">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100">
+                {['Customer ID', 'Plan', 'Contract', 'Churn Score', 'Risk Level', 'Segment', 'Actions'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                Array.from({ length: pageSize }).map((_, i) => (
+                  <tr key={i}>{Array.from({ length: 7 }).map((_, j) => (
+                    <td key={j} className="px-4 py-3">
+                      <div className="h-3 bg-gray-100 rounded animate-pulse" style={{ width: `${60 + ((i * 7 + j) % 4) * 10}%` }} />
+                    </td>
+                  ))}</tr>
+                ))
+              ) : rows.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-xs text-gray-400">No customers found</td></tr>
+              ) : (
+                rows.map(c => (
+                  <tr key={c.customer_id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono text-gray-600">{c.customer_id}</span>
+                        {/* Inline red flag badge di tabel — juga visible dari list */}
+                        {c.nlp_red_flag === 1 && (
+                          <span title="Hidden Risk: feedback negatif meski score aman" className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" />
+                        )}
                       </div>
-                      <span className={`text-sm font-bold ${riskColors[c.risk_level]}`}>{c.churn_score}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge label={c.risk_level} variant={c.risk_level === 'Low' ? 'low' : c.risk_level === 'High' ? 'high' : 'med'} />
-                  </td>
-                  <td className="px-4 py-3 text-xs text-gray-600">{c.segment_label}</td>
-                  <td className="px-4 py-3">
-                    <Button size="sm" onClick={() => setAnalyzeId(c.customer_id)}>Analyze</Button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        <Pagination currentPage={page} totalPages={totalPages} totalItems={totalCount} pageSize={PAGE_SIZE} onPageChange={setPage} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg ${planColors[c.plan_type] ?? 'bg-gray-100 text-gray-600'}`}>{c.plan_type}</span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600">{c.contract_type}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-20">
+                          <ProgressBar value={c.churn_score} height="sm" color={c.risk_level === 'High' ? 'red' : c.risk_level === 'Low' ? 'green' : 'yellow'} />
+                        </div>
+                        <span className={`text-sm font-bold ${riskColors[c.risk_level]}`}>{c.churn_score}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge label={c.risk_level} variant={c.risk_level === 'Low' ? 'low' : c.risk_level === 'High' ? 'high' : 'med'} />
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-600">{c.segment_label}</td>
+                    <td className="px-4 py-3">
+                      <Button size="sm" onClick={() => setAnalyzeId(c.customer_id)}>Analyze</Button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <Pagination 
+          currentPage={page} 
+          totalPages={totalPages} 
+          totalItems={totalCount} 
+          pageSize={pageSize} 
+          onPageChange={setPage} 
+          onPageSizeChange={handlePageSizeChange}
+        />
       </Card>
 
       {analyzeId && (
@@ -615,8 +676,18 @@ export default function AnalyticsPage() {
         />
       )}
 
-      <RetainModal customer={retainCustomer as any} open={!!retainCustomer} onClose={() => setRetain(null)} customerName={retainCustomer?.customer_id ?? ''} />
-      <SendOfferModal customer={offerCustomer as any} open={!!offerCustomer} onClose={() => setOffer(null)} customerName={offerCustomer?.customer_id ?? ''} />
+      <RetainModal
+        customer={retainCustomer}
+        open={!!retainCustomer}
+        onClose={() => setRetain(null)}
+        customerName={retainCustomer?.customer_id ?? ''}
+      />
+      <SendOfferModal
+        customer={offerCustomer}
+        open={!!offerCustomer}
+        onClose={() => setOffer(null)}
+        customerName={offerCustomer?.customer_id ?? ''}
+      />
     </DashboardLayout>
   );
 }

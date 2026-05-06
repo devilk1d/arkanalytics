@@ -62,6 +62,7 @@ export async function savePredictions(datasetId: string, predictions: CustomerPr
         risk_level: p.risk_level,
         shap_top5: p.shap_top5,        // jsonb
         sentiment: p.sentiment,         // jsonb
+        nlp_red_flag: p.nlp_red_flag,
         segment_label: p.segment_label,
         segment_cluster: p.segment_cluster,
         segment_rfm_context: p.segment_rfm_context, // jsonb
@@ -141,7 +142,7 @@ export async function saveSegments(datasetId: string, predictions: CustomerPredi
         if (!segmentMap[seg]) {
             segmentMap[seg] = {
                 cluster: p.segment_cluster, scores: [], revenues: [], usages: [],
-                npss: [], tenures: [], risks: [], actions: p.segment_actions
+                npss: [], tenures: [], risks: [], actions: p.segment_actions ?? {}
             }
         }
         segmentMap[seg].scores.push(p.churn_score)
