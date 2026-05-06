@@ -213,7 +213,7 @@ function ArkaIDStep({
 
     localStorage.removeItem(WORKSPACE_DRAFT_KEY);
 
-    router.push('/onboarding');
+    router.push('/dashboard/overview');
     router.refresh();
   };
 

@@ -69,7 +69,7 @@ export default function CreateArkaIDPage() {
       return;
     }
 
-    router.push('/onboarding');
+    router.push('/');
     router.refresh();
   };
 

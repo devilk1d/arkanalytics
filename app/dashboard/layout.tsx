@@ -35,6 +35,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const activeMembership = memberRows?.[0] || null;
 
+  if (!activeMembership) {
+    redirect('/');
+  }
+
   let workspace = null as null | {
     id: string;
     name: string;

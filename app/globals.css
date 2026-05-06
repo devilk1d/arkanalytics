@@ -113,6 +113,15 @@ h6,
   animation: slideInLeft 0.5s ease forwards;
 }
 
+@keyframes marquee {
+  0% { transform: translateX(100vw); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-marquee {
+  animation: marquee 15s linear infinite;
+}
+
 /* ─── Stagger delays ─── */
 .delay-100 { animation-delay: 0.1s; }
 .delay-200 { animation-delay: 0.2s; }
