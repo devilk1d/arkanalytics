@@ -376,6 +376,8 @@ function ActionsPanel({
   onNoteChange,
   onCreateTask,
   onCreateNote,
+  onUpdateNote,
+  onDeleteNote,
   onToggleTask,
   workspaceMembers,
 }: {
@@ -387,6 +389,8 @@ function ActionsPanel({
   onNoteChange: (v: string) => void;
   onCreateTask: (task: Partial<TaskItem>) => void;
   onCreateNote: () => void;
+  onUpdateNote?: (id: string, title: string, content: string) => void;
+  onDeleteNote?: (id: string) => void;
   onToggleTask: (task: TaskItem) => void;
   workspaceMembers: WorkspaceMember[];
 }) {
@@ -398,10 +402,105 @@ function ActionsPanel({
     details: string;
   }>({ title: '', priority: 'normal', dueAt: '', details: '' });
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
+
+  // Notes Edit State
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editNoteData, setEditNoteData] = useState({ title: '', content: '' });
 
   const resetModal = () => {
     setModalData({ title: '', priority: 'normal', dueAt: '', details: '' });
     setIsModalOpen(false);
+  };
+
+  const activeTasks = tasks.filter(t => t.taskStatus !== 'done' && t.taskStatus !== 'archived');
+  const completedTasks = tasks.filter(t => t.taskStatus === 'done' || t.taskStatus === 'archived');
+
+  const STICKY_COLORS = [
+    { bg: 'bg-[#FEF08A]', border: 'border-[#FDE047]', text: 'text-yellow-900', title: 'text-yellow-800' }, // Yellow
+    { bg: 'bg-[#BFDBFE]', border: 'border-[#93C5FD]', text: 'text-blue-900', title: 'text-blue-800' },   // Blue
+    { bg: 'bg-[#FBCFE8]', border: 'border-[#F9A8D4]', text: 'text-pink-900', title: 'text-pink-800' },   // Pink
+    { bg: 'bg-[#BBF7D0]', border: 'border-[#86EFAC]', text: 'text-green-900', title: 'text-green-800' }, // Green
+    { bg: 'bg-[#E9D5FF]', border: 'border-[#D8B4FE]', text: 'text-purple-900', title: 'text-purple-800' },// Purple
+  ];
+
+  const getStickyColor = (id: string) => {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+    return STICKY_COLORS[Math.abs(hash) % STICKY_COLORS.length];
+  };
+
+  const renderTask = (t: TaskItem, isDone: boolean) => {
+    const isExpanded = expandedTaskId === t.id;
+    const creator = workspaceMembers.find(m => m.userId === t.createdByUserId);
+
+    return (
+      <div key={t.id} className="flex flex-col animate-in fade-in slide-in-from-bottom-1 duration-300">
+        <div className="flex items-start gap-4">
+          <button
+            onClick={() => onToggleTask(t)}
+            className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border-2 transition-all ${isDone
+                ? 'border-gray-200 bg-gray-50 text-gray-400 hover:border-gray-300'
+                : 'border-gray-300 bg-white hover:border-blue-500'
+              }`}
+          >
+            {isDone && (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </button>
+
+          <div 
+            className="min-w-0 flex-1 cursor-pointer group"
+            onClick={() => setExpandedTaskId(isExpanded ? null : t.id)}
+          >
+            <p className={`text-sm font-bold leading-tight mb-1 transition-all group-hover:text-blue-600 ${isDone ? 'text-gray-400 line-through' : 'text-gray-900 text-opacity-90'}`}>
+              {t.title}
+            </p>
+            <p className={`text-[11px] font-medium transition-all ${isDone ? 'text-gray-400' : 'text-gray-500 text-opacity-70'}`}>
+              {(() => {
+                if (isDone) return 'Completed';
+                if (!t.dueAt) return 'No due date';
+                const d = new Date(t.dueAt);
+                const today = new Date();
+                const tomorrow = new Date(today);
+                tomorrow.setDate(today.getDate() + 1);
+
+                if (d.toDateString() === today.toDateString()) return 'Due today';
+                if (d.toDateString() === tomorrow.toDateString()) return 'Due tomorrow';
+
+                return `Due ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+              })()}
+            </p>
+          </div>
+
+          {creator && (
+            <div className="shrink-0 scale-90">
+              <Avatar
+                initials={getInitials(creator.fullName)}
+                size="sm"
+                src={creator.avatarUrl || undefined}
+              />
+            </div>
+          )}
+        </div>
+
+        {isExpanded && t.details && (
+          <div className="mt-3 ml-9 p-3 bg-gray-50/50 rounded-xl border border-gray-100 animate-in fade-in slide-in-from-top-1 duration-200">
+            <p className="text-[11px] text-gray-600 leading-relaxed font-medium whitespace-pre-wrap">
+              {t.details}
+            </p>
+            {t.priority && (
+              <div className="mt-2 flex items-center gap-1.5">
+                <div className={`w-1.5 h-1.5 rounded-full ${t.priority === 'high' ? 'bg-red-500' : t.priority === 'low' ? 'bg-green-500' : 'bg-blue-500'}`} />
+                <span className="text-[9px] font-black uppercase tracking-tighter text-gray-400">{t.priority} priority</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -418,83 +517,32 @@ function ActionsPanel({
         </div>
 
         <div className="flex flex-col gap-5">
-          {tasks.map((t) => {
-            const isExpanded = expandedTaskId === t.id;
-            const creator = workspaceMembers.find(m => m.userId === t.createdByUserId);
-            const isDone = t.taskStatus === 'done';
-
-            return (
-              <div key={t.id} className="flex flex-col animate-in fade-in slide-in-from-bottom-1 duration-300">
-                <div className="flex items-start gap-4">
-                  <button
-                    onClick={() => onToggleTask(t)}
-                    className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-lg border-2 transition-all ${isDone
-                        ? 'border-gray-200 bg-gray-50 text-gray-400'
-                        : 'border-gray-300 bg-white hover:border-blue-500'
-                      }`}
-                  >
-                    {isDone && (
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </button>
-
-                  <div 
-                    className="min-w-0 flex-1 cursor-pointer group"
-                    onClick={() => setExpandedTaskId(isExpanded ? null : t.id)}
-                  >
-                    <p className={`text-sm font-bold leading-tight mb-1 transition-all group-hover:text-blue-600 ${isDone ? 'text-gray-400 line-through' : 'text-gray-900 text-opacity-90'}`}>
-                      {t.title}
-                    </p>
-                    <p className={`text-[11px] font-medium transition-all ${isDone ? 'text-gray-400' : 'text-gray-500 text-opacity-70'}`}>
-                      {(() => {
-                        if (isDone) return 'Completed';
-                        if (!t.dueAt) return 'No due date';
-                        const d = new Date(t.dueAt);
-                        const today = new Date();
-                        const tomorrow = new Date(today);
-                        tomorrow.setDate(today.getDate() + 1);
-
-                        if (d.toDateString() === today.toDateString()) return 'Due today';
-                        if (d.toDateString() === tomorrow.toDateString()) return 'Due tomorrow';
-
-                        return `Due ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-                      })()}
-                    </p>
-                  </div>
-
-                  {creator && (
-                    <div className="shrink-0 scale-90">
-                      <Avatar
-                        initials={getInitials(creator.fullName)}
-                        size="sm"
-                        src={creator.avatarUrl || undefined}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {isExpanded && t.details && (
-                  <div className="mt-3 ml-9 p-3 bg-gray-50/50 rounded-xl border border-gray-100 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <p className="text-[11px] text-gray-600 leading-relaxed font-medium whitespace-pre-wrap">
-                      {t.details}
-                    </p>
-                    {t.priority && (
-                      <div className="mt-2 flex items-center gap-1.5">
-                        <div className={`w-1.5 h-1.5 rounded-full ${t.priority === 'high' ? 'bg-red-500' : t.priority === 'low' ? 'bg-green-500' : 'bg-blue-500'}`} />
-                        <span className="text-[9px] font-black uppercase tracking-tighter text-gray-400">{t.priority} priority</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {tasks.length === 0 && (
+          {activeTasks.map((t) => renderTask(t, false))}
+          
+          {activeTasks.length === 0 && (
             <div className="py-6 flex flex-col items-center justify-center text-center opacity-50">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="mb-2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-              <p className="text-xs font-medium italic">No tasks active</p>
+              <p className="text-xs font-medium italic">No active tasks</p>
+            </div>
+          )}
+
+          {completedTasks.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <button 
+                onClick={() => setShowCompletedTasks(!showCompletedTasks)}
+                className="flex items-center justify-between w-full text-xs font-bold text-gray-500 hover:text-gray-700 transition-colors mb-3"
+              >
+                <span>Completed ({completedTasks.length})</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-200 ${showCompletedTasks ? 'rotate-180' : ''}`}>
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+              
+              {showCompletedTasks && (
+                <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                  {completedTasks.map((t) => renderTask(t, true))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -521,13 +569,78 @@ function ActionsPanel({
         </div>
 
         {notes.length > 0 && (
-          <div className="mt-4 flex flex-col gap-2">
-            {notes.map(note => (
-              <div key={note.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-gray-200 transition-all cursor-pointer">
-                <p className="text-[11px] font-bold text-gray-900 mb-0.5 truncate">{note.title || 'Untitled Note'}</p>
-                <p className="text-[10px] text-gray-500 line-clamp-1">{note.content}</p>
-              </div>
-            ))}
+          <div className="mt-6 flex flex-col gap-3">
+            {notes.map(note => {
+              const color = getStickyColor(note.id);
+              const isEditing = editingNoteId === note.id;
+
+              if (isEditing) {
+                return (
+                  <div key={note.id} className={`p-4 rounded-xl border-2 border-blue-400 bg-white shadow-lg shadow-blue-900/5 transition-all`}>
+                    <input
+                      type="text"
+                      value={editNoteData.title}
+                      onChange={(e) => setEditNoteData({ ...editNoteData, title: e.target.value })}
+                      className="w-full bg-transparent text-sm font-bold text-gray-900 outline-none mb-2 placeholder:text-gray-400"
+                      placeholder="Note Title"
+                    />
+                    <textarea
+                      value={editNoteData.content}
+                      onChange={(e) => setEditNoteData({ ...editNoteData, content: e.target.value })}
+                      className="w-full min-h-[100px] bg-transparent text-xs font-medium text-gray-600 outline-none resize-none placeholder:text-gray-400"
+                      placeholder="Note content..."
+                    />
+                    <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-gray-100">
+                      <button onClick={() => setEditingNoteId(null)} className="px-3 py-1.5 text-[10px] font-bold text-gray-500 hover:text-gray-700 bg-gray-100 rounded-lg">Cancel</button>
+                      <button 
+                        onClick={() => {
+                          if (onUpdateNote) onUpdateNote(note.id, editNoteData.title, editNoteData.content);
+                          setEditingNoteId(null);
+                        }} 
+                        disabled={!editNoteData.content.trim()}
+                        className="px-3 py-1.5 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg shadow-sm"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={note.id} className={`relative p-4 rounded-xl border ${color.bg} ${color.border} shadow-sm group hover:-translate-y-0.5 hover:shadow-md transition-all`}>
+                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                    <button 
+                      onClick={() => {
+                        setEditNoteData({ title: note.title, content: note.content });
+                        setEditingNoteId(note.id);
+                      }}
+                      className={`p-1.5 rounded-md hover:bg-white/50 ${color.title} transition-colors`}
+                      title="Edit Note"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        if (confirm('Delete this note?') && onDeleteNote) {
+                          onDeleteNote(note.id);
+                        }
+                      }}
+                      className="p-1.5 rounded-md hover:bg-white/50 text-red-500 transition-colors"
+                      title="Delete Note"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                  </div>
+                  
+                  {/* Folded Corner Effect */}
+                  <div className="absolute top-0 right-0 w-4 h-4 rounded-bl-xl bg-white/40 border-l border-b border-white/20"></div>
+
+                  <p className={`text-sm font-bold ${color.title} mb-2 pr-12 truncate leading-tight`}>{note.title || 'Untitled Note'}</p>
+                  <p className={`text-xs ${color.text} whitespace-pre-wrap leading-relaxed font-medium`}>{note.content}</p>
+                </div>
+              );
+            })}
           </div>
         )}
       </Card>
@@ -755,6 +868,8 @@ interface ChatRightPanelProps {
   onNoteChange: (v: string) => void;
   onCreateTask: (task: Partial<TaskItem>) => void;
   onCreateNote: () => void;
+  onUpdateNote?: (id: string, title: string, content: string) => void;
+  onDeleteNote?: (id: string) => void;
   onToggleTask: (task: TaskItem) => void;
 
   // Files tab
@@ -785,6 +900,8 @@ export default function ChatRightPanel({
   onNoteChange,
   onCreateTask,
   onCreateNote,
+  onUpdateNote,
+  onDeleteNote,
   onToggleTask,
   files,
   onUpload,
@@ -838,6 +955,8 @@ export default function ChatRightPanel({
                 onNoteChange={onNoteChange}
                 onCreateTask={onCreateTask}
                 onCreateNote={onCreateNote}
+                onUpdateNote={onUpdateNote}
+                onDeleteNote={onDeleteNote}
                 onToggleTask={onToggleTask}
                 workspaceMembers={workspaceMembers}
               />

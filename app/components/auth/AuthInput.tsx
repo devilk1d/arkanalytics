@@ -8,7 +8,7 @@ interface AuthInputProps {
   placeholder?: string;
   value?: string;
   onChange?: (v: string) => void;
-  hint?: string;
+  hint?: string | React.ReactNode;
   readOnly?: boolean;
   prefilled?: boolean;
   rightAction?: React.ReactNode;
@@ -40,13 +40,12 @@ export default function AuthInput({
           value={value}
           readOnly={readOnly}
           onChange={(e) => onChange?.(e.target.value)}
-          className="w-full bg-gray-100 rounded-2xl px-4 py-3.5 text-sm text-black placeholder-gray-400
+          className={`w-full bg-gray-100 rounded-2xl px-4 py-3.5 text-sm text-black placeholder-gray-400
             border-2 border-transparent outline-none transition-all duration-200
             focus:border-black focus:bg-white
             ${readOnly || prefilled ? 'text-black font-medium' : ''}
             ${isPassword ? 'pr-12' : ''}
-            ${rightAction ? 'pr-20' : ''}
-          "
+            ${rightAction ? 'pr-20' : ''}`}
         />
         {isPassword && (
           <button
@@ -72,7 +71,7 @@ export default function AuthInput({
         )}
       </div>
       {hint && (
-        <p className="text-xs text-gray-400">{hint}</p>
+        <div className="text-xs text-gray-400">{hint}</div>
       )}
     </div>
   );

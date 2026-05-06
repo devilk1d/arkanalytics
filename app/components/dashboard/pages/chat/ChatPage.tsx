@@ -648,6 +648,21 @@ export default function ChatPage() {
     await fetchActionsAndFiles();
   }, [activeConvo, fetchActionsAndFiles, newNote, profile, supabase, workspace]);
 
+  const updateNote = useCallback(async (id: string, title: string, content: string) => {
+    if (!profile?.id) return;
+    await supabase.from('workspace_notes').update({
+      title: title.trim().slice(0, 40),
+      content: content.trim()
+    }).eq('id', id);
+    await fetchActionsAndFiles();
+  }, [fetchActionsAndFiles, profile, supabase]);
+
+  const deleteNote = useCallback(async (id: string) => {
+    if (!profile?.id) return;
+    await supabase.from('workspace_notes').delete().eq('id', id);
+    await fetchActionsAndFiles();
+  }, [fetchActionsAndFiles, profile, supabase]);
+
   const handleFileUpload = useCallback(async (file: File, kind: 'image' | 'video' | 'document') => {
     if (!activeConvo || !workspace?.id || !profile?.id) return;
 
@@ -848,6 +863,8 @@ export default function ChatPage() {
             onNoteChange={setNewNote}
             onCreateTask={createTask}
             onCreateNote={() => { void createNote(); }}
+            onUpdateNote={(id, title, content) => { void updateNote(id, title, content); }}
+            onDeleteNote={(id) => { void deleteNote(id); }}
             onToggleTask={(task) => { void toggleTask(task); }}
             files={attachments}
             onUpload={(e: any) => {

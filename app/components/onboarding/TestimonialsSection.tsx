@@ -32,6 +32,20 @@ const testimonials = [
     initials: 'PN',
     dark: true,
   },
+  {
+    quote: 'The predictive analytics allow us to proactively engage with our customers. It feels like having a crystal ball.',
+    name: 'Jane Doe',
+    role: 'DIRECTOR OF CS, OMNITECH',
+    initials: 'JD',
+    dark: false,
+  },
+  {
+    quote: 'Integrating ArkaAnalytics was smooth and straightforward. The value it provides is evident from day one.',
+    name: 'John Smith',
+    role: 'FOUNDER, NEXUS',
+    initials: 'JS',
+    dark: true,
+  },
 ];
 
 function StarRating({ dark }: { dark: boolean }) {
@@ -56,7 +70,9 @@ function StarRating({ dark }: { dark: boolean }) {
 
 export default function TestimonialsSection() {
   const [currentPage, setCurrentPage] = useState(1);
-  const totalPages = 8;
+  const itemsPerPage = 2;
+  const totalPages = Math.ceil(testimonials.length / itemsPerPage);
+  const displayedTestimonials = testimonials.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <section id="testimonials" className="py-20 px-6 bg-white">
@@ -93,7 +109,7 @@ export default function TestimonialsSection() {
 
           {/* Right: Testimonial cards */}
           <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-5">
-            {testimonials.map((t, i) => (
+            {displayedTestimonials.map((t, i) => (
               <div
                 key={i}
                 className={`rounded-3xl p-7 cursor-default transition-all duration-300 hover:-translate-y-1 hover:shadow-lg ${

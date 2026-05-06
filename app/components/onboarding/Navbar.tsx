@@ -9,6 +9,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [invitations, setInvitations] = useState<any[]>([]);
+  const [activeSection, setActiveSection] = useState('');
 
   const scrollToHero = () => {
     const hero = document.getElementById('hero');
@@ -31,7 +32,27 @@ export default function Navbar() {
 
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll);
-    return () => window.removeEventListener('scroll', onScroll);
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActiveSection(entry.target.id);
+          }
+        });
+      },
+      { rootMargin: '-30% 0px -30% 0px' }
+    );
+
+    ['problems', 'features', 'process', 'testimonials'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      observer.disconnect();
+    };
   }, []);
 
   const handleSignOut = async () => {
@@ -58,16 +79,24 @@ export default function Navbar() {
 
         {/* Nav Links */}
         <div className="hidden md:flex items-center gap-8">
-          {['Problems', 'Features', 'Process', 'Testimonials'].map((item) => (
-            <a
-              key={item}
-              href={`#${item.toLowerCase()}`}
-              className="relative text-sm text-gray-500 hover:text-black transition-colors duration-200 group py-1"
-            >
-              {item}
-              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-black transition-all duration-300 group-hover:w-full" />
-            </a>
-          ))}
+          {['Problems', 'Features', 'Process', 'Testimonials'].map((item) => {
+            const id = item.toLowerCase();
+            const isActive = activeSection === id;
+            return (
+              <a
+                key={item}
+                href={`#${id}`}
+                className={`relative text-sm transition-colors duration-200 group py-1 ${
+                  isActive ? 'text-black font-semibold' : 'text-gray-500 hover:text-black'
+                }`}
+              >
+                {item}
+                <span className={`absolute bottom-0 left-0 h-0.5 bg-black transition-all duration-300 ${
+                  isActive ? 'w-full' : 'w-0 group-hover:w-full'
+                }`} />
+              </a>
+            );
+          })}
         </div>
 
         {/* CTA Buttons & Profile */}
