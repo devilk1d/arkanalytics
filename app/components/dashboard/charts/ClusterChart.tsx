@@ -4,12 +4,13 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
+import { PALETTE, getFallbackPalette } from '../pages/segmentation/SegmentationPage';
 
-export default function ClusterChart() {
+export default function ClusterChart({ segmentOrder, activeSegment }: { segmentOrder?: string[], activeSegment?: string }) {
   const searchParams = useSearchParams();
   const datasetId = searchParams.get('dataset_id');
-  
-  const [clusters, setClusters] = useState<{name: string, color: string, data: any[]}[]>([]);
+
+  const [clusters, setClusters] = useState<{ name: string, color: string, data: any[] }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,26 +30,35 @@ export default function ClusterChart() {
         data.forEach(d => {
           const seg = d.segment_label || 'Unknown';
           if (!grouped[seg]) grouped[seg] = [];
-          
+
           // Use 100 - churn_score as Engagement Score (0-100)
           const engagement = Math.round(Math.max(0, 100 - (d.churn_score || 0)));
           const revenue = d.segment_rfm_context?.total_revenue?.customer || 0;
-          
+
           grouped[seg].push({ x: engagement, y: Math.round(revenue) });
         });
 
-        const palette = ['#ef4444', '#3b82f6', '#a855f7', '#22c55e', '#f59e0b', '#06b6d4'];
-        const newClusters = Object.keys(grouped).map((seg, idx) => ({
-          name: seg,
-          color: palette[idx % palette.length],
-          data: grouped[seg]
-        }));
+        const newClusters = Object.keys(grouped).map((seg) => {
+          let idx = segmentOrder ? segmentOrder.indexOf(seg) : -1;
+          const colorSet = idx !== -1 ? PALETTE[idx % PALETTE.length] : getFallbackPalette(seg);
+
+          return {
+            name: seg,
+            color: colorSet.hex,
+            data: grouped[seg]
+          };
+        });
         setClusters(newClusters);
       }
       setLoading(false);
     }
     loadData();
-  }, [datasetId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datasetId, segmentOrder?.join(',')]);
+
+  const filteredClusters = activeSegment && activeSegment !== 'all'
+    ? clusters.filter(c => c.name === activeSegment)
+    : clusters;
 
   return (
     <div>
@@ -82,14 +92,14 @@ export default function ClusterChart() {
                   return null;
                 }}
               />
-              {clusters.map(c => (
+              {filteredClusters.map(c => (
                 <Scatter key={c.name} name={c.name} data={c.data} fill={c.color} opacity={0.85} />
               ))}
             </ScatterChart>
           </ResponsiveContainer>
 
           <div className="flex flex-wrap gap-3 mt-2">
-            {clusters.map(c => (
+            {filteredClusters.map(c => (
               <div key={c.name} className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
                 <span className="text-xs text-gray-500">{c.name}</span>
