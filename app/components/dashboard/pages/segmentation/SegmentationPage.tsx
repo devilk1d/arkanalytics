@@ -14,17 +14,106 @@ import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 
 import { useDashboardContext } from '../../context/DashboardContext';
 import { createClient } from '@/lib/supabase/client';
 
-const segmentColors: Record<string, string> = {
-  'Loyal Champions': 'bg-green-100 text-green-700',
-  'At Risk':         'bg-red-100 text-red-700',
-  'New Adopters':    'bg-blue-100 text-blue-700',
-  'High Value':      'bg-purple-100 text-purple-700',
-};
+function getSegmentStyle(label: string, churnScore?: number) {
+  const lower = label.toLowerCase();
+  
+  if (lower.includes('risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('leave')) {
+    return {
+      metricColorClass: 'text-red-600', iconBgClass: 'bg-red-100', stroke: '#dc2626', badgeClass: 'bg-red-100 text-red-700',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-red-600">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+      )
+    };
+  }
+  
+  if (lower.includes('loyal') || lower.includes('champion') || lower.includes('satisfied') || lower.includes('best')) {
+    return {
+      metricColorClass: 'text-emerald-600', iconBgClass: 'bg-emerald-100', stroke: '#16a34a', badgeClass: 'bg-green-100 text-green-700',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
+      )
+    };
+  }
 
-const defaultColor = 'bg-gray-100 text-gray-700';
+  if (lower.includes('new') || lower.includes('adopter') || lower.includes('recent') || lower.includes('starter')) {
+    return {
+      metricColorClass: 'text-blue-600', iconBgClass: 'bg-blue-100', stroke: '#2563eb', badgeClass: 'bg-blue-100 text-blue-700',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+          <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+          <polyline points="17 6 23 6 23 12" />
+        </svg>
+      )
+    };
+  }
 
-function getSegmentColor(label: string) {
-  return segmentColors[label] || defaultColor;
+  if (lower.includes('value') || lower.includes('high') || lower.includes('premium') || lower.includes('whale') || lower.includes('tier')) {
+    return {
+      metricColorClass: 'text-violet-600', iconBgClass: 'bg-violet-100', stroke: '#9333ea', badgeClass: 'bg-purple-100 text-purple-700',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-violet-600">
+          <circle cx="12" cy="12" r="10" />
+          <circle cx="12" cy="12" r="6" />
+          <circle cx="12" cy="12" r="2" />
+        </svg>
+      )
+    };
+  }
+  
+  if (lower.includes('bill') || lower.includes('price') || lower.includes('cost') || lower.includes('usage') || lower.includes('intensive')) {
+    return {
+      metricColorClass: 'text-orange-600', iconBgClass: 'bg-orange-100', stroke: '#ea580c', badgeClass: 'bg-orange-100 text-orange-700',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-orange-600">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        </svg>
+      )
+    };
+  }
+
+  if (churnScore !== undefined) {
+    if (churnScore >= 70) {
+      return {
+        metricColorClass: 'text-red-600', iconBgClass: 'bg-red-100', stroke: '#dc2626', badgeClass: 'bg-red-100 text-red-700',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-red-600">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        )
+      };
+    }
+    if (churnScore <= 30) {
+      return {
+        metricColorClass: 'text-emerald-600', iconBgClass: 'bg-emerald-100', stroke: '#16a34a', badgeClass: 'bg-green-100 text-green-700',
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-600">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+        )
+      };
+    }
+  }
+
+  return {
+    metricColorClass: 'text-gray-600', iconBgClass: 'bg-gray-100', stroke: '#4b5563', badgeClass: 'bg-gray-100 text-gray-700',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-600">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    )
+  };
 }
 
 export default function SegmentationPage() {
@@ -78,48 +167,8 @@ export default function SegmentationPage() {
         .order('avg_churn_score', { ascending: false });
 
       if (!segError && segData) {
-        const stats = segData.map((s: any, idx: number) => {
-          const colors = [
-            {
-              metricColorClass: 'text-emerald-600', iconBgClass: 'bg-emerald-100', stroke: '#22c55e',
-              icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
-              )
-            },
-            {
-              metricColorClass: 'text-red-500', iconBgClass: 'bg-red-100', stroke: '#ef4444',
-              icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="7" x2="12" y2="13" />
-                  <line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
-              )
-            },
-            {
-              metricColorClass: 'text-blue-600', iconBgClass: 'bg-blue-100', stroke: '#2563eb',
-              icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="18 8 18 14 12 14" />
-                  <path d="M18 8l-8.5 8.5L6 13" />
-                </svg>
-              )
-            },
-            {
-              metricColorClass: 'text-violet-600', iconBgClass: 'bg-violet-100', stroke: '#9333ea',
-              icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9333ea" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              )
-            }
-          ];
-          const colorSet = colors[idx % colors.length];
+        const stats = segData.map((s: any) => {
+          const style = getSegmentStyle(s.segment_label, s.avg_churn_score);
 
           return {
             label: s.segment_label,
@@ -127,9 +176,9 @@ export default function SegmentationPage() {
             badge: `${s.pct_high_risk}%`,
             avgMrr: `$${Math.round(s.avg_revenue).toLocaleString()}`,
             totalMrr: `$${Math.round((s.avg_revenue * s.total_customers) / 1000)}K`,
-            metricColorClass: colorSet.metricColorClass,
-            iconBgClass: colorSet.iconBgClass,
-            icon: colorSet.icon
+            metricColorClass: style.metricColorClass,
+            iconBgClass: style.iconBgClass,
+            icon: style.icon
           };
         });
         setSegmentStats(stats);
@@ -290,7 +339,7 @@ export default function SegmentationPage() {
                         <td className="px-4 py-3 text-xs text-gray-600">{c.plan}</td>
                         <td className="px-4 py-3 text-sm font-bold text-black">{c.mrr}</td>
                         <td className="px-4 py-3">
-                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getSegmentColor(c.segment)}`}>{c.segment}</span>
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getSegmentStyle(c.segment, c.score).badgeClass}`}>{c.segment}</span>
                         </td>
                         <td className="px-4 py-3 w-28">
                           <div className="flex items-center gap-2">
