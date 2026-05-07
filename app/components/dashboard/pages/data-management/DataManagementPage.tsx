@@ -8,6 +8,7 @@ import Badge from '../../ui/Badge';
 import Pagination from '../../ui/Pagination';
 import { createClient } from '@/lib/supabase/client';
 import { useDashboardContext } from '../../context/DashboardContext';
+import PermissionGate from '../../ui/PermissionGate';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface DatasetRow {
@@ -76,7 +77,7 @@ function formatDate(iso: string): string {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export default function DataManagementPage() {
+function DataManagementPageContent() {
   const supabase = createClient();
   const { workspace } = useDashboardContext();
 
@@ -552,5 +553,13 @@ export default function DataManagementPage() {
         </Card>
       )}
     </DashboardLayout>
+  );
+}
+
+export default function DataManagementPage() {
+  return (
+    <PermissionGate permission="manage_data">
+      <DataManagementPageContent />
+    </PermissionGate>
   );
 }

@@ -11,6 +11,7 @@ import ProgressBar from '../../ui/ProgressBar';
 import ClusterChart from '../../charts/ClusterChart';
 import Pagination from '../../ui/Pagination';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 'recharts';
+import PermissionGate from '../../ui/PermissionGate';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { createClient } from '@/lib/supabase/client';
 
@@ -87,7 +88,7 @@ export function getFallbackPalette(label: string) {
   return PALETTE[Math.abs(hash) % PALETTE.length];
 }
 
-export default function SegmentationPage() {
+function SegmentationPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const datasetId = searchParams.get('dataset_id');
@@ -99,7 +100,6 @@ export default function SegmentationPage() {
   const [barData, setBarData] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [totalCustomers, setTotalCustomers] = useState(0);
-
   const [search, setSearch] = useState('');
   const [seg, setSeg] = useState('all');
   const [page, setPage] = useState(1);
@@ -340,3 +340,10 @@ export default function SegmentationPage() {
   );
 }
 
+export default function SegmentationPage() {
+  return (
+    <PermissionGate permission="view_analytics">
+      <SegmentationPageContent />
+    </PermissionGate>
+  );
+}

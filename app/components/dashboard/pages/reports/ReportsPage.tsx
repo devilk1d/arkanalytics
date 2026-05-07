@@ -6,6 +6,7 @@ import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Badge from '../../ui/Badge';
 import Select from '../../ui/Select';
+import PermissionGate from '../../ui/PermissionGate';
 
 const recentReports = [
   { name: 'Q1 2024 Churn Analysis',        type: 'Churn Report',        generated: 'Apr 15, 2024', status: 'ready'     as const, size: '2.4 MB', schedule: 'Monthly' },
@@ -25,7 +26,7 @@ const typeColors: Record<string, string> = {
   'Forecast Report':     'bg-purple-100 text-purple-700',
 };
 
-export default function ReportsPage() {
+function ReportsPageContent() {
   const [reportType, setReportType]   = useState('churn');
   const [dateRange, setDateRange]     = useState('30d');
   const [exportType, setExportType]   = useState('pdf');
@@ -237,5 +238,13 @@ export default function ReportsPage() {
         </table>
       </Card>
     </DashboardLayout>
+  );
+}
+
+export default function ReportsPage() {
+  return (
+    <PermissionGate permission="export_reports">
+      <ReportsPageContent />
+    </PermissionGate>
   );
 }

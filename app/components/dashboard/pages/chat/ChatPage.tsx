@@ -63,7 +63,6 @@ export default function ChatPage() {
   const shellRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
   const autoSelectEnabledRef = useRef(false);
-  const searchParams = useSearchParams();
   const convoQuery = searchParams.get('convo');
   const composeQuery = searchParams.get('compose');
 
