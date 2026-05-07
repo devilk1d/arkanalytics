@@ -109,11 +109,14 @@ function SettingsContent() {
 
   useEffect(() => { setMounted(true); }, []);
 
+  const normalizedMyRole = (myRole ?? '').trim().toLowerCase();
+  const hasAdminRole = normalizedMyRole === 'admin';
+
   // isAdmin is only evaluated after client mount to avoid SSR/client hydration mismatch
-  const isAdmin = mounted && myRole === 'admin';
+  const isAdmin = mounted && hasAdminRole;
   // Permission flags derived from user's assigned role permissions
-  const canManageMembers = mounted && (myRole === 'admin' || myPermissions.includes('manage_members'));
-  const canManageSettings = mounted && (myRole === 'admin' || myPermissions.includes('manage_settings'));
+  const canManageMembers = mounted && (hasAdminRole || myPermissions.includes('manage_members'));
+  const canManageSettings = mounted && (hasAdminRole || myPermissions.includes('manage_settings'));
 
   // Modal states
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
