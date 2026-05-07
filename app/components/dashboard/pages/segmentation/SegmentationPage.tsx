@@ -9,6 +9,7 @@ import Select from '../../ui/Select';
 import ProgressBar from '../../ui/ProgressBar';
 import ClusterChart from '../../charts/ClusterChart';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 'recharts';
+import PermissionGate from '../../ui/PermissionGate';
 
 const segmentStats = [
   {
@@ -98,7 +99,7 @@ const barData = [
   { name: 'Loyal Champions', count: 487,   fill: '#22c55e' },
 ];
 
-export default function SegmentationPage() {
+function SegmentationPageContent() {
   const [search, setSearch] = useState('');
   const [seg, setSeg] = useState('all');
 
@@ -202,5 +203,13 @@ export default function SegmentationPage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function SegmentationPage() {
+  return (
+    <PermissionGate permission="view_analytics">
+      <SegmentationPageContent />
+    </PermissionGate>
   );
 }

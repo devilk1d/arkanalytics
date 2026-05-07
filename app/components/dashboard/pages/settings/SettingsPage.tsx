@@ -84,6 +84,8 @@ function SettingsContent() {
     actionLoading,
     profile,
     workspace,
+    myRole,
+    myPermissions,
     members,
     roleSummary,
     customRoles,
@@ -103,6 +105,15 @@ function SettingsContent() {
 
   const [isDark, setIsDark] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
+
+  // isAdmin is only evaluated after client mount to avoid SSR/client hydration mismatch
+  const isAdmin = mounted && myRole === 'admin';
+  // Permission flags derived from user's assigned role permissions
+  const canManageMembers = mounted && (myRole === 'admin' || myPermissions.includes('manage_members'));
+  const canManageSettings = mounted && (myRole === 'admin' || myPermissions.includes('manage_settings'));
 
   // Modal states
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
@@ -395,7 +406,7 @@ function SettingsContent() {
   };
 
   return (
-    <div className="grid grid-cols-12 gap-5">
+    <div className="grid grid-cols-12 gap-5" suppressHydrationWarning>
 
       {/* ── LEFT NAV PANEL ── */}
       <div className="col-span-3 flex flex-col gap-3">
@@ -436,6 +447,7 @@ function SettingsContent() {
               key: 'profile' as TabType,
               label: 'My Profile',
               sub: 'Name, photo, Arka ID',
+              show: true,
               icon: (
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -447,6 +459,8 @@ function SettingsContent() {
               key: 'company' as TabType,
               label: 'Company',
               sub: 'Name, logo, website',
+              // Only visible if user has manage_settings permission
+              show: canManageSettings,
               icon: (
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <rect x="2" y="7" width="20" height="14" rx="2"/>
@@ -458,6 +472,7 @@ function SettingsContent() {
               key: 'appearance' as TabType,
               label: 'Appearance',
               sub: 'Light / dark mode',
+              show: true,
               icon: (
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <circle cx="12" cy="12" r="5"/>
@@ -468,7 +483,7 @@ function SettingsContent() {
                 </svg>
               ),
             },
-          ].map(item => (
+          ].filter(item => item.show).map(item => (
             <button
               key={item.key}
               onClick={() => handleTabChange(item.key)}
@@ -694,6 +709,7 @@ function SettingsContent() {
                   <h2 className="text-sm font-semibold text-gray-900">Team Members</h2>
                   <p className="text-xs text-gray-400 mt-0.5">Manage user access and permissions</p>
                 </div>
+                {canManageMembers && (
                 <Button
                   size="sm"
                   variant="secondary"
@@ -707,15 +723,21 @@ function SettingsContent() {
                 >
                   Invite Member
                 </Button>
+                )}
               </div>
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/60">
-                    {['Member', 'Email', 'Role', 'Status', 'Last Active', 'Actions'].map((h, i) => (
+                    {['Member', 'Email', 'Role', 'Status', 'Last Active'].map((h, i) => (
                       <th key={i} className="px-5 py-3 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">
                         {h}
                       </th>
                     ))}
+                    {isAdmin && (
+                      <th className="px-5 py-3 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">
+                        Actions
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -735,31 +757,34 @@ function SettingsContent() {
                       </td>
                       <td className="px-5 py-3.5"><Badge label="Active" variant="active" /></td>
                       <td className="px-5 py-3.5 text-xs text-gray-400 whitespace-nowrap">{formatLastActive(m.lastActiveAt)}</td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <button className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors disabled:opacity-40"
-                            onClick={() => { void handleEditMemberRole(m.userId, m.role); }} disabled={actionLoading}>
-                            Edit role
-                          </button>
-                          <button className="text-red-300 hover:text-red-500 transition-colors disabled:opacity-40"
-                            onClick={() => handleDeleteMember(m.userId, m.fullName)} disabled={actionLoading}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                              <polyline points="3 6 5 6 21 6"/>
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
+                      {isAdmin && (
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-3">
+                            <button className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors disabled:opacity-40"
+                              onClick={() => { void handleEditMemberRole(m.userId, m.role); }} disabled={actionLoading}>
+                              Edit role
+                            </button>
+                            <button className="text-red-300 hover:text-red-500 transition-colors disabled:opacity-40"
+                              onClick={() => handleDeleteMember(m.userId, m.fullName)} disabled={actionLoading}>
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                <polyline points="3 6 5 6 21 6"/>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                   {!loading && members.length === 0 && (
-                    <tr><td colSpan={6} className="px-5 py-10 text-sm text-gray-400 text-center">No members found.</td></tr>
+                    <tr><td colSpan={isAdmin ? 6 : 5} className="px-5 py-10 text-sm text-gray-400 text-center">No members found.</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
 
             {/* Roles & Permissions */}
+            {isAdmin && (
             <div className="bg-white rounded-2xl border border-gray-100">
               <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
                 <div>
@@ -836,6 +861,7 @@ function SettingsContent() {
                 </tbody>
               </table>
             </div>
+            )}
           </>
         )}
 

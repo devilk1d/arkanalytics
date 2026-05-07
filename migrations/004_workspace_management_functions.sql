@@ -231,7 +231,7 @@ begin
   end if;
 
   update public.workspace_members
-  set role = p_new_role, updated_at = now()
+  set role = p_new_role
   where workspace_id = p_workspace_id and user_id = p_member_user_id;
 
   return json_build_object(

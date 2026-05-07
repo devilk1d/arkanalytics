@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { resolvePermissions } from './permissions';
 
 type UserProfile = {
   id: string;
@@ -54,6 +55,8 @@ type DashboardContextValue = {
   profile: UserProfile | null;
   workspace: WorkspaceInfo | null;
   myRole: string;
+  /** Resolved permission list for the current user based on their role */
+  myPermissions: string[];
   members: WorkspaceMember[];
   roleSummary: RoleSummary[];
   customRoles: CustomRole[];
@@ -823,6 +826,11 @@ export function DashboardProvider({ children, initialState }: { children: React.
       .sort((a, b) => a.role.localeCompare(b.role));
   }, [members]);
 
+  const myPermissions = useMemo(
+    () => resolvePermissions(myRole, customRoles),
+    [myRole, customRoles]
+  );
+
   const value = useMemo(
     () => ({
       loading,
@@ -831,6 +839,7 @@ export function DashboardProvider({ children, initialState }: { children: React.
       profile,
       workspace,
       myRole,
+      myPermissions,
       members,
       roleSummary,
       customRoles,
@@ -858,6 +867,7 @@ export function DashboardProvider({ children, initialState }: { children: React.
       inviteMember,
       loading,
       members,
+      myPermissions,
       myRole,
       profile,
       refresh,

@@ -6,16 +6,24 @@ import { usePathname, useRouter } from 'next/navigation';
 import Avatar from '../ui/Avatar';
 import { getInitials, useDashboardContext } from '../context/DashboardContext';
 import { createClient } from '@/lib/supabase/client';
+import type { Permission } from '../context/permissions';
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { profile, unreadChatCount } = useDashboardContext();
+  const { profile, myPermissions, unreadChatCount } = useDashboardContext();
   const initials = getInitials(profile?.fullName || 'User');
 
-  const navItems = [
+  const navItems: {
+    href: string;
+    icon: React.ReactNode;
+    /** If set, this item is only shown when the user has this permission */
+    requiredPermission?: Permission;
+    badge?: number;
+  }[] = [
     {
       href: '/dashboard/overview',
+      // Overview is always visible — no permission required
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
@@ -25,6 +33,7 @@ export default function Sidebar() {
     },
     {
       href: '/dashboard/analytics',
+      requiredPermission: 'view_analytics',
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
@@ -34,6 +43,7 @@ export default function Sidebar() {
     },
     {
       href: '/dashboard/segmentation',
+      requiredPermission: 'view_analytics',
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" />
@@ -42,6 +52,7 @@ export default function Sidebar() {
     },
     {
       href: '/dashboard/data-management',
+      requiredPermission: 'manage_data',
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
@@ -51,6 +62,7 @@ export default function Sidebar() {
     },
     {
       href: '/dashboard/reports',
+      requiredPermission: 'export_reports',
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -60,6 +72,7 @@ export default function Sidebar() {
     },
     {
       href: '/dashboard/chat',
+      // Chat is always accessible
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -68,6 +81,13 @@ export default function Sidebar() {
       badge: unreadChatCount > 0 ? unreadChatCount : undefined,
     },
   ];
+
+  // Filter out items the user doesn't have permission for
+  const visibleNavItems = navItems.filter(
+    (item) =>
+      !item.requiredPermission || myPermissions.includes(item.requiredPermission)
+  );
+
   const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -82,9 +102,9 @@ export default function Sidebar() {
         <Image src="/images/logo_arka_hitam.png" alt="Arka" width={28} height={28} />
       </Link>
 
-      {/* Nav items */}
+      {/* Nav items — filtered by permission */}
       <nav className="flex flex-col gap-1 flex-1">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = pathname?.startsWith(item.href);
           return (
             <Link
@@ -95,7 +115,7 @@ export default function Sidebar() {
             >
               {item.icon}
               {item.badge && !isActive && (
-                <span 
+                <span
                   key={item.badge}
                   className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center animate-in zoom-in-50 duration-300"
                 >
@@ -120,9 +140,7 @@ export default function Sidebar() {
           </svg>
         </Link>
         <button
-          onClick={() => {
-            void handleLogout();
-          }}
+          onClick={() => { void handleLogout(); }}
           title="Log Out"
           className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all duration-200"
         >
@@ -139,3 +157,4 @@ export default function Sidebar() {
     </aside>
   );
 }
+

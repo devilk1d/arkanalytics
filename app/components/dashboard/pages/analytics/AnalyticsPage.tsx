@@ -15,6 +15,7 @@ import AuthDropdown from '@/app/components/auth/AuthDropdown';
 import { RetainModal, SendOfferModal } from './ActionModals';
 import { createClient } from '@/lib/supabase/client';
 import type { CustomerPrediction } from '@/types/churn';
+import PermissionGate from '../../ui/PermissionGate';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface PredictionRow {
@@ -461,7 +462,7 @@ function AnalyzeModal({
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
-export default function AnalyticsPage() {
+function AnalyticsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const datasetId = searchParams.get('dataset_id');
@@ -689,5 +690,13 @@ export default function AnalyticsPage() {
         customerName={offerCustomer?.customer_id ?? ''}
       />
     </DashboardLayout>
+  );
+}
+
+export default function AnalyticsPage() {
+  return (
+    <PermissionGate permission="view_analytics">
+      <AnalyticsPageContent />
+    </PermissionGate>
   );
 }
