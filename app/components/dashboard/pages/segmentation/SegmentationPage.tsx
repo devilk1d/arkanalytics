@@ -1,88 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import DashboardLayout from '../../layout/DashboardLayout';
 import SegmentStatCard from '../../ui/SegmentStatCard';
 import Card from '../../ui/Card';
 import SearchBar from '../../ui/SearchBar';
-import Select from '../../ui/Select';
+import AuthDropdown from '@/app/components/auth/AuthDropdown';
 import ProgressBar from '../../ui/ProgressBar';
 import ClusterChart from '../../charts/ClusterChart';
+import Pagination from '../../ui/Pagination';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 'recharts';
-
-const segmentStats = [
-  {
-    label: 'Loyal Champions',
-    value: '487',
-    badge: '17.1%',
-    avgMrr: '$2,845',
-    totalMrr: '$1386K',
-    metricColorClass: 'text-emerald-600',
-    iconBgClass: 'bg-emerald-100',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-      </svg>
-    ),
-  },
-  {
-    label: 'At Risk',
-    value: '324',
-    badge: '11.4%',
-    avgMrr: '$456',
-    totalMrr: '$148K',
-    metricColorClass: 'text-red-500',
-    iconBgClass: 'bg-red-100',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="7" x2="12" y2="13" />
-        <line x1="12" y1="17" x2="12.01" y2="17" />
-      </svg>
-    ),
-  },
-  {
-    label: 'New Adopters',
-    value: '892',
-    badge: '31.3%',
-    avgMrr: '$187',
-    totalMrr: '$167K',
-    metricColorClass: 'text-blue-600',
-    iconBgClass: 'bg-blue-100',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="18 8 18 14 12 14" />
-        <path d="M18 8l-8.5 8.5L6 13" />
-      </svg>
-    ),
-  },
-  {
-    label: 'High Value',
-    value: '1,144',
-    badge: '40.3%',
-    avgMrr: '$1,234',
-    totalMrr: '$1412K',
-    metricColorClass: 'text-violet-600',
-    iconBgClass: 'bg-violet-100',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9333ea" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    ),
-  },
-];
-
-const customers = [
-  { id: 'C-0001', name: 'Acme Corporation',  email: 'contact@acme.com',   plan: 'Enterprise',   mrr: '$4,200', segment: 'Loyal Champions', score: 96 },
-  { id: 'C-0002', name: 'TechStart Inc.',     email: 'hello@techstart.io', plan: 'Professional', mrr: '$450',   segment: 'At Risk',         score: 58 },
-  { id: 'C-0003', name: 'Global Solutions',   email: 'info@globalsol.com', plan: 'Enterprise',   mrr: '$5,198', segment: 'New Adopters',    score: 67 },
-  { id: 'C-0004', name: 'StartupHub',         email: 'team@starthub.co',  plan: 'Starter',      mrr: '$2,110', segment: 'High Value',      score: 75 },
-  { id: 'C-0005', name: 'DataFlow Systems',   email: 'sup@dataflow.com',  plan: 'Professional', mrr: '$2,980', segment: 'Loyal Champions', score: 89 },
-  { id: 'C-0006', name: 'CloudVentures',      email: 'contact@cloudvn.io',plan: 'Enterprise',   mrr: '$150',   segment: 'New Adopters',    score: 65 },
-];
+import { useDashboardContext } from '../../context/DashboardContext';
+import { createClient } from '@/lib/supabase/client';
 
 const segmentColors: Record<string, string> = {
   'Loyal Champions': 'bg-green-100 text-green-700',
@@ -91,24 +21,200 @@ const segmentColors: Record<string, string> = {
   'High Value':      'bg-purple-100 text-purple-700',
 };
 
-const barData = [
-  { name: 'At Risk',         count: 324,   fill: '#ef4444' },
-  { name: 'New Adopters',    count: 892,   fill: '#3b82f6' },
-  { name: 'High Value',      count: 1144,  fill: '#a855f7' },
-  { name: 'Loyal Champions', count: 487,   fill: '#22c55e' },
-];
+const defaultColor = 'bg-gray-100 text-gray-700';
+
+function getSegmentColor(label: string) {
+  return segmentColors[label] || defaultColor;
+}
 
 export default function SegmentationPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const datasetId = searchParams.get('dataset_id');
+  const { workspace } = useDashboardContext();
+  const supabase = createClient();
+
+  const [loading, setLoading] = useState(true);
+  const [segmentStats, setSegmentStats] = useState<any[]>([]);
+  const [barData, setBarData] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [totalCustomers, setTotalCustomers] = useState(0);
+
   const [search, setSearch] = useState('');
   const [seg, setSeg] = useState('all');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    async function init() {
+      if (!datasetId) {
+        if (!workspace) return;
+        setLoading(true);
+        const { data } = await supabase.from('datasets').select('id')
+          .eq('workspace_id', workspace.id).eq('status', 'done')
+          .order('created_at', { ascending: false }).limit(1);
+        if (data && data.length > 0) {
+          router.replace(`/dashboard/segmentation?dataset_id=${data[0].id}`);
+        } else {
+          setLoading(false);
+        }
+        return;
+      }
+    }
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datasetId, workspace, router]);
+
+  const loadData = useCallback(async (
+    currentPage: number, searchVal: string, segVal: string, dsId: string, limit: number
+  ) => {
+    setLoading(true);
+
+    if (segmentStats.length === 0) {
+      const { data: segData, error: segError } = await supabase
+        .from('segments')
+        .select('*')
+        .eq('dataset_id', dsId)
+        .order('avg_churn_score', { ascending: false });
+
+      if (!segError && segData) {
+        const stats = segData.map((s: any, idx: number) => {
+          const colors = [
+            {
+              metricColorClass: 'text-emerald-600', iconBgClass: 'bg-emerald-100', stroke: '#22c55e',
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+              )
+            },
+            {
+              metricColorClass: 'text-red-500', iconBgClass: 'bg-red-100', stroke: '#ef4444',
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="7" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              )
+            },
+            {
+              metricColorClass: 'text-blue-600', iconBgClass: 'bg-blue-100', stroke: '#2563eb',
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="18 8 18 14 12 14" />
+                  <path d="M18 8l-8.5 8.5L6 13" />
+                </svg>
+              )
+            },
+            {
+              metricColorClass: 'text-violet-600', iconBgClass: 'bg-violet-100', stroke: '#9333ea',
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9333ea" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+              )
+            }
+          ];
+          const colorSet = colors[idx % colors.length];
+
+          return {
+            label: s.segment_label,
+            value: s.total_customers.toLocaleString(),
+            badge: `${s.pct_high_risk}%`,
+            avgMrr: `$${Math.round(s.avg_revenue).toLocaleString()}`,
+            totalMrr: `$${Math.round((s.avg_revenue * s.total_customers) / 1000)}K`,
+            metricColorClass: colorSet.metricColorClass,
+            iconBgClass: colorSet.iconBgClass,
+            icon: colorSet.icon
+          };
+        });
+        setSegmentStats(stats);
+
+        const barChartData = segData.map((s: any, idx: number) => {
+          const fills = ['#ef4444', '#3b82f6', '#a855f7', '#22c55e'];
+          return {
+            name: s.segment_label,
+            count: s.total_customers,
+            fill: fills[idx % fills.length]
+          };
+        });
+        setBarData(barChartData);
+      }
+    }
+
+    const from = (currentPage - 1) * limit;
+    const to = from + limit - 1;
+
+    let query = supabase
+      .from('predictions')
+      .select('customer_id,plan_type,churn_score,risk_level,segment_label,segment_rfm_context', { count: 'exact' })
+      .eq('dataset_id', dsId)
+      .order('customer_id', { ascending: true })
+      .range(from, to);
+
+    if (segVal !== 'all') {
+      query = query.eq('segment_label', segVal);
+    }
+    if (searchVal.trim() !== '') {
+      query = query.ilike('customer_id', `%${searchVal.trim()}%`);
+    }
+
+    const { data: custData, count, error: custError } = await query;
+    if (!custError && custData) {
+      const formattedCustomers = custData.map((c: any) => {
+        const mrrVal = c.segment_rfm_context?.total_revenue?.customer || 0;
+        return {
+          id: c.customer_id,
+          name: `Customer ${c.customer_id}`,
+          email: `${c.customer_id.toLowerCase()}@example.com`,
+          plan: c.plan_type,
+          mrr: `$${Math.round(mrrVal).toLocaleString()}`,
+          segment: c.segment_label,
+          score: Math.round(c.churn_score)
+        };
+      });
+      setCustomers(formattedCustomers);
+      setTotalCustomers(count ?? 0);
+    }
+
+    setLoading(false);
+  }, [segmentStats.length, supabase]);
+
+  useEffect(() => {
+    if (!datasetId) return;
+    loadData(page, search, seg, datasetId, pageSize);
+  }, [page, search, seg, datasetId, pageSize, loadData]);
+
+  const totalPages = Math.ceil(totalCustomers / pageSize);
+  const handleSearch = (v: string) => { setSearch(v); setPage(1); };
+  const handleSeg = (v: string) => { setSeg(v); setPage(1); };
+  const handlePageSizeChange = (v: number) => { setPageSize(v); setPage(1); };
+
+  if (!datasetId) {
+    return (
+      <DashboardLayout page="Customer Segmentation">
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] gap-4">
+          <div className="text-center">
+            <h3 className="text-sm font-bold text-black mb-1">No Dataset Selected</h3>
+            <p className="text-xs text-gray-400 max-w-[250px] mx-auto leading-relaxed">
+              Please select a dataset from the Data Management page.
+            </p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout page="Customer Segmentation">
-      {/* Segment stat cards */}
       <div className="grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2 2xl:grid-cols-4">
-        {segmentStats.map(s => (
+        {segmentStats.map((s, i) => (
           <SegmentStatCard
-            key={s.label}
+            key={i}
             label={s.label}
             value={s.value}
             percentage={s.badge}
@@ -120,78 +226,16 @@ export default function SegmentationPage() {
           />
         ))}
       </div>
-
-      <div className="grid grid-cols-12 gap-4">
-        {/* Left: Table */}
-        <div className="col-span-7">
-          <div className="flex items-center gap-3 mb-3">
-            <SearchBar value={search} onChange={setSearch} placeholder="Search by ID or Customer..." className="flex-1" />
-            <Select value={seg} onChange={setSeg} prefix="filter"
-              options={[{ label: 'All Segments', value: 'all' }, ...segmentStats.map(s => ({ label: s.label, value: s.label }))]} />
-            <span className="text-xs text-gray-500 bg-gray-100 px-3 py-2 rounded-xl font-medium whitespace-nowrap">3,000 customers</span>
-          </div>
-
-          <Card padding="none">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  {['ID', 'Customer', 'Plan', 'MRR', 'Segment', 'Score'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {customers.filter(c =>
-                  (seg === 'all' || c.segment === seg) &&
-                  (c.name.toLowerCase().includes(search.toLowerCase()) || c.id.includes(search))
-                ).map(c => (
-                  <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-xs font-mono text-gray-500">{c.id}</td>
-                    <td className="px-4 py-3">
-                      <p className="text-sm font-semibold text-black">{c.name}</p>
-                      <p className="text-xs text-gray-400">{c.email}</p>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600">{c.plan}</td>
-                    <td className="px-4 py-3 text-sm font-bold text-black">{c.mrr}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${segmentColors[c.segment]}`}>{c.segment}</span>
-                    </td>
-                    <td className="px-4 py-3 w-28">
-                      <div className="flex items-center gap-2">
-                        <ProgressBar value={c.score} color="blue" height="sm" />
-                        <span className="text-xs text-gray-600 shrink-0">{c.score}</span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-              <p className="text-xs text-gray-500">Showing 6 of 13,000 results</p>
-              <div className="flex items-center gap-2">
-                <button className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 disabled:opacity-40" disabled>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
-                </button>
-                <span className="text-xs font-medium text-gray-600">1 / 600</span>
-                <button className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
-                </button>
-                <Select value="9" onChange={() => {}} options={[{ label: '9', value: '9' }, { label: '25', value: '25' }]} />
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        {/* Right: Charts */}
-        <div className="col-span-5 flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card><ClusterChart /></Card>
           <Card>
-            <h3 className="text-sm font-bold text-black mb-0.5">Segment Distribution</h3>
-            <p className="text-xs text-gray-400 mb-4">Customer count by segment</p>
-            <ResponsiveContainer width="100%" height={140}>
-              <BarChart data={barData} layout="vertical" margin={{ left: 10, right: 10 }} barSize={14}>
-                <XAxis type="number" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} width={90} />
+            <h3 className="text-lg font-bold text-black mb-0.5">Segment Distribution</h3>
+            <p className="text-sm text-gray-400 mb-4">Customer count by segment</p>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={barData} layout="vertical" margin={{ left: 10, right: 30 }} barSize={14}>
+                <XAxis type="number" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: '#6b7280' }} axisLine={false} tickLine={false} width={90} />
                 <Tooltip formatter={(v) => [`${v} customers`]} />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                   {barData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
@@ -200,7 +244,78 @@ export default function SegmentationPage() {
             </ResponsiveContainer>
           </Card>
         </div>
+
+        <div>
+          <div className="flex items-center gap-3 mb-3">
+            <SearchBar value={search} onChange={handleSearch} placeholder="Search by ID..." className="flex-1" />
+            <AuthDropdown 
+              value={seg} 
+              onChange={handleSeg} 
+              className="w-48"
+              placeholder="Filter Segment"
+              variant="filter"
+              options={[
+                { label: 'All Segments', value: 'all' },
+                ...segmentStats.map(s => ({ label: s.label, value: s.label }))
+              ]} 
+            />
+            <span className="text-xs text-gray-500 bg-gray-100 px-3 py-2 rounded-xl font-medium whitespace-nowrap">
+              {totalCustomers.toLocaleString()} customers
+            </span>
+          </div>
+
+          <Card padding="none">
+            <div className="min-h-[500px]">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    {['ID', 'Customer', 'Plan', 'MRR', 'Segment', 'Score'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {loading ? (
+                    <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-gray-400">Loading...</td></tr>
+                  ) : customers.length === 0 ? (
+                    <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-gray-400">No customers found</td></tr>
+                  ) : (
+                    customers.map(c => (
+                      <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-xs font-mono text-gray-500">{c.id}</td>
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-semibold text-black">{c.name}</p>
+                          <p className="text-xs text-gray-400">{c.email}</p>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-600">{c.plan}</td>
+                        <td className="px-4 py-3 text-sm font-bold text-black">{c.mrr}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getSegmentColor(c.segment)}`}>{c.segment}</span>
+                        </td>
+                        <td className="px-4 py-3 w-28">
+                          <div className="flex items-center gap-2">
+                            <ProgressBar value={c.score} color="blue" height="sm" />
+                            <span className="text-xs text-gray-600 shrink-0">{c.score}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <Pagination 
+              currentPage={page} 
+              totalPages={totalPages} 
+              totalItems={totalCustomers} 
+              pageSize={pageSize} 
+              onPageChange={setPage} 
+              onPageSizeChange={handlePageSizeChange}
+            />
+          </Card>
+        </div>
       </div>
     </DashboardLayout>
   );
 }
+
