@@ -75,31 +75,45 @@ const segments = [
 ];
 
 const chatMessages = [
-  { initials: 'NP', name: 'Naufal Putra',      msg: "Got it! I'll reach out to them today.", time: '2h ago' },
-  { initials: 'FA', name: 'Fawwaz Aiman',      msg: 'Can you check the latest analytics?',   time: '3h ago' },
-  { initials: 'MM', name: 'Muhibuddin Muklish', msg: 'Can we schedule a quick sync?',         time: '3h ago' },
-  { initials: 'RP', name: 'Rizqy Pratama',     msg: 'We should align on the Q3 goals.',       time: '4h ago' },
+  { initials: 'NP', name: 'Naufal Putra', msg: "Got it! I'll reach out to them today.", time: '2h ago' },
+  { initials: 'FA', name: 'Fawwaz Aiman', msg: 'Can you check the latest analytics?', time: '3h ago' },
+  { initials: 'MM', name: 'Muhibuddin Muklish', msg: 'Can we schedule a quick sync?', time: '3h ago' },
+  { initials: 'RP', name: 'Rizqy Pratama', msg: 'We should align on the Q3 goals.', time: '4h ago' },
 ];
 
-export default function OverviewPage() {
+export type OverviewStats = {
+  totalCustomers: number;
+  safeCustomers: number;
+  churnRisk: number;
+  predictedChurn: number;
+};
+
+export default function OverviewPage({ stats, riskData, flowData, planData }: { stats?: OverviewStats, riskData?: any[], flowData?: any, planData?: any[] }) {
+  // Use dummy data if stats are not provided (e.g. no dataset)
+  const data = stats || {
+    totalCustomers: 13000,
+    safeCustomers: 3510,
+    churnRisk: 5.4,
+    predictedChurn: 229
+  };
   return (
     <DashboardLayout page="Dashboard Overview">
       {/* Stat cards row */}
       <div className="grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2 2xl:grid-cols-4">
-        <StatCard label="Total Customers" value="13,000" change="+12.5%" changePositive
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}
+        <StatCard label="Total Customers" value={data.totalCustomers.toLocaleString('en-US')} 
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>}
           iconBg="bg-slate-100"
         />
-        <StatCard label="Active Customers" value="3,510" change="+8.5%" changePositive
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>}
+        <StatCard label="Safe Customers" value={data.safeCustomers.toLocaleString('en-US')} change={`${(data.totalCustomers > 0 ? (data.safeCustomers / data.totalCustomers * 100) : 0).toFixed(1)}%`} changeSuffix="of total" changePositive
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#67f63bff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>}
           iconBg="bg-slate-100"
         />
-        <StatCard label="Churn Rate" value="5.4%" change="-1.7%" changePositive={false}
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></svg>}
+        <StatCard label="Churn Risk" value={`${data.churnRisk}%`} 
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f63b51ff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7" /><polyline points="16 17 22 17 22 11" /></svg>}
           iconBg="bg-slate-100"
         />
-        <StatCard label="Predicted Churn" value="229" change="+3.4%" changePositive={false}
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
+        <StatCard label="Predicted Churn" value={data.predictedChurn.toLocaleString('en-US')} 
+          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f63b51ff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>}
           iconBg="bg-slate-100"
         />
       </div>
@@ -108,13 +122,13 @@ export default function OverviewPage() {
         <div className="col-span-9 grid gap-4">
           {/* Charts row */}
           <div className="grid grid-cols-9 gap-4">
-            <Card className="col-span-5"><ChurnTrendChart /></Card>
-            <Card className="col-span-4"><CustomerFlowChart /></Card>
+            <Card className="col-span-5"><ChurnTrendChart data={riskData} /></Card>
+            <Card className="col-span-4"><CustomerFlowChart data={flowData} /></Card>
           </div>
 
           {/* Distribution + Segments row */}
           <div className="grid grid-cols-12 gap-4">
-            <Card className="col-span-4"><DonutChart /></Card>
+            <Card className="col-span-4"><DonutChart data={planData} /></Card>
 
             <Card className="col-span-8">
               <h3 className="text-sm font-bold text-black mb-4">Customer Segment</h3>
@@ -154,7 +168,7 @@ export default function OverviewPage() {
         <Card className="col-span-3 flex h-full flex-col gap-3">
           <h3 className="text-sm font-bold text-black">Team Chat</h3>
           <Button variant="blue" className="w-full justify-center">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             Create Group Chat
           </Button>
           <div className="flex flex-col gap-3 mt-1">

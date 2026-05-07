@@ -5,12 +5,13 @@ interface StatCardProps {
   label: string;
   value: string;
   change?: string;
+  changeSuffix?: string;
   changePositive?: boolean;
   icon?: ReactNode;
   iconBg?: string;
 }
 
-export default function StatCard({ label, value, change, changePositive = true, icon, iconBg = 'bg-blue-50' }: StatCardProps) {
+export default function StatCard({ label, value, change, changeSuffix = 'vs last month', changePositive = true, icon, iconBg = 'bg-blue-50' }: StatCardProps) {
   return (
     <Card className="flex-1 min-w-0">
       <div className="flex items-start justify-between mb-3">
@@ -25,7 +26,7 @@ export default function StatCard({ label, value, change, changePositive = true, 
       {change && (
         <p className={`text-base font-medium ${changePositive ? 'text-green-600' : 'text-red-500'}`}>
           {change}{' '}
-          <span className="text-gray-400 font-normal">vs last month</span>
+          <span className="text-gray-400 font-normal">{changeSuffix}</span>
         </p>
       )}
     </Card>
