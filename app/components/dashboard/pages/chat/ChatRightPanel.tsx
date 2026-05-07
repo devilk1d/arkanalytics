@@ -1,6 +1,6 @@
 import { ChangeEvent, JSX, useState, useRef, useEffect } from 'react';
 import Card from '../../ui/Card';
-import { AttachmentItem, ConversationItem, NoteItem, RightTab, TaskItem, formatTime } from './chat-types';
+import { AttachmentItem, ConversationItem, MessageItem, NoteItem, RightTab, TaskItem, formatTime } from './chat-types';
 import { getInitials, type WorkspaceMember } from '../../context/DashboardContext';
 import Avatar from '../../ui/Avatar';
 import MediaLightbox from '../../../ui/MediaLightbox';
@@ -732,14 +732,119 @@ function ActionsPanel({
   );
 }
 
-function CustomersPanel() {
+function CustomersPanel({ messages }: { messages: MessageItem[] }) {
+  const customersMap = new Map<string, any>();
+  let maxUsage = 1;
+
+  // Process messages from oldest to newest to ensure latest share wins
+  messages.forEach(m => {
+    if (m.body.startsWith('[CUSTOMER_PROFILE]:')) {
+      try {
+        const data = JSON.parse(m.body.replace('[CUSTOMER_PROFILE]:', ''));
+        // Track the highest maxUsage across messages
+        const msgMaxUsage = Number(data.maxUsage || 0);
+        if (msgMaxUsage > maxUsage) maxUsage = msgMaxUsage;
+
+        data.customers.forEach((c: any) => {
+          // Normalize usage property and ensure it's a number
+          const normUsage = Number(c.usage ?? c.usage_hrs ?? 0);
+          
+          customersMap.set(c.id, { 
+            ...c, 
+            usage: normUsage,
+            datasetId: data.datasetId 
+          });
+
+          // Fallback: if msgMaxUsage was 0 or 1, calculate it from the highest customer usage
+          if (normUsage > maxUsage) maxUsage = normUsage;
+        });
+      } catch (e) {
+        console.error('Failed to parse customer profile in sidebar:', e);
+      }
+    }
+  });
+
+  const customerList = Array.from(customersMap.values());
+
+  if (customerList.length === 0) {
+    return (
+      <div className="flex flex-col gap-3">
+        <Card padding="sm" className="rounded-2xl border-gray-200 shadow-none bg-white p-6">
+          <h4 className="mb-4 text-base font-bold text-gray-900">Customers</h4>
+          <div className="py-8 flex flex-col items-center justify-center text-center">
+            <div className="w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mb-3 text-gray-300">
+               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+            </div>
+            <p className="text-xs font-semibold text-gray-400 italic">No customers shared yet</p>
+            <p className="text-[10px] text-gray-300 mt-1 max-w-[150px]">Shared customer profiles will appear here for quick access</p>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-3">
-      <Card padding="sm" className="rounded-2xl border-gray-200 shadow-none">
-        <h4 className="mb-3 text-sm font-semibold text-gray-900">Customers</h4>
-        <p className="text-xs text-gray-500">
-          Customer insights panel belum dihubungkan ke data chat. Fokus tahap ini adalah conversation, message, notes, tasks, dan files.
-        </p>
+    <div className="flex flex-col gap-3 pb-8">
+      <Card padding="none" className="rounded-2xl border-gray-200 shadow-none bg-white p-5">
+        <h4 className="text-base font-bold text-gray-900 mb-6 px-1">Customers</h4>
+        
+        <div className="flex flex-col gap-6">
+          {customerList.map((c) => {
+            // Usage calculation (if usage is provided, otherwise mock some values for demo)
+            const usageVal = c.usage || 0;
+            const usagePercent = maxUsage > 0 ? Math.min(100, Math.round((usageVal / maxUsage) * 100)) : 0;
+            
+            const barColor = usagePercent > 70 ? 'bg-emerald-500' : usagePercent > 40 ? 'bg-amber-500' : 'bg-red-500';
+            const riskColor = c.risk === 'High' ? 'text-red-500 border-red-200 bg-red-50' : c.risk === 'Medium' ? 'text-amber-500 border-amber-200 bg-amber-50' : 'text-emerald-500 border-emerald-200 bg-emerald-50';
+
+            return (
+              <div key={c.id} className="flex items-start gap-3 animate-in fade-in slide-in-from-bottom-1 duration-300">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                  c.id.charCodeAt(0) % 4 === 0 ? 'bg-blue-50 text-blue-600' : 
+                  c.id.charCodeAt(0) % 4 === 1 ? 'bg-purple-50 text-purple-600' : 
+                  c.id.charCodeAt(0) % 4 === 2 ? 'bg-amber-50 text-amber-600' : 'bg-rose-50 text-rose-600'
+                }`}>
+                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="4" y="2" width="16" height="20" rx="2" ry="2" /><path d="M9 22v-4h6v4" /><path d="M8 6h.01" /><path d="M16 6h.01" /><path d="M8 10h.01" /><path d="M16 10h.01" /><path d="M8 14h.01" /><path d="M16 14h.01" /></svg>
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <div className="min-w-0 cursor-pointer hover:opacity-70 transition-opacity" onClick={() => window.location.href = `/dashboard/analytics?dataset_id=${c.datasetId}&analyze_id=${c.id}`}>
+                      <p className="text-sm font-bold text-gray-900 truncate tracking-tight">{c.id}</p>
+                      <p className="text-[11px] text-gray-400 font-semibold truncate capitalize">{c.plan} Plan</p>
+                    </div>
+                    <div className="flex flex-col items-end shrink-0">
+                      <p className="text-[8px] font-black text-gray-300 uppercase tracking-widest mb-0.5">Risk</p>
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-tighter ${riskColor}`}>
+                        {c.risk}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="flex flex-col flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-bold text-gray-400">Usage</span>
+                        <span className="text-[10px] font-black text-gray-900">{usagePercent}%</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-gray-50 rounded-full overflow-hidden border border-gray-100/50">
+                        <div className={`h-full rounded-full transition-all duration-1000 ${barColor}`} style={{ width: `${usagePercent}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <button 
+          onClick={() => window.location.href = '/dashboard/analytics'}
+          className="w-full mt-10 pt-6 border-t border-gray-50 flex items-center justify-center gap-2 text-xs font-bold text-gray-900 hover:text-blue-600 transition-colors group"
+        >
+          View all customers
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="group-hover:translate-x-1 transition-transform"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
+        </button>
       </Card>
     </div>
   );
@@ -874,6 +979,7 @@ interface ChatRightPanelProps {
 
   // Files tab
   files: AttachmentItem[];
+  messages: MessageItem[];
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   uploadLoading: boolean;
 
@@ -893,6 +999,7 @@ export default function ChatRightPanel({
   activeTab,
   onTabChange,
   tasks,
+  messages,
   notes,
   newTask,
   newNote,
@@ -962,7 +1069,7 @@ export default function ChatRightPanel({
               />
             )}
 
-            {activeTab === 'customers' && <CustomersPanel />}
+            {activeTab === 'customers' && <CustomersPanel messages={messages} />}
 
             {activeTab === 'files' && (
               <FilesPanel
