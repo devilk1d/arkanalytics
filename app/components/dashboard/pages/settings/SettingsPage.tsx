@@ -462,8 +462,9 @@ function SettingsContent() {
               key: 'company' as TabType,
               label: 'Company',
               sub: 'Name, logo, website',
-              // Only visible if user has manage_settings permission
-              show: canManageSettings,
+              // Temporarily hidden until backend/RLS supports permission-based workspace updates.
+              // Showing this tab to non-admin users leads to a save path that will be rejected.
+              show: false,
               icon: (
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                   <rect x="2" y="7" width="20" height="14" rx="2"/>
