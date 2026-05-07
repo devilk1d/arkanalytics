@@ -41,8 +41,67 @@ interface ChatMessagesProps {
   onFileUpload: (file: File, kind: 'image' | 'video' | 'document') => void;
 }
 
+function RenderCustomerProfile({ data, isMine }: { data: string; isMine: boolean }) {
+  let profile: any = null;
+  try {
+    profile = JSON.parse(data.replace('[CUSTOMER_PROFILE]:', ''));
+  } catch (e) {
+    return <p>{data}</p>;
+  }
+
+  const customers = profile.customers || [];
+  if (customers.length === 0) return null;
+
+  return (
+    <div className={`flex flex-col gap-3 min-w-[240px] max-w-[280px] p-1 ${isMine ? 'text-white' : 'text-gray-800'}`}>
+      <div className="flex items-center justify-between">
+        <p className={`text-[10px] font-bold uppercase tracking-widest ${isMine ? 'text-blue-200' : 'text-gray-400'}`}>
+          {customers.length > 1 ? `Shared ${customers.length} Customers` : 'Shared Customer Profile'}
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        {customers.map((c: any, i: number) => (
+          <div key={c.id}>
+            {i > 0 && <div className={`h-px w-full my-3 ${isMine ? 'bg-white/10' : 'bg-gray-100'}`} />}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div>
+                   <p className={`text-[8px] font-bold uppercase ${isMine ? 'text-blue-200' : 'text-gray-400'}`}>Customer ID</p>
+                   <p className="text-xs font-bold">{c.id}</p>
+                </div>
+                <div className="text-right">
+                   <p className={`text-[8px] font-bold uppercase ${isMine ? 'text-blue-200' : 'text-gray-400'}`}>Score</p>
+                   <p className="text-xs font-black">{c.score}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className={`text-[9px] px-2 py-0.5 rounded-full capitalize ${isMine ? 'bg-white/10' : 'bg-gray-100'}`}>{c.plan}</span>
+                <span className={`text-[9px] font-bold ${c.risk === 'High' ? 'text-red-400' : 'text-green-500'}`}>{c.risk} Risk</span>
+              </div>
+              <button
+                onClick={() => {
+                   const url = `/dashboard/analytics?dataset_id=${profile.datasetId || ''}&analyze_id=${c.id}`;
+                   window.location.href = url;
+                }}
+                className={`mt-1 w-full py-2 rounded-lg text-[10px] font-bold transition-all shadow-sm active:scale-95 ${isMine ? 'bg-white text-blue-600 hover:bg-blue-50' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+              >
+                Analyze {customers.length > 1 ? c.id : ''}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Helper to render text with mentions highlighted and emojis as Apple style images
-function RenderMessageBody({ text }: { text: string }) {
+function RenderMessageBody({ text, isMine }: { text: string; isMine: boolean }) {
+  if (text.startsWith('[CUSTOMER_PROFILE]:')) {
+    return <RenderCustomerProfile data={text} isMine={isMine} />;
+  }
+
   // Regex for emojis
   const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
 
@@ -372,9 +431,9 @@ export default function ChatMessages({
                     </div>
                   ) : (
                     <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm relative ${m.senderId === currentUserId ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white border border-gray-100 text-gray-800 rounded-tl-sm'}`}>
-                      <p className="leading-relaxed whitespace-pre-wrap break-all">
-                        <RenderMessageBody text={m.body} />
-                      </p>
+                      <div className="leading-relaxed whitespace-pre-wrap break-all">
+                        <RenderMessageBody text={m.body} isMine={m.senderId === currentUserId} />
+                      </div>
                     </div>
                   )}
 

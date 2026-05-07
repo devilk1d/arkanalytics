@@ -50,7 +50,9 @@ export async function getDatasets(userId: string) {
  */
 export async function savePredictions(datasetId: string, predictions: CustomerPrediction[]) {
     const supabase = await createClient()
-    const rows = predictions.map(p => ({
+
+    // Cast ke unknown agar bisa akses field v2.3 yang belum ada di type CustomerPrediction
+    const rows = (predictions as unknown as Record<string, unknown>[]).map(p => ({
         dataset_id: datasetId,
         customer_id: p.customer_id,
         plan_type: p.plan_type,
@@ -58,16 +60,20 @@ export async function savePredictions(datasetId: string, predictions: CustomerPr
         churn_score: p.churn_score,
         churn_proba: p.churn_proba,
         tabular_proba: p.tabular_proba,
-        nlp_proba: p.nlp_proba,
+        nlp_proba: p.nlp_proba ?? null,
         risk_level: p.risk_level,
-        shap_top5: p.shap_top5,        // jsonb
-        sentiment: p.sentiment,         // jsonb
-        nlp_red_flag: p.nlp_red_flag,
+        shap_top5: p.shap_top5,             // jsonb
+        sentiment: p.sentiment,              // jsonb
+        nlp_red_flag: (p.nlp_red_flag as number) ?? 0,
+        // ── v2.3: field baru ───────────────────────────────────────────
+        loyalty_risk_flag: (p.loyalty_risk_flag as number) ?? 0,
+        has_nps_data: (p.has_nps_data as number) ?? 1,
+        // ──────────────────────────────────────────────────────────────
         segment_label: p.segment_label,
         segment_cluster: p.segment_cluster,
-        segment_rfm_context: p.segment_rfm_context, // jsonb
-        xai_churn_explanation: p.xai_churn_explanation,
-        xai_segment_explanation: p.xai_segment_explanation,
+        segment_rfm_context: p.segment_rfm_context,   // jsonb
+        xai_churn_explanation: (p.xai_churn_explanation as string | null) ?? null,
+        xai_segment_explanation: (p.xai_segment_explanation as string | null) ?? null,
     }))
 
     const { error } = await supabase

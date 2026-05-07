@@ -9,11 +9,12 @@ interface ModalProps {
   subtitle?: string;
   children: ReactNode;
   width?: 'sm' | 'md' | 'lg';
+  padding?: 'none' | 'default';
 }
 
 const widthMap = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' };
 
-export default function Modal({ open, onClose, title, subtitle, children, width = 'md' }: ModalProps) {
+export default function Modal({ open, onClose, title, subtitle, children, width = 'md', padding = 'default' }: ModalProps) {
   // Close on Escape key
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -56,7 +57,7 @@ export default function Modal({ open, onClose, title, subtitle, children, width 
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className={`flex-1 overflow-y-auto ${padding === 'default' ? 'p-6' : ''}`}>
           {children}
         </div>
       </div>
