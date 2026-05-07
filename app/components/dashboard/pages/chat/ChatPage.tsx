@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import DashboardLayout from '../../layout/DashboardLayout';
 import { createClient } from '@/lib/supabase/client';
 import { useDashboardContext, type WorkspaceMember } from '../../context/DashboardContext';
@@ -61,6 +62,9 @@ export default function ChatPage() {
   const shellRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
   const autoSelectEnabledRef = useRef(false);
+  const searchParams = useSearchParams();
+  const convoQuery = searchParams.get('convo');
+  const composeQuery = searchParams.get('compose');
 
   const LEFT_MIN = 64;
   const LEFT_COLLAPSE_THRESHOLD = 100;
@@ -87,8 +91,8 @@ export default function ChatPage() {
   const [chatFilter, setChatFilter] = useState('all');
   const [rightTab, setRightTab] = useState<RightTab>('actions');
   const [search, setSearch] = useState('');
-  const [sidebarMode, setSidebarMode] = useState<'list' | 'compose'>('list');
-  const [composeTab, setComposeTab] = useState<'direct' | 'group'>('direct');
+  const [sidebarMode, setSidebarMode] = useState<'list' | 'compose'>(composeQuery ? 'compose' : 'list');
+  const [composeTab, setComposeTab] = useState<'direct' | 'group'>(composeQuery === 'group' ? 'group' : 'direct');
   const [newTask, setNewTask] = useState('');
   const [newNote, setNewNote] = useState('');
   const [groupName, setGroupName] = useState('');
@@ -292,10 +296,13 @@ export default function ChatPage() {
 
     setActiveConvo((prev) => {
       if (prev && mapped.some((item) => item.id === prev)) return prev;
+      if (convoQuery && mapped.some((item) => item.id === convoQuery)) {
+        return convoQuery;
+      }
       if (!autoSelectEnabledRef.current) return '';
       return mapped[0]?.id || '';
     });
-  }, [memberAvatarById, memberNameById, profile, supabase, workspace]);
+  }, [memberAvatarById, memberNameById, profile, supabase, workspace, convoQuery]);
 
   const fetchMessages = useCallback(async () => {
     if (!activeConvo) {
