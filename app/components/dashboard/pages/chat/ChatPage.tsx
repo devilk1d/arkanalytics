@@ -57,6 +57,7 @@ const widthMemoryCache = {
 
 export default function ChatPage() {
   const supabase = useMemo(() => createClient(), []);
+  const searchParams = useSearchParams();
   const { workspace, profile, members } = useDashboardContext();
 
   const shellRef = useRef<HTMLDivElement>(null);
@@ -136,6 +137,13 @@ export default function ChatPage() {
     widthMemoryCache.left = leftWidth;
     writeStoredWidth(WIDTH_KEYS.left, leftWidth);
   }, [leftWidth]);
+
+  useEffect(() => {
+    const cid = searchParams.get('convo_id');
+    const pref = searchParams.get('prefill');
+    if (cid) setActiveConvo(cid);
+    if (pref) setMessage(pref);
+  }, [searchParams]);
 
   useEffect(() => {
     widthMemoryCache.initialized = true;
@@ -863,6 +871,7 @@ export default function ChatPage() {
             workspaceMembers={members}
             onAvatarChange={updateGroupAvatar}
             tasks={tasks}
+            messages={messages}
             notes={notes}
             newTask={newTask}
             newNote={newNote}
