@@ -103,16 +103,16 @@ function XaiPanel({ raw }: { raw: string | null }) {
           <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Rekomendasi Tindakan</p>
           <div className="grid grid-cols-2 gap-3 mb-2">
             <div>
-              <p className="text-[10px] text-gray-400 mb-0.5">Retensi</p>
-              <span className="inline-block text-[11px] font-semibold bg-black text-white px-2 py-0.5 rounded-lg">
+              <p className="text-[10px] text-gray-400 mb-1">Retensi</p>
+              <div className="inline-block text-[11px] font-bold bg-black text-white px-4 py-2.5 rounded-xl leading-tight">
                 {xai.action.retain}
-              </span>
+              </div>
             </div>
             <div>
-              <p className="text-[10px] text-gray-400 mb-0.5">Penawaran</p>
-              <span className="inline-block text-[11px] font-semibold bg-gray-100 text-gray-700 px-2 py-0.5 rounded-lg">
+              <p className="text-[10px] text-gray-400 mb-1">Penawaran</p>
+              <div className="inline-block text-[11px] font-semibold bg-gray-100 text-gray-700 px-4 py-2.5 rounded-xl leading-tight border border-gray-200">
                 {xai.action.offer}
-              </span>
+              </div>
             </div>
           </div>
           <p className="text-[11px] text-gray-600 leading-relaxed border-t border-gray-100 pt-2 mt-1">
@@ -140,8 +140,6 @@ interface AnalyzeCustomerModalProps {
   datasetId: string;
   open: boolean;
   onClose: () => void;
-  onRetain: (c: CustomerPrediction) => void;
-  onSendOffer: (c: CustomerPrediction) => void;
 }
 
 export function AnalyzeCustomerModal({
@@ -149,8 +147,6 @@ export function AnalyzeCustomerModal({
   datasetId,
   open,
   onClose,
-  onRetain,
-  onSendOffer,
 }: AnalyzeCustomerModalProps) {
   const [data, setData] = useState<CustomerPrediction | null>(null);
   const [loading, setLoading] = useState(false);
@@ -421,10 +417,6 @@ export function AnalyzeCustomerModal({
                 <XaiPanel raw={data.xai_churn_explanation ?? null} />
               )}
 
-              <div className="grid grid-cols-2 gap-3 mb-5">
-                <Button onClick={() => onRetain(data)} className="justify-center">Retain Customer</Button>
-                <Button onClick={() => onSendOffer(data)} variant="secondary" className="justify-center">Send Offer</Button>
-              </div>
 
               <p className="text-sm font-bold text-black mb-3">Top Churn Factors (SHAP)</p>
               <div className="flex flex-col gap-2 mb-5">

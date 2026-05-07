@@ -635,8 +635,6 @@ function AnalyticsPageContent() {
           customerId={analyzeId}
           datasetId={datasetId}
           onClose={() => setAnalyzeId(null)}
-          onRetain={setRetain}
-          onSendOffer={setOffer}
         />
       )}
 
