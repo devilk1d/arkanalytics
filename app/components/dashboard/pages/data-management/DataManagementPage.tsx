@@ -109,26 +109,63 @@ function DataManagementPageContent() {
 
   const allFilesSelected = Object.keys(REQUIRED_FILES).every(k => files[k as FileKey]);
 
-  // Load existing datasets
-  useEffect(() => {
-    async function load() {
-      if (!workspace?.id) return;
-      setLoadingDatasets(true);
-      
-      const { count } = await supabase.from('datasets').select('*', { count: 'exact', head: true }).eq('workspace_id', workspace.id);
-      setTotalDatasets(count || 0);
+  // ── Fetching logic ──
+  const fetchDatasets = useCallback(async () => {
+    if (!workspace?.id) return;
+    
+    // Total count for pagination
+    const { count } = await supabase
+      .from('datasets')
+      .select('*', { count: 'exact', head: true })
+      .eq('workspace_id', workspace.id);
+    setTotalDatasets(count || 0);
 
-      const { data } = await supabase
-        .from('datasets')
-        .select('id,status,storage_path,total_customers,churn_rate_pct,created_at,error_message')
-        .eq('workspace_id', workspace.id)
-        .order('created_at', { ascending: false })
-        .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
-      if (data) setDatasets(data as DatasetRow[]);
-      setLoadingDatasets(false);
+    // Paginated results
+    const { data, error } = await supabase
+      .from('datasets')
+      .select('id,status,storage_path,total_customers,churn_rate_pct,created_at,error_message')
+      .eq('workspace_id', workspace.id)
+      .order('created_at', { ascending: false })
+      .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
+
+    if (error) {
+      console.error('Error fetching datasets:', error);
+    } else {
+      setDatasets(data as DatasetRow[]);
     }
-    load();
-  }, [workspace?.id, page]);
+    setLoadingDatasets(false);
+  }, [supabase, workspace?.id, page]);
+
+  // Initial load
+  useEffect(() => {
+    setLoadingDatasets(true);
+    fetchDatasets();
+  }, [fetchDatasets]);
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!workspace?.id) return;
+
+    const channel = supabase
+      .channel('public:datasets')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'datasets',
+          filter: `workspace_id=eq.${workspace.id}`,
+        },
+        () => {
+          fetchDatasets();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, workspace?.id, fetchDatasets]);
 
   // Handle file multi-drop / select
   const handleMultipleFiles = useCallback((selectedFiles: FileList | File[]) => {
@@ -382,9 +419,10 @@ function DataManagementPageContent() {
               <p className="text-xs text-gray-400">No datasets uploaded yet</p>
             </div>
           ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
+            <div className="flex-1 min-h-[140px]">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-100">
                   {['Dataset ID', 'Uploaded', 'Status', 'Customers', 'High Risk%', 'Actions'].map(h => (
                     <th key={h} className="pb-2 text-left text-xs font-semibold text-gray-500 pr-2">{h}</th>
                   ))}
@@ -459,7 +497,9 @@ function DataManagementPageContent() {
                 ))}
               </tbody>
             </table>
-          )}
+          </div>
+        )}
+        <div className="mt-6 mb-2 font-medium">
           <Pagination
             currentPage={page}
             totalPages={Math.ceil(totalDatasets / PAGE_SIZE)}
@@ -467,7 +507,8 @@ function DataManagementPageContent() {
             pageSize={PAGE_SIZE}
             onPageChange={setPage}
           />
-        </Card>
+        </div>
+      </Card>
       </div>
 
       {/* ── Bottom row: CSV Preview ── */}

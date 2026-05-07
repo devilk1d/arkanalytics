@@ -11,6 +11,7 @@ import SearchBar from '../../ui/SearchBar';
 import Select from '../../ui/Select';
 import ProgressBar from '../../ui/ProgressBar';
 import Pagination from '../../ui/Pagination';
+import StatCard from '../../ui/StatCard';
 import AuthDropdown from '@/app/components/auth/AuthDropdown';
 import { SendToChatModal } from './ActionModals';
 import { AnalyzeCustomerModal } from './AnalyzeCustomerModal';
@@ -84,6 +85,60 @@ function AnalyticsPageContent() {
   const [retainCustomer, setRetain] = useState<PredictionRow | null>(null);
   const [offerCustomer, setOffer] = useState<PredictionRow | null>(null);
   const [shareCustomers, setShareCustomers] = useState<PredictionRow[] | null>(null);
+
+  const [summaryStats, setSummaryStats] = useState({
+    total: 0,
+    avgScore: 0,
+    highRiskCount: 0,
+    revenueAtRisk: 0,
+    highRiskPct: 0
+  });
+
+  const loadSummaryStats = useCallback(async (dsId: string, metrics: Map<string, CsvMetrics>) => {
+    let allPreds: any[] = [];
+    let from = 0;
+    const step = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('predictions')
+        .select('customer_id,churn_score,risk_level')
+        .eq('dataset_id', dsId)
+        .range(from, from + step - 1);
+
+      if (error || !data) {
+        hasMore = false;
+      } else {
+        allPreds = [...allPreds, ...data];
+        if (data.length < step) hasMore = false;
+        else from += step;
+      }
+    }
+
+    if (allPreds.length > 0) {
+      let totalScore = 0;
+      let hrCount = 0;
+      let hrRev = 0;
+
+      allPreds.forEach(p => {
+        totalScore += p.churn_score || 0;
+        if (p.risk_level?.toLowerCase() === 'high') {
+          hrCount++;
+          const m = metrics.get(p.customer_id);
+          if (m) hrRev += m.mrr;
+        }
+      });
+
+      setSummaryStats({
+        total: allPreds.length,
+        avgScore: allPreds.length > 0 ? totalScore / allPreds.length : 0,
+        highRiskCount: hrCount,
+        revenueAtRisk: hrRev,
+        highRiskPct: allPreds.length > 0 ? (hrCount / allPreds.length) * 100 : 0
+      });
+    }
+  }, [supabase]);
 
   const loadCsvMetrics = async (dsId: string) => {
     try {
@@ -279,12 +334,20 @@ function AnalyticsPageContent() {
     }
   }, [datasetId, workspace, router, searchParams]);
 
-  // 2. Load CSV Metrics when datasetId changes
+  // 2. Load CSV Metrics & Summary when datasetId changes
   useEffect(() => {
     if (datasetId) {
-      loadCsvMetrics(datasetId);
+      loadCsvMetrics(datasetId).then(() => {
+        // We'll call summary calculation inside loadCsvMetrics's effect to ensure it has the map
+      });
     }
   }, [datasetId]);
+
+  useEffect(() => {
+    if (datasetId && csvMetrics.size > 0) {
+      loadSummaryStats(datasetId, csvMetrics);
+    }
+  }, [datasetId, csvMetrics.size, loadSummaryStats]);
 
   // 3. Load Page Data
   useEffect(() => {
@@ -297,6 +360,18 @@ function AnalyticsPageContent() {
   const handlePlan = (v: string) => { setPlan(v); setPage(1); };
   const handleRisk = (v: string) => { setRisk(v); setPage(1); };
   const handlePageSizeChange = (v: number) => { setPageSize(v); setPage(1); };
+
+  if (loading && !datasetId) {
+    return (
+      <DashboardLayout page="Customer Analytics">
+        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+          <svg className="animate-spin text-gray-200" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          </svg>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (!datasetId) {
     return (
@@ -324,6 +399,63 @@ function AnalyticsPageContent() {
 
   return (
     <DashboardLayout page="Customer Analytics">
+      {/* ── Summary Stats ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 mb-4">
+        <StatCard
+          label="Total Customers"
+          value={summaryStats.total.toLocaleString()}
+          change="Total"
+          changeSuffix="customer base"
+          changePositive={true}
+          icon={
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          }
+          iconBg="bg-blue-50"
+        />
+        <StatCard
+          label="Avg. Churn Score"
+          value={summaryStats.avgScore.toFixed(1)}
+          change={`${summaryStats.avgScore > 50 ? 'Needs Attention' : 'Healthy'}`}
+          changePositive={summaryStats.avgScore <= 50}
+          changeSuffix="overall risk"
+          icon={
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600">
+              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+            </svg>
+          }
+          iconBg="bg-purple-50"
+        />
+        <StatCard
+          label="High Risk Level"
+          value={summaryStats.highRiskCount.toLocaleString()}
+          change={`${summaryStats.highRiskPct.toFixed(1)}%`}
+          changePositive={false}
+          changeSuffix="of total"
+          icon={
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-red-500">
+               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+               <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          }
+          iconBg="bg-red-50"
+        />
+        <StatCard
+          label="Revenue at Risk"
+          value={`$${Math.round(summaryStats.revenueAtRisk).toLocaleString()}`}
+          change="Urgent"
+          changePositive={false}
+          changeSuffix=""
+          icon={
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600">
+              <line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+          }
+          iconBg="bg-amber-50"
+        />
+      </div>
+
       <div className="flex items-center gap-3 mb-4">
         <SearchBar value={search} onChange={handleSearch} placeholder="Search by customer ID or plan..." className="w-72" />
         <AuthDropdown
@@ -468,7 +600,7 @@ function AnalyticsPageContent() {
                     </td>
                     <td className="px-4 py-3 text-left">
                       <div className="flex items-center justify-start gap-2">
-                        <Button size="sm" className="px-5 rounded-xl shadow-sm hover:translate-y-[-1px] transition-transform" onClick={() => setAnalyzeId(c.customer_id)}>
+                        <Button size="sm" className="rounded-xl shadow-sm hover:translate-y-[-1px] transition-transform" onClick={() => setAnalyzeId(c.customer_id)}>
                           Analyze
                         </Button>
                         <button
@@ -487,16 +619,14 @@ function AnalyticsPageContent() {
           </table>
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            pageSize={pageSize}
-            totalItems={totalCount}
-            onPageChange={setPage}
-            onPageSizeChange={handlePageSizeChange}
-          />
-        </div>
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          totalItems={totalCount}
+          onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
+        />
       </Card>
 
       {analyzeId && datasetId && (
