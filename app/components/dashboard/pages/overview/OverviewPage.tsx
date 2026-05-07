@@ -199,7 +199,7 @@ export default function OverviewPage({ stats, riskData, flowData, planData }: { 
       });
 
       mapped.sort((a, b) => new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime());
-      setRecentChats(mapped.slice(0, 5));
+      setRecentChats(mapped);
     }
     loadChats();
   }, [workspace, profile, members, supabase]);
