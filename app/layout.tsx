@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import { AppToastRegion } from "./components/ui/AppToast";
+import { SessionTimeout } from "./components/auth/SessionTimeout";
 import "./globals.css";
 
 const inter = Inter({
@@ -29,6 +30,7 @@ export default function RootLayout({
       className={`${inter.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <SessionTimeout />
         {children}
         <AppToastRegion />
       </body>
