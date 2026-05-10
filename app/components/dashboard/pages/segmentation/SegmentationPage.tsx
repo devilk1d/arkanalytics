@@ -16,16 +16,18 @@ import { useDashboardContext } from '../../context/DashboardContext';
 import { createClient } from '@/lib/supabase/client';
 
 export const PALETTE = [
-  { hex: 'var(--p)', textClass: 'text-[var(--p)]', iconBgClass: 'bg-indigo-50/50', badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-100' },
-  { hex: 'var(--n)', textClass: 'text-[var(--n)]', iconBgClass: 'bg-zinc-100/50', badgeClass: 'bg-zinc-100 text-zinc-700 border border-zinc-200' },
-  { hex: '#1e1b4b', textClass: 'text-[#1e1b4b]', iconBgClass: 'bg-indigo-50/50', badgeClass: 'bg-zinc-900 text-zinc-50 border border-zinc-800' },
-  { hex: '#4b5563', textClass: 'text-[#4b5563]', iconBgClass: 'bg-zinc-50/50', badgeClass: 'bg-zinc-50 text-zinc-600 border border-zinc-200' }
+  { hex: '#ef4444', textClass: 'text-red-600', iconBgClass: 'bg-red-100', badgeClass: 'bg-red-100 text-red-700 border border-red-200' },
+  { hex: '#3b82f6', textClass: 'text-blue-600', iconBgClass: 'bg-blue-100', badgeClass: 'bg-blue-100 text-blue-700 border border-blue-200' },
+  { hex: '#a855f7', textClass: 'text-purple-600', iconBgClass: 'bg-purple-100', badgeClass: 'bg-purple-100 text-purple-700 border border-purple-200' },
+  { hex: '#10b981', textClass: 'text-emerald-600', iconBgClass: 'bg-emerald-100', badgeClass: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
+  { hex: '#f59e0b', textClass: 'text-amber-600', iconBgClass: 'bg-amber-100', badgeClass: 'bg-amber-100 text-amber-700 border border-amber-200' },
+  { hex: '#06b6d4', textClass: 'text-cyan-600', iconBgClass: 'bg-cyan-100', badgeClass: 'bg-cyan-100 text-cyan-700 border border-cyan-200' }
 ];
 
 export function getSegmentIcon(label: string, colorClass: string) {
   const lower = label.toLowerCase();
 
-  if (lower.includes('risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('leave')) {
+  if (lower.includes('risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('leave') || lower.includes('unhappy') || lower.includes('dissatisfied') || lower.includes('poor') || lower.includes('bad') || lower.includes('low')) {
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={colorClass}>
         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -80,10 +82,32 @@ export function getSegmentIcon(label: string, colorClass: string) {
   );
 }
 
-export function getFallbackPalette(label: string) {
+export function getSegmentColorway(label: string) {
+  const lower = label.toLowerCase();
+  
+  if (lower.includes('risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('leave') || lower.includes('unhappy') || lower.includes('dissatisfied') || lower.includes('poor') || lower.includes('bad') || lower.includes('low')) {
+    return PALETTE[0]; // Red
+  }
+  if (lower.includes('loyal') || lower.includes('champion') || lower.includes('satisfied') || lower.includes('best')) {
+    return PALETTE[3]; // Emerald
+  }
+  if (lower.includes('new') || lower.includes('adopter') || lower.includes('recent') || lower.includes('starter')) {
+    return PALETTE[1]; // Blue
+  }
+  if (lower.includes('value') || lower.includes('high') || lower.includes('premium') || lower.includes('whale') || lower.includes('tier')) {
+    return PALETTE[2]; // Purple
+  }
+  if (lower.includes('bill') || lower.includes('price') || lower.includes('cost') || lower.includes('usage') || lower.includes('intensive')) {
+    return PALETTE[4]; // Amber
+  }
+
   let hash = 0;
   for (let i = 0; i < label.length; i++) hash = label.charCodeAt(i) + ((hash << 5) - hash);
   return PALETTE[Math.abs(hash) % PALETTE.length];
+}
+
+export function getFallbackPalette(label: string) {
+  return getSegmentColorway(label);
 }
 
 function SegmentationPageContent() {
@@ -135,8 +159,8 @@ function SegmentationPageContent() {
         .order('avg_churn_score', { ascending: false });
 
       if (!segError && segData) {
-        const stats = segData.map((s: any, idx: number) => {
-          const colorSet = PALETTE[idx % PALETTE.length];
+        const stats = segData.map((s: any) => {
+          const colorSet = getSegmentColorway(s.segment_label);
 
           return {
             label: s.segment_label,
@@ -153,8 +177,8 @@ function SegmentationPageContent() {
         });
         setSegmentStats(stats);
 
-        const barChartData = segData.map((s: any, idx: number) => {
-          const colorSet = PALETTE[idx % PALETTE.length];
+        const barChartData = segData.map((s: any) => {
+          const colorSet = getSegmentColorway(s.segment_label);
           return {
             name: s.segment_label,
             count: s.total_customers,
@@ -251,7 +275,7 @@ function SegmentationPageContent() {
     <DashboardLayout page="Customer Segmentation">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
         {segmentStats.map((s, i) => {
-          const colorSet = PALETTE[i % PALETTE.length];
+          const colorSet = getSegmentColorway(s.label);
           return (
             <StatCard
               key={i}
@@ -345,21 +369,21 @@ function SegmentationPageContent() {
                     <tr><td colSpan={6} className="px-4 py-12 text-center text-xs text-[var(--t4)]">No customers found</td></tr>
                   ) : (
                     customers.map(c => (
-                      <tr key={c.id} className="hover:bg-[var(--bg1)] transition-colors">
+                      <tr key={c.id} className={`transition-colors ${c.score >= 70 ? 'bg-red-50/40 hover:bg-red-50/60' : 'hover:bg-[var(--bg1)]'}`}>
                         <td className="px-4 py-3 text-xs font-mono text-[var(--t4)]">{c.id}</td>
                         <td className="px-4 py-3">
                           <div className="flex flex-col gap-0.5">
                             <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md inline-block w-fit uppercase tracking-wider ${
-                              c.plan === 'Enterprise' ? 'bg-[var(--bg3)] text-[var(--t)] border border-[var(--b)]' :
-                              c.plan === 'Professional' ? 'bg-[var(--bg2)] text-[var(--t2)] border border-[var(--b)]' :
-                              'bg-[var(--bg1)] text-[var(--t3)] border border-[var(--b)]'
+                              c.plan === 'Enterprise' ? 'bg-zinc-900 text-zinc-50 border border-zinc-800' :
+                              c.plan === 'Professional' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                              'bg-gray-100 text-gray-600 border border-gray-200'
                             }`}>{c.plan}</span>
                             <span className="text-[10px] text-[var(--t4)] ml-1 capitalize">{c.contract || '—'}</span>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-xs font-black text-[var(--t)]">{c.mrr}</td>
                         <td className="px-4 py-3">
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${c.score >= 70 ? 'bg-[var(--r)] text-[var(--inv-t)]' : (segmentStats.find(s => s.label === c.segment)?.colorSet?.badgeClass || getFallbackPalette(c.segment).badgeClass)}`}>{c.segment}</span>
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${c.score >= 70 ? 'bg-red-500 text-white border-red-600' : getSegmentColorway(c.segment).badgeClass}`}>{c.segment}</span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">

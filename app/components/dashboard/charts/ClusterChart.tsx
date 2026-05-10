@@ -39,8 +39,7 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
         });
 
         const newClusters = Object.keys(grouped).map((seg) => {
-          let idx = segmentOrder ? segmentOrder.indexOf(seg) : -1;
-          const colorSet = idx !== -1 ? PALETTE[idx % PALETTE.length] : getFallbackPalette(seg);
+          const colorSet = getFallbackPalette(seg);
 
           return {
             name: seg,
