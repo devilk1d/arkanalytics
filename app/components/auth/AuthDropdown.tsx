@@ -64,9 +64,9 @@ export default function AuthDropdown({
   };
 
   const getButtonStyles = () => {
-    const base = "w-full bg-gray-100 rounded-2xl px-4 text-sm text-black border-2 border-transparent transition-all duration-200 focus:border-black focus:bg-white flex items-center justify-between transition-all duration-200 text-left disabled:cursor-not-allowed disabled:opacity-60";
-    if (variant === 'filter') return `${base} py-2 px-4 gap-3 bg-gray-50 rounded-xl hover:border-gray-200`;
-    if (variant === 'compact') return `${base} py-1.5 px-2.5 gap-1.5 bg-gray-50 rounded-lg text-xs hover:border-gray-200`;
+    const base = "w-full rounded-2xl px-4 text-sm border-2 border-transparent transition-all duration-200 focus:border-black flex items-center justify-between text-left disabled:cursor-not-allowed disabled:opacity-60";
+    if (variant === 'filter') return `${base} py-2 px-4 gap-3 rounded-xl hover:border-gray-200`;
+    if (variant === 'compact') return `${base} py-1.5 px-2.5 gap-1.5 rounded-lg text-xs hover:border-gray-200`;
     return `${base} py-3.5 gap-4`;
   };
 
@@ -86,8 +86,13 @@ export default function AuthDropdown({
           aria-haspopup="listbox"
           aria-expanded={open}
           className={getButtonStyles()}
+          style={{
+            background: open ? 'var(--dropdown-bg)' : '#F5F5F5',
+            color: 'var(--dropdown-text)',
+            borderColor: open ? 'var(--dropdown-border)' : 'transparent',
+          }}
         >
-          <span className={`truncate ${selectedOption ? 'text-black' : 'text-gray-400'}`}>
+          <span className={`truncate ${selectedOption ? '' : ''}`} style={{ color: selectedOption ? 'var(--dropdown-text)' : 'var(--dropdown-muted)' }}>
             {selectedOption?.label ?? placeholder}
           </span>
           <svg
@@ -107,7 +112,7 @@ export default function AuthDropdown({
         </button>
 
         {open ? (
-          <div className={`absolute left-0 right-0 ${variant === 'compact' ? 'bottom-[calc(100%+8px)]' : 'top-[calc(100%+10px)]'} z-50 rounded-2xl border border-gray-200 bg-white shadow-[0_20px_60px_rgba(0,0,0,0.08)] overflow-hidden`}>
+          <div className={`absolute left-0 right-0 ${variant === 'compact' ? 'bottom-[calc(100%+8px)]' : 'top-[calc(100%+10px)]'} z-60 rounded-2xl overflow-hidden`} style={{ background: 'var(--dropdown-bg)', border: '1px solid var(--dropdown-border)', boxShadow: '0 20px 60px rgba(0,0,0,0.12)' }}>
             <div className="max-h-64 overflow-auto py-2">
               {options.map((option) => {
                 const active = option.value === value;
@@ -117,11 +122,11 @@ export default function AuthDropdown({
                     type="button"
                     disabled={option.disabled}
                     onClick={() => selectOption(option.value)}
-                    className={`w-full ${variant === 'compact' ? 'px-3 py-2 text-xs' : 'px-4 py-2.5 text-sm'} text-left transition-colors duration-150 ${
-                      active
-                        ? 'bg-black text-white'
-                        : 'text-black hover:bg-gray-100'
-                    } ${option.disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`w-full ${variant === 'compact' ? 'px-3 py-2 text-xs' : 'px-4 py-2.5 text-sm'} text-left transition-colors duration-150 ${option.disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+                    style={{
+                      background: active ? 'var(--dropdown-active-bg)' : 'transparent',
+                      color: active ? 'var(--dropdown-active-text)' : 'var(--dropdown-text)',
+                    }}
                     role="option"
                     aria-selected={active}
                   >
