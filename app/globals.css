@@ -20,19 +20,19 @@ html { scroll-behavior: smooth; }
   --app-font-sans:    var(--font-inter);
   --app-font-display: var(--font-space-grotesk);
 
-  --bg:    #F7F6F3;
-  --bg1:   #F0EFE9;
-  --bg2:   #E8E6DE;
-  --bg3:   #DEDBD0;
+  --bg:    #FFFFFF;
+  --bg1:   #F9F9F8;
+  --bg2:   #F2F2F1;
+  --bg3:   #EBEBEA;
   --surf:  #FFFFFF;
-  --b:     rgba(0,0,0,.07);
-  --b2:    rgba(0,0,0,.13);
-  --b3:    rgba(0,0,0,.22);
-  --t:     #0C0C0C;
-  --t2:    #5C5C58;
-  --t3:    #A0A09A;
-  --t4:    #D0D0C8;
-  --inv-t: #F7F6F3;
+  --b:     rgba(0,0,0,.06);
+  --b2:    rgba(0,0,0,.11);
+  --b3:    rgba(0,0,0,.18);
+  --t:     #0C0C0B;
+  --t2:    #4D4D4A;
+  --t3:    #8C8C88;
+  --t4:    #C0C0BA;
+  --inv-t: #FFFFFF;
   --dropdown-bg: #FFFFFF;
   --dropdown-border: rgba(0,0,0,.12);
   --dropdown-text: #0C0C0C;
@@ -40,9 +40,20 @@ html { scroll-behavior: smooth; }
   --dropdown-hover: #F4F4F4;
   --dropdown-active-bg: #0C0C0C;
   --dropdown-active-text: #FFFFFF;
-  --g:     #15803D;
-  --o:     #B45309;
-  --r:     #B91C1C;
+  /* ─── Semantic Tokens (Fixed Brand Palette) ─── */
+  --p:     #4F46E5; /* Primary Indigo */
+  --s:     #10B981; /* Success Emerald */
+  --w:     #F59E0B; /* Warning Amber */
+  --d:     #EF4444; /* Danger Rose */
+  --n:     #71717A; /* Neutral Zinc */
+
+  /* Aliases for backward compatibility */
+  --p:     #4F46E5; /* Primary */
+  --g:     var(--s);
+  --y:     var(--w);
+  --o:     var(--w);
+  --r:     var(--d);
+
   --ease:  cubic-bezier(.22,1,.36,1);
   --ease2: cubic-bezier(.4,0,.2,1);
 }
@@ -72,9 +83,11 @@ html { scroll-behavior: smooth; }
   --dropdown-hover: #F4F4F4;
   --dropdown-active-bg: #0C0C0C;
   --dropdown-active-text: #FFFFFF;
-  --g:     #22C55E;
-  --o:     #F59E0B;
-  --r:     #EF4444;
+  --g:     var(--s);
+  --y:     var(--w);
+  --o:     var(--w);
+  --r:     var(--d);
+  --p:     #818CF8;
 }
 
 /* ─── Body ─── */

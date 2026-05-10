@@ -40,6 +40,7 @@ export default async function Page() {
   let riskDistributionData: any[] = [];
   let planDistributionData: any[] = [];
   let customerFlowData: any[] = [];
+  let segmentData: any[] = [];
 
   if (authData.user) {
     const { data: membership } = await supabase
@@ -116,10 +117,28 @@ export default async function Page() {
       ]);
 
       planDistributionData = [
-        { name: 'Starter', value: starterCount || 0, color: '#3b82f6' }, // blue
-        { name: 'Professional', value: proCount || 0, color: '#10b981' }, // green-ish
-        { name: 'Enterprise', value: entCount || 0, color: '#8b5cf6' } // purple
+        { name: 'Starter', value: starterCount || 0, color: '#3b82f6' },
+        { name: 'Professional', value: proCount || 0, color: '#10b981' },
+        { name: 'Enterprise', value: entCount || 0, color: '#8b5cf6' }
       ];
+
+      // 1.7 Fetch Segment data from the segments table (same as SegmentationPage)
+      const { data: segRows } = await supabase
+        .from('segments')
+        .select('segment_label, total_customers, avg_revenue, pct_high_risk')
+        .eq('dataset_id', dataset.id)
+        .order('avg_churn_score', { ascending: false });
+
+      if (segRows && segRows.length > 0) {
+        const totalSeg = segRows.reduce((s: number, r: any) => s + (r.total_customers || 0), 0);
+        segmentData = segRows.map((r: any) => ({
+          name: r.segment_label,
+          count: r.total_customers || 0,
+          pct: totalSeg > 0 ? parseFloat(((r.total_customers / totalSeg) * 100).toFixed(1)) : 0,
+          avgMrr: `$${Math.round(r.avg_revenue || 0).toLocaleString('en-US')}`,
+          pctHighRisk: r.pct_high_risk || 0,
+        }));
+      }
 
       // 2. Fetch Customer Flow from Raw CSV
       if (dataset.storage_path) {
@@ -141,7 +160,7 @@ export default async function Page() {
             if (subDate) {
               const d = new Date(subDate);
               if (!isNaN(d.getTime())) {
-                const month = d.toLocaleString('default', { month: 'short', year: 'numeric' });
+                const month = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
                 const year = d.getFullYear().toString();
                 
                 if (!monthlyFlow[month]) monthlyFlow[month] = { new: 0, churned: 0 };
@@ -155,7 +174,7 @@ export default async function Page() {
             if (unsubDate && unsubDate.trim() !== '' && unsubDate !== 'null') {
               const d = new Date(unsubDate);
               if (!isNaN(d.getTime())) {
-                const month = d.toLocaleString('default', { month: 'short', year: 'numeric' });
+                const month = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
                 const year = d.getFullYear().toString();
                 
                 if (!monthlyFlow[month]) monthlyFlow[month] = { new: 0, churned: 0 };
@@ -192,5 +211,5 @@ export default async function Page() {
     }
   }
 
-  return <OverviewPage stats={stats} riskData={riskDistributionData} flowData={customerFlowData} planData={planDistributionData} />;
+  return <OverviewPage stats={stats} riskData={riskDistributionData} flowData={customerFlowData} planData={planDistributionData} segmentData={segmentData} />;
 }

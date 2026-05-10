@@ -47,12 +47,12 @@ interface CsvMetrics {
 
 
 const planColors: Record<string, string> = {
-  Enterprise: 'bg-blue-100 text-blue-700',
-  Professional: 'bg-purple-100 text-purple-700',
-  Starter: 'bg-gray-100 text-gray-700',
+  Enterprise: 'bg-zinc-900 text-zinc-50 border border-zinc-800',
+  Professional: 'bg-indigo-50 text-indigo-700 border border-indigo-100',
+  Starter: 'bg-[var(--bg1)] text-[var(--n)] border border-[var(--b)]',
 };
 
-const riskColors = { Low: 'text-green-500', Medium: 'text-yellow-500', High: 'text-red-500' };
+const riskColors = { Low: 'text-[var(--g)]', Medium: 'text-[var(--y)]', High: 'text-[var(--r)]' };
 
 const PAGE_SIZE_OPTIONS = [
   { label: '10 items', value: '10' },
@@ -365,7 +365,7 @@ function AnalyticsPageContent() {
     return (
       <DashboardLayout page="Customer Analytics">
         <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-          <svg className="animate-spin text-gray-200" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg className="animate-spin text-[var(--b3)]" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M21 12a9 9 0 1 1-6.219-8.56" />
           </svg>
         </div>
@@ -403,16 +403,15 @@ function AnalyticsPageContent() {
       <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4 mb-4">
         <StatCard
           label="Total Customers"
-          value={summaryStats.total.toLocaleString()}
+          value={summaryStats.total.toLocaleString('en-US')}
           change="Total"
           changeSuffix="customer base"
           changePositive={true}
           icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--t)]">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
           }
-          iconBg="bg-blue-50"
         />
         <StatCard
           label="Avg. Churn Score"
@@ -420,39 +419,39 @@ function AnalyticsPageContent() {
           change={`${summaryStats.avgScore > 50 ? 'Needs Attention' : 'Healthy'}`}
           changePositive={summaryStats.avgScore <= 50}
           changeSuffix="overall risk"
+          accentColor="var(--t)"
           icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-600">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--t2)]">
               <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
             </svg>
           }
-          iconBg="bg-purple-50"
         />
         <StatCard
           label="High Risk Level"
-          value={summaryStats.highRiskCount.toLocaleString()}
+          value={summaryStats.highRiskCount.toLocaleString('en-US')}
           change={`${summaryStats.highRiskPct.toFixed(1)}%`}
           changePositive={false}
           changeSuffix="of total"
+          accentColor="var(--r)"
           icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-red-500">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--r)]">
                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
           }
-          iconBg="bg-red-50"
         />
         <StatCard
           label="Revenue at Risk"
-          value={`$${Math.round(summaryStats.revenueAtRisk).toLocaleString()}`}
+          value={`$${Math.round(summaryStats.revenueAtRisk).toLocaleString('en-US')}`}
           change="Urgent"
           changePositive={false}
           changeSuffix=""
+          accentColor="var(--o)"
           icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-600">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--o)]">
               <line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
             </svg>
           }
-          iconBg="bg-amber-50"
         />
       </div>
 
@@ -485,15 +484,15 @@ function AnalyticsPageContent() {
           ]}
         />
         {selectedIds.size > 0 && (
-          <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-100 rounded-full animate-in fade-in slide-in-from-left-2 transition-all">
-            <span className="text-[11px] font-bold text-blue-600">{selectedIds.size} selected</span>
+          <div className="flex items-center gap-2 px-3 py-1 bg-[var(--bg1)] border border-[var(--b)] rounded-full animate-in fade-in slide-in-from-left-2 transition-all">
+            <span className="text-[10px] font-bold text-[var(--t)]">{selectedIds.size} selected</span>
             <button
               onClick={() => handleSendToChat(rows.filter(r => selectedIds.has(r.customer_id)))}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-[#0047AB] text-white rounded-full text-[10px] font-bold hover:bg-blue-700 transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1 bg-[var(--t)] text-[var(--inv-t)] rounded-full text-[10px] font-bold hover:opacity-90 transition-opacity shadow-sm"
             >
               <SendIcon size={10} /> Send to Chat
             </button>
-            <button onClick={() => setSelectedIds(new Set())} className="text-[10px] text-blue-400 hover:text-blue-600 font-medium px-1">Clear</button>
+            <button onClick={() => setSelectedIds(new Set())} className="text-[10px] text-[var(--t3)] hover:text-[var(--t)] font-medium px-1">Clear</button>
           </div>
         )}
         {loading && (
@@ -505,28 +504,28 @@ function AnalyticsPageContent() {
         <div className="min-h-[600px]">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-100">
+              <tr className="border-b border-[var(--b)]">
                 <th className="px-4 py-3 text-left w-10">
                   <input
                     type="checkbox"
                     checked={rows.length > 0 && selectedIds.size === rows.length}
                     onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-gray-300 accent-black cursor-pointer"
+                    className="w-4 h-4 rounded border-[var(--b)] accent-[var(--t)] cursor-pointer"
                   />
                 </th>
-                <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Customer ID</th>
-                <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Plan</th>
-                <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Subscribed Date</th>
-                <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Usage</th>
-                <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Segment</th>
-                <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Users</th>
-                <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Score</th>
-                <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Risk</th>
-                <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">MRR</th>
-                <th className="px-4 py-3 text-left text-[11px] font-bold text-gray-400 uppercase tracking-wider">Action</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Customer ID</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Plan</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Subscribed Date</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Usage</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Segment</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Users</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Score</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Risk</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">MRR</th>
+                <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-[var(--b)]/50">
               {loading ? (
                 Array.from({ length: pageSize }).map((_, i) => (
                   <tr key={i}>
@@ -542,52 +541,52 @@ function AnalyticsPageContent() {
                 <tr><td colSpan={11} className="px-4 py-12 text-center text-xs text-gray-400">No customers found</td></tr>
               ) : (
                 rows.map(c => (
-                  <tr key={c.customer_id} className={`hover:bg-gray-50 transition-colors ${selectedIds.has(c.customer_id) ? 'bg-blue-50/30' : ''}`}>
+                  <tr key={c.customer_id} className={`hover:bg-[var(--bg1)] transition-colors ${selectedIds.has(c.customer_id) ? 'bg-[var(--bg2)]' : ''}`}>
                     <td className="px-4 py-3 text-center">
                       <input
                         type="checkbox"
                         checked={selectedIds.has(c.customer_id)}
                         onChange={() => toggleSelectRow(c.customer_id)}
-                        className="w-4 h-4 rounded border-gray-300 accent-black cursor-pointer align-middle"
+                        className="w-4 h-4 rounded border-[var(--b)] accent-[var(--t)] cursor-pointer align-middle"
                       />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-mono text-gray-600">{c.customer_id}</span>
+                        <span className="text-xs font-mono text-[var(--t2)]">{c.customer_id}</span>
                         {c.nlp_red_flag === 1 && (
-                          <span title="Hidden Risk" className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+                          <span title="Hidden Risk" className="w-1.5 h-1.5 rounded-full bg-[var(--o)]" />
                         )}
                         {c.loyalty_risk_flag === 1 && (
-                          <span title="Loyalty Risk" className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+                          <span title="Loyalty Risk" className="w-1.5 h-1.5 rounded-full bg-[var(--p)]" />
                         )}
                       </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-0.5">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full inline-block w-fit capitalize ${planColors[c.plan_type] || 'bg-gray-100 text-gray-600'}`}>
+                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md inline-block w-fit uppercase tracking-wider ${planColors[c.plan_type] || 'bg-[var(--bg1)] text-[var(--t3)]'}`}>
                           {c.plan_type}
                         </span>
-                        <span className="text-[10px] text-gray-400 ml-1 capitalize">{c.contract_type}</span>
+                        <span className="text-[10px] text-[var(--t4)] ml-1 capitalize">{c.contract_type}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs text-gray-600">
+                      <span className="text-xs text-[var(--t2)]">
                         {c.subscribed_date ? new Date(c.subscribed_date).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <div className="w-32">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] text-gray-400 font-medium">{c.usage_hrs?.toFixed(1) ?? '0.0'} hrs</span>
+                          <span className="text-[10px] text-[var(--t3)] font-semibold">{c.usage_hrs?.toFixed(1) ?? '0.0'} hrs</span>
                         </div>
-                        <ProgressBar value={Math.min(100, (c.usage_hrs || 0) / (maxUsage || 1) * 100)} height="sm" color={c.risk_level === 'Low' ? 'green' : c.risk_level === 'High' ? 'red' : 'yellow'} />
+                        <ProgressBar value={Math.min(100, (c.usage_hrs || 0) / (maxUsage || 1) * 100)} height="xs" color={c.risk_level === 'Low' ? 'green' : c.risk_level === 'High' ? 'red' : 'yellow'} />
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-[11px] text-gray-500 font-medium">{c.segment_label}</span>
+                      <span className="text-[11px] text-[var(--t2)] font-medium">{c.segment_label}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs text-gray-600">{c.total_users ?? '0'}</span>
+                      <span className="text-xs text-[var(--t2)]">{c.total_users ?? '0'}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-sm font-black ${riskColors[c.risk_level]}`}>{c.churn_score}</span>
@@ -596,7 +595,7 @@ function AnalyticsPageContent() {
                       <Badge label={c.risk_level} variant={c.risk_level === 'Low' ? 'low' : c.risk_level === 'High' ? 'high' : 'med'} />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs font-bold text-black">${c.mrr?.toLocaleString() ?? '0'}</span>
+                      <span className="text-xs font-black text-[var(--t)]">${c.mrr?.toLocaleString('en-US') ?? '0'}</span>
                     </td>
                     <td className="px-4 py-3 text-left">
                       <div className="flex items-center justify-start gap-2">

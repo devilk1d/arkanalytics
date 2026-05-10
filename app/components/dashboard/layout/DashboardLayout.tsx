@@ -30,11 +30,11 @@ function DashboardShell({
   const workspaceLogo = workspace?.logoUrl ?? null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-[var(--bg)]">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar workspace={workspaceName} logoUrl={workspaceLogo} page={page} />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-6 relative">
           {children}
         </main>
       </div>

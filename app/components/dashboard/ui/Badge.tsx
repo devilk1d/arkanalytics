@@ -9,17 +9,17 @@ interface BadgeProps {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  low:       'bg-green-100 text-green-700 border border-green-200',
-  med:       'bg-yellow-100 text-yellow-700 border border-yellow-200',
-  high:      'bg-red-100 text-red-700 border border-red-200',
-  active:    'bg-green-100 text-green-700 border border-green-200',
-  invited:   'bg-yellow-100 text-yellow-700 border border-yellow-200',
-  ready:     'bg-green-100 text-green-700 border border-green-200',
-  pending:   'bg-gray-100 text-gray-500 border border-gray-200',
-  scheduled: 'bg-yellow-100 text-yellow-700 border border-yellow-200',
-  cleaned:   'bg-green-100 text-green-700 border border-green-200',
-  raw:       'bg-yellow-100 text-yellow-700 border border-yellow-200',
-  default:   'bg-gray-100 text-gray-600 border border-gray-200',
+  low:       'bg-emerald-50 text-[var(--s)] border border-emerald-100',
+  med:       'bg-amber-50 text-[var(--w)] border border-amber-100',
+  high:      'bg-rose-50 text-[var(--d)] border border-rose-100',
+  active:    'bg-indigo-50 text-[var(--p)] border border-indigo-100',
+  invited:   'bg-zinc-50 text-[var(--n)] border border-zinc-200',
+  ready:     'bg-indigo-50 text-[var(--p)] border border-indigo-100',
+  pending:   'bg-zinc-50 text-[var(--n)] border border-zinc-200',
+  scheduled: 'bg-zinc-50 text-[var(--n)] border border-zinc-200',
+  cleaned:   'bg-indigo-50 text-[var(--p)] border border-indigo-100',
+  raw:       'bg-zinc-50 text-[var(--n)] border border-zinc-200',
+  default:   'bg-[var(--bg1)] text-[var(--t3)] border border-[var(--b)]',
 };
 
 export default function Badge({ label, variant = 'default', className = '' }: BadgeProps) {

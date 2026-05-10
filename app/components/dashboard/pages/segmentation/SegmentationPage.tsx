@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import DashboardLayout from '../../layout/DashboardLayout';
-import SegmentStatCard from '../../ui/SegmentStatCard';
+import StatCard from '../../ui/StatCard';
 import Card from '../../ui/Card';
 import SearchBar from '../../ui/SearchBar';
 import AuthDropdown from '@/app/components/auth/AuthDropdown';
@@ -16,12 +16,10 @@ import { useDashboardContext } from '../../context/DashboardContext';
 import { createClient } from '@/lib/supabase/client';
 
 export const PALETTE = [
-  { hex: '#ec4899', textClass: 'text-pink-600', iconBgClass: 'bg-pink-100', badgeClass: 'bg-pink-100 text-pink-700' },
-  { hex: '#3b82f6', textClass: 'text-blue-600', iconBgClass: 'bg-blue-100', badgeClass: 'bg-blue-100 text-blue-700' },
-  { hex: '#a855f7', textClass: 'text-purple-600', iconBgClass: 'bg-purple-100', badgeClass: 'bg-purple-100 text-purple-700' },
-  { hex: '#10b981', textClass: 'text-emerald-600', iconBgClass: 'bg-emerald-100', badgeClass: 'bg-emerald-100 text-emerald-700' },
-  { hex: '#f59e0b', textClass: 'text-amber-600', iconBgClass: 'bg-amber-100', badgeClass: 'bg-amber-100 text-amber-700' },
-  { hex: '#06b6d4', textClass: 'text-cyan-600', iconBgClass: 'bg-cyan-100', badgeClass: 'bg-cyan-100 text-cyan-700' }
+  { hex: 'var(--p)', textClass: 'text-[var(--p)]', iconBgClass: 'bg-indigo-50/50', badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-100' },
+  { hex: 'var(--n)', textClass: 'text-[var(--n)]', iconBgClass: 'bg-zinc-100/50', badgeClass: 'bg-zinc-100 text-zinc-700 border border-zinc-200' },
+  { hex: '#1e1b4b', textClass: 'text-[#1e1b4b]', iconBgClass: 'bg-indigo-50/50', badgeClass: 'bg-zinc-900 text-zinc-50 border border-zinc-800' },
+  { hex: '#4b5563', textClass: 'text-[#4b5563]', iconBgClass: 'bg-zinc-50/50', badgeClass: 'bg-zinc-50 text-zinc-600 border border-zinc-200' }
 ];
 
 export function getSegmentIcon(label: string, colorClass: string) {
@@ -122,8 +120,7 @@ function SegmentationPageContent() {
       }
     }
     init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [datasetId, workspace, router]);
+  }, [datasetId, workspace, router, supabase]);
 
   const loadData = useCallback(async (
     currentPage: number, searchVal: string, segVal: string, dsId: string, limit: number
@@ -143,13 +140,14 @@ function SegmentationPageContent() {
 
           return {
             label: s.segment_label,
-            value: s.total_customers.toLocaleString(),
+            value: s.total_customers.toLocaleString('en-US'),
             badge: `${s.pct_high_risk}%`,
-            avgMrr: `$${Math.round(s.avg_revenue).toLocaleString()}`,
-            totalMrr: `$${Math.round((s.avg_revenue * s.total_customers) / 1000)}K`,
+            avgMrr: `$${Math.round(s.avg_revenue).toLocaleString('en-US')}`,
+            totalMrr: `$${Math.round((s.avg_revenue * s.total_customers) / 1000).toLocaleString('en-US')}K`,
             metricColorClass: colorSet.textClass,
             iconBgClass: colorSet.iconBgClass,
             icon: getSegmentIcon(s.segment_label, colorSet.textClass),
+            accentColor: colorSet.hex,
             colorSet
           };
         });
@@ -172,7 +170,7 @@ function SegmentationPageContent() {
 
     let query = supabase
       .from('predictions')
-      .select('customer_id,plan_type,churn_score,risk_level,segment_label,segment_rfm_context', { count: 'exact' })
+      .select('customer_id,plan_type,contract_type,churn_score,risk_level,segment_label,segment_rfm_context,nlp_red_flag,loyalty_risk_flag', { count: 'exact' })
       .eq('dataset_id', dsId)
       .order('customer_id', { ascending: true })
       .range(from, to);
@@ -190,12 +188,14 @@ function SegmentationPageContent() {
         const mrrVal = c.segment_rfm_context?.total_revenue?.customer || 0;
         return {
           id: c.customer_id,
-          name: `Customer ${c.customer_id}`,
-          email: `${c.customer_id.toLowerCase()}@example.com`,
           plan: c.plan_type,
+          contract: c.contract_type,
           mrr: `$${Math.round(mrrVal).toLocaleString()}`,
           segment: c.segment_label,
-          score: Math.round(c.churn_score)
+          score: Math.round(c.churn_score),
+          riskLevel: c.risk_level,
+          nlpFlag: c.nlp_red_flag === 1,
+          loyaltyFlag: c.loyalty_risk_flag === 1,
         };
       });
       setCustomers(formattedCustomers);
@@ -219,7 +219,7 @@ function SegmentationPageContent() {
     return (
       <DashboardLayout page="Customer Segmentation">
         <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-          <svg className="animate-spin text-gray-200" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <svg className="animate-spin text-[var(--b3)]" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M21 12a9 9 0 1 1-6.219-8.56" />
           </svg>
         </div>
@@ -231,14 +231,14 @@ function SegmentationPageContent() {
     return (
       <DashboardLayout page="Customer Segmentation">
         <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center mb-2 shadow-sm">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <div className="w-16 h-16 rounded-2xl bg-[var(--bg1)] border border-[var(--b)] flex items-center justify-center mb-2 shadow-sm">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
             </svg>
           </div>
           <div className="text-center">
-            <h3 className="text-sm font-bold text-black mb-1">No Dataset Selected</h3>
-            <p className="text-xs text-gray-400 max-w-[250px] mx-auto leading-relaxed">
+            <h3 className="text-sm font-bold text-[var(--t)] mb-1">No Dataset Selected</h3>
+            <p className="text-xs text-[var(--t4)] max-w-[250px] mx-auto leading-relaxed">
               Please select a dataset from the Data Management page.
             </p>
           </div>
@@ -249,32 +249,50 @@ function SegmentationPageContent() {
 
   return (
     <DashboardLayout page="Customer Segmentation">
-      <div className="grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2 2xl:grid-cols-4">
-        {segmentStats.map((s, i) => (
-          <SegmentStatCard
-            key={i}
-            label={s.label}
-            value={s.value}
-            percentage={s.badge}
-            avgMrr={s.avgMrr}
-            totalMrr={s.totalMrr}
-            icon={s.icon}
-            iconBgClass={s.iconBgClass}
-            metricColorClass={s.metricColorClass}
-          />
-        ))}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
+        {segmentStats.map((s, i) => {
+          const colorSet = PALETTE[i % PALETTE.length];
+          return (
+            <StatCard
+              key={i}
+              label={s.label}
+              value={s.value}
+              change={s.avgMrr}
+              changeSuffix={`avg MRR · ${s.badge} high risk`}
+              changePositive={parseFloat(s.badge) < 30}
+              accentColor={colorSet.hex}
+              icon={getSegmentIcon(s.label, colorSet.textClass)}
+            />
+          );
+        })}
       </div>
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card><ClusterChart segmentOrder={segmentStats.map(s => s.label)} /></Card>
           <Card>
-            <h3 className="text-lg font-bold text-black mb-0.5">Segment Distribution</h3>
-            <p className="text-sm text-gray-400 mb-4">Customer count by segment</p>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-[13px] font-bold text-[var(--t)]">Segment Distribution</h3>
+                <p className="text-[11px] text-[var(--t3)] mt-0.5">Customer count by segment</p>
+              </div>
+            </div>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={barData} layout="vertical" margin={{ left: 10, right: 30 }} barSize={14}>
-                <XAxis type="number" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: '#6b7280' }} axisLine={false} tickLine={false} width={90} />
-                <Tooltip formatter={(v) => [`${v} customers`]} />
+                <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--t3)', fontWeight: 500 }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: 'var(--t2)', fontWeight: 500 }} axisLine={false} tickLine={false} width={90} />
+                <Tooltip 
+                  cursor={{ fill: 'var(--bg1)', opacity: 0.4 }}
+                  content={({ active, payload }) => {
+                    if (active && payload?.length) {
+                      return (
+                        <div className="bg-[var(--t)] text-[var(--inv-t)] rounded-xl px-3 py-2 text-[10px] shadow-2xl border border-[var(--b3)] backdrop-blur-md opacity-95">
+                          <p className="font-black">{payload[0]?.value} customers</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
                 <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                   {barData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
                 </Bar>
@@ -297,43 +315,71 @@ function SegmentationPageContent() {
                 ...segmentStats.map(s => ({ label: s.label, value: s.label }))
               ]}
             />
-            <span className="text-xs text-gray-500 bg-gray-100 px-3 py-2 rounded-xl font-medium whitespace-nowrap">
+            <span className="text-[10px] text-[var(--t3)] bg-[var(--bg1)] px-3 py-2 rounded-xl font-bold uppercase tracking-wider whitespace-nowrap border border-[var(--b)]">
               {totalCustomers.toLocaleString()} customers
             </span>
           </div>
 
           <Card padding="none">
-            <div className="min-h-[500px]">
+              <div className="min-h-[500px]">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-100">
-                    {['ID', 'Customer', 'Plan', 'MRR', 'Segment', 'Score'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                  <tr className="border-b border-[var(--b)]">
+                    {['ID', 'Plan & Contract', 'MRR', 'Segment', 'Risk Flags', 'Score'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-[var(--b)]/50">
                   {loading ? (
-                    <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-gray-400">Loading...</td></tr>
+                    Array.from({ length: pageSize }).map((_, i) => (
+                      <tr key={i}>
+                        {Array.from({ length: 6 }).map((_, j) => (
+                          <td key={j} className="px-4 py-3">
+                            <div className="h-3 bg-[var(--bg1)] rounded animate-pulse" style={{ width: `${60 + ((i * 6 + j) % 4) * 10}%` }} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))
                   ) : customers.length === 0 ? (
-                    <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-gray-400">No customers found</td></tr>
+                    <tr><td colSpan={6} className="px-4 py-12 text-center text-xs text-[var(--t4)]">No customers found</td></tr>
                   ) : (
                     customers.map(c => (
-                      <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-xs font-mono text-gray-500">{c.id}</td>
+                      <tr key={c.id} className="hover:bg-[var(--bg1)] transition-colors">
+                        <td className="px-4 py-3 text-xs font-mono text-[var(--t4)]">{c.id}</td>
                         <td className="px-4 py-3">
-                          <p className="text-sm font-semibold text-black">{c.name}</p>
-                          <p className="text-xs text-gray-400">{c.email}</p>
+                          <div className="flex flex-col gap-0.5">
+                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md inline-block w-fit uppercase tracking-wider ${
+                              c.plan === 'Enterprise' ? 'bg-[var(--bg3)] text-[var(--t)] border border-[var(--b)]' :
+                              c.plan === 'Professional' ? 'bg-[var(--bg2)] text-[var(--t2)] border border-[var(--b)]' :
+                              'bg-[var(--bg1)] text-[var(--t3)] border border-[var(--b)]'
+                            }`}>{c.plan}</span>
+                            <span className="text-[10px] text-[var(--t4)] ml-1 capitalize">{c.contract || '—'}</span>
+                          </div>
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-600">{c.plan}</td>
-                        <td className="px-4 py-3 text-sm font-bold text-black">{c.mrr}</td>
+                        <td className="px-4 py-3 text-xs font-black text-[var(--t)]">{c.mrr}</td>
                         <td className="px-4 py-3">
-                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${c.score >= 70 ? 'bg-red-100 text-red-700' : (segmentStats.find(s => s.label === c.segment)?.colorSet.badgeClass || getFallbackPalette(c.segment).badgeClass)}`}>{c.segment}</span>
+                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${c.score >= 70 ? 'bg-[var(--r)] text-[var(--inv-t)]' : (segmentStats.find(s => s.label === c.segment)?.colorSet?.badgeClass || getFallbackPalette(c.segment).badgeClass)}`}>{c.segment}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5">
+                            {c.nlpFlag && (
+                              <span title="NLP Hidden Risk" className="flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded-md bg-[var(--o)]/10 text-[var(--o)] border border-[var(--o)]/20 uppercase tracking-[0.05em]">
+                                <span className="w-1 h-1 rounded-full bg-[var(--o)] inline-block" />NLP
+                              </span>
+                            )}
+                            {c.loyaltyFlag && (
+                              <span title="Loyalty Risk" className="flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded-md bg-[var(--p)]/10 text-[var(--p)] border border-[var(--p)]/20 uppercase tracking-[0.05em]">
+                                <span className="w-1 h-1 rounded-full bg-[var(--p)] inline-block" />Loyalty
+                              </span>
+                            )}
+                            {!c.nlpFlag && !c.loyaltyFlag && <span className="text-[10px] text-[var(--t4)]">—</span>}
+                          </div>
                         </td>
                         <td className="px-4 py-3 w-28">
                           <div className="flex items-center gap-2">
-                            <ProgressBar value={c.score} color="blue" height="sm" />
-                            <span className="text-xs text-gray-600 shrink-0">{c.score}</span>
+                            <ProgressBar value={c.score} color={c.score >= 70 ? 'red' : 'black'} height="xs" />
+                            <span className={`text-xs font-black ${c.score >= 70 ? 'text-[var(--r)]' : 'text-[var(--t)]'}`}>{c.score}</span>
                           </div>
                         </td>
                       </tr>

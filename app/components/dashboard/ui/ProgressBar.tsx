@@ -1,14 +1,15 @@
 interface ProgressBarProps {
   value: number;  // 0–100
-  color?: 'green' | 'red' | 'yellow' | 'blue';
-  height?: 'sm' | 'md';
+  color?: 'green' | 'red' | 'yellow' | 'blue' | 'black';
+  height?: 'xs' | 'sm' | 'md';
 }
 
 const colorMap = {
-  green:  'bg-green-500',
-  red:    'bg-red-500',
-  yellow: 'bg-yellow-400',
-  blue:   'bg-blue-500',
+  green:  'bg-[var(--s)]',
+  red:    'bg-[var(--d)]',
+  yellow: 'bg-[var(--w)]',
+  blue:   'bg-[var(--p)]',
+  black:  'bg-[var(--t)]',
 };
 
 function getColor(value: number) {
@@ -19,8 +20,10 @@ function getColor(value: number) {
 
 export default function ProgressBar({ value, color, height = 'sm' }: ProgressBarProps) {
   const c = color || getColor(value);
+  const hClass = height === 'xs' ? 'h-1' : height === 'sm' ? 'h-1.5' : 'h-2.5';
+  
   return (
-    <div className={`w-full bg-gray-100 rounded-full overflow-hidden ${height === 'sm' ? 'h-1.5' : 'h-2.5'}`}>
+    <div className={`w-full bg-[var(--bg1)] rounded-full overflow-hidden ${hClass}`}>
       <div
         className={`h-full rounded-full transition-all duration-500 ${colorMap[c]}`}
         style={{ width: `${value}%` }}

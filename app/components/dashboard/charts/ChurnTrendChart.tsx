@@ -4,10 +4,12 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
+    const d = payload[0];
     return (
-      <div className="bg-gray-900 text-white rounded-xl px-3 py-2 text-xs shadow-xl">
-        <p className="font-bold mb-1">{payload[0]?.payload?.name}</p>
-        <p style={{ color: payload[0]?.payload?.color }}>Count: {payload[0]?.value}</p>
+      <div className="bg-[var(--t)] text-[var(--inv-t)] rounded-xl px-3 py-2.5 text-[10px] shadow-2xl border border-[var(--b3)] backdrop-blur-md opacity-95">
+        <p className="font-bold mb-1" style={{ color: d.payload.color }}>{d.payload.name}</p>
+        <p className="opacity-80">Customers: <span className="font-black text-[var(--inv-t)]">{d.value?.toLocaleString('en-US')}</span></p>
+        <p className="opacity-60 mt-0.5">{d.payload.pct}% of total</p>
       </div>
     );
   }
@@ -16,31 +18,55 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export default function ChurnTrendChart({ data }: { data?: any[] }) {
   const chartData = data && data.length > 0 ? data : [];
+  const total = chartData.reduce((sum: number, d: any) => sum + (d.value || 0), 0);
+  const enriched = chartData.map(d => ({ ...d, pct: total > 0 ? ((d.value / total) * 100).toFixed(1) : '0' }));
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-black">Risk Level</h3>
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h3 className="text-[13px] font-bold text-[var(--t)]">Risk Level Distribution</h3>
+          <p className="text-[11px] text-[var(--t3)] mt-0.5">Customer churn risk breakdown</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-[10px] text-[var(--t3)] uppercase tracking-wider">Total</p>
+          <p className="text-sm font-black text-[var(--t)]">{total.toLocaleString('en-US')}</p>
+        </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={210}>
-        <BarChart data={chartData} margin={{ top: 8, right: 4, bottom: 0, left: -14 }} barSize={32}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-          <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} width={36} />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f9fafb' }} />
-          <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-            {chartData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} />
+      <ResponsiveContainer width="100%" height={190}>
+        <BarChart data={enriched} margin={{ top: 4, right: 0, bottom: 0, left: -16 }} barSize={48}>
+          <CartesianGrid strokeDasharray="4 4" stroke="var(--b)" vertical={false} />
+          <XAxis
+            dataKey="name"
+            tick={{ fontSize: 10, fill: 'var(--t3)', fontWeight: 500 }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: 'var(--t3)', fontWeight: 500 }}
+            axisLine={false}
+            tickLine={false}
+            width={36}
+          />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--bg1)', radius: 6 }} />
+          <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+            {enriched.map((entry: any, index: number) => (
+              <Cell key={`cell-${index}`} fill={entry.color} fillOpacity={0.85} />
             ))}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
 
-      <div className="flex items-center gap-4 mt-2 justify-center">
-        <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" /><span className="text-xs text-gray-500">Low Risk</span></div>
-        <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block" /><span className="text-xs text-gray-500">Medium Risk</span></div>
-        <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /><span className="text-xs text-gray-500">High Risk</span></div>
+      {/* Legend */}
+      <div className="flex items-center gap-5 mt-2 flex-wrap">
+        {enriched.map((d: any) => (
+          <div key={d.name} className="flex items-center gap-1.5">
+            <span className="w-2 rounded-full aspect-square" style={{ backgroundColor: d.color }} />
+            <span className="text-[11px] text-[var(--t2)] font-medium">{d.name}</span>
+            <span className="text-[11px] font-bold text-[var(--t)]">{d.pct}%</span>
+          </div>
+        ))}
       </div>
     </div>
   );

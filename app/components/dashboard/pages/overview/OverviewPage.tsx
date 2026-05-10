@@ -3,81 +3,11 @@
 import DashboardLayout from '../../layout/DashboardLayout';
 import StatCard from '../../ui/StatCard';
 import Card from '../../ui/Card';
-import Avatar from '../../ui/Avatar';
-import Button from '../../ui/Button';
 import ChurnTrendChart from '../../charts/ChurnTrendChart';
 import CustomerFlowChart from '../../charts/CustomerFlowChart';
 import DonutChart from '../../charts/DonutChart';
-import { useEffect, useState } from 'react';
-import { useDashboardContext } from '../../context/DashboardContext';
-import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-const segments = [
-  {
-    name: 'Loyal Champions',
-    pct: '17.1%',
-    mrr: '$2,845',
-    color: 'text-emerald-600',
-    panelBg: 'bg-emerald-50/70',
-    panelBorder: 'border-emerald-100',
-    iconBg: 'bg-emerald-100/90',
-    icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-      </svg>
-    ),
-  },
-  {
-    name: 'At Risk',
-    pct: '11.4%',
-    mrr: '$456',
-    color: 'text-red-500',
-    panelBg: 'bg-red-50/70',
-    panelBorder: 'border-red-100',
-    iconBg: 'bg-red-100/90',
-    icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <line x1="12" y1="7" x2="12" y2="13" />
-        <line x1="12" y1="17" x2="12.01" y2="17" />
-      </svg>
-    ),
-  },
-  {
-    name: 'New Adopters',
-    pct: '31.3%',
-    mrr: '$187',
-    color: 'text-blue-600',
-    panelBg: 'bg-blue-50/70',
-    panelBorder: 'border-blue-100',
-    iconBg: 'bg-blue-100/90',
-    icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="18 8 18 14 12 14" />
-        <path d="M18 8l-8.5 8.5L6 13" />
-      </svg>
-    ),
-  },
-  {
-    name: 'High Value',
-    pct: '50.2%',
-    mrr: '$1,268',
-    color: 'text-violet-600',
-    panelBg: 'bg-violet-50/70',
-    panelBorder: 'border-violet-100',
-    iconBg: 'bg-violet-100/90',
-    icon: (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    ),
-  },
-];
-
-
+import { PALETTE, getSegmentIcon } from '../segmentation/SegmentationPage';
 
 export type OverviewStats = {
   totalCustomers: number;
@@ -86,230 +16,271 @@ export type OverviewStats = {
   predictedChurn: number;
 };
 
-export default function OverviewPage({ stats, riskData, flowData, planData }: { stats?: OverviewStats, riskData?: any[], flowData?: any, planData?: any[] }) {
-  // Use dummy data if stats are not provided (e.g. no dataset)
+/* Quick-action items */
+const quickActions = [
+  { label: 'View At-Risk Customers', href: '/dashboard/analytics?risk=high', color: 'var(--d)', bg: 'var(--bg1)', icon: '✦' },
+  { label: 'Explore Segmentation', href: '/dashboard/segmentation', color: 'var(--p)', bg: 'var(--bg1)', icon: '⬢' },
+  { label: 'Upload New Dataset', href: '/dashboard/data-management', color: 'var(--t)', bg: 'var(--bg1)', icon: '↑' },
+  { label: 'Open Team Chat', href: '/dashboard/chat', color: 'var(--p)', bg: 'var(--bg1)', icon: '●' },
+];
+
+export default function OverviewPage({
+  stats, riskData, flowData, planData, segmentData,
+}: {
+  stats?: OverviewStats;
+  riskData?: any[];
+  flowData?: any;
+  planData?: any[];
+  segmentData?: any[];
+}) {
   const data = stats || {
-    totalCustomers: 13000,
-    safeCustomers: 3510,
-    churnRisk: 5.4,
-    predictedChurn: 229
+    totalCustomers: 0,
+    safeCustomers: 0,
+    churnRisk: 0,
+    predictedChurn: 0,
   };
 
-  const supabase = createClient();
-  const { workspace, profile, members } = useDashboardContext();
-  const [recentChats, setRecentChats] = useState<any[]>([]);
+  const safeRate = data.totalCustomers > 0
+    ? (data.safeCustomers / data.totalCustomers * 100).toFixed(1)
+    : '0';
 
-  useEffect(() => {
-    if (!workspace?.id || !profile?.id) return;
-    
-    async function loadChats() {
-      const { data: rawMemberships } = await supabase
-        .from('workspace_conversation_members')
-        .select(`
-          conversation_id,
-          workspace_conversations (
-            id, conversation_type, name, direct_key, last_message_at, avatar_url,
-            workspace_conversation_members (user_id)
-          )
-        `)
-        .eq('user_id', profile!.id);
+  /* Segment data from segments table */
+  const segments = segmentData && segmentData.length > 0 ? segmentData : [];
+  const hasSegments = segments.length > 0;
 
-      const convRows = ((rawMemberships || []) as any[])
-        .map(m => m.workspace_conversations)
-        .filter(c => !!c);
-
-      if (convRows.length === 0) return;
-
-      const conversationIds = convRows.map(c => c.id);
-
-      const { data: latestMessages } = await supabase
-        .from('workspace_messages')
-        .select('conversation_id, body, created_at, sender_user_id')
-        .in('conversation_id', conversationIds)
-        .order('created_at', { ascending: false });
-
-      const { data: readRows } = await supabase
-        .from('workspace_conversation_reads')
-        .select('conversation_id, user_id, last_read_at')
-        .eq('user_id', profile!.id)
-        .in('conversation_id', conversationIds);
-
-      const readMap: Record<string, string> = {};
-      (readRows || []).forEach(row => {
-        readMap[row.conversation_id] = row.last_read_at;
-      });
-
-      const latestByConversation = new Map();
-      (latestMessages || []).forEach(row => {
-        if (!latestByConversation.has(row.conversation_id)) {
-          latestByConversation.set(row.conversation_id, row);
-        }
-      });
-
-      const mapped = convRows.map((row: any) => {
-        const rawMembers = row.workspace_conversation_members || [];
-        let displayName = row.name || 'Group';
-        let avatarUrl = row.avatar_url || null;
-        
-        if (row.conversation_type === 'direct') {
-          const peerId = rawMembers.find((m: any) => m.user_id !== profile!.id)?.user_id;
-          const peerMember = members.find(m => m.userId === peerId);
-          if (peerMember) {
-            displayName = peerMember.fullName;
-            avatarUrl = peerMember.avatarUrl;
-          } else {
-            displayName = 'User';
-          }
-        }
-        
-        const latest = latestByConversation.get(row.id);
-        
-        // simple time format
-        let timeStr = '';
-        if (latest?.created_at) {
-          const diff = Math.floor((new Date().getTime() - new Date(latest.created_at).getTime()) / 60000);
-          if (diff < 60) timeStr = `${diff}m ago`;
-          else if (diff < 1440) timeStr = `${Math.floor(diff/60)}h ago`;
-          else timeStr = `${Math.floor(diff/1440)}d ago`;
-        }
-
-        let initials = displayName.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase();
-
-        // Calculate unread
-        const msgsInConvo = (latestMessages || []).filter(msg => msg.conversation_id === row.id);
-        const myLastReadAt = readMap[row.id];
-        
-        let unreadCount = 0;
-        if (msgsInConvo.length > 0) {
-          const otherMessages = msgsInConvo.filter(msg => msg.sender_user_id !== profile!.id);
-          const lastReadTime = myLastReadAt ? new Date(myLastReadAt).getTime() : 0;
-          unreadCount = otherMessages.filter(msg => new Date(msg.created_at).getTime() > lastReadTime).length;
-        }
-
-        return {
-          id: row.id,
-          name: displayName,
-          avatarUrl,
-          initials,
-          lastMessage: latest?.body || 'No messages yet',
-          lastAt: latest?.created_at || row.last_message_at,
-          timeStr,
-          unreadCount
-        };
-      });
-
-      mapped.sort((a, b) => new Date(b.lastAt || 0).getTime() - new Date(a.lastAt || 0).getTime());
-      setRecentChats(mapped);
-    }
-    loadChats();
-  }, [workspace, profile, members, supabase]);
+  /* Insight alerts — dynamic based on real data */
+  const alerts = [
+    ...(data.predictedChurn > 0
+      ? [{ level: 'high', label: `${data.predictedChurn.toLocaleString('en-US')} customers flagged as high churn risk`, time: 'Latest dataset' }]
+      : []),
+    ...(data.churnRisk > 10
+      ? [{ level: 'med', label: `Churn rate at ${data.churnRisk}% — above 10% recommended threshold`, time: 'Current' }]
+      : []),
+    { level: 'low', label: 'Customer flow and risk level data is up to date', time: 'Auto-refreshed' },
+  ];
 
   return (
     <DashboardLayout page="Dashboard Overview">
-      {/* Stat cards row */}
-      <div className="grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2 2xl:grid-cols-4">
-        <StatCard label="Total Customers" value={data.totalCustomers.toLocaleString('en-US')} 
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>}
-          iconBg="bg-slate-100"
+
+      {/* ── KPI Row ── */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
+        <StatCard
+          label="Total Customers"
+          value={data.totalCustomers.toLocaleString('en-US')}
+          accentColor="var(--t)"
+          change="Total"
+          changeSuffix="customer base"
+          changePositive={true}
+          icon={
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--t)]">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          }
         />
-        <StatCard label="Safe Customers" value={data.safeCustomers.toLocaleString('en-US')} change={`${(data.totalCustomers > 0 ? (data.safeCustomers / data.totalCustomers * 100) : 0).toFixed(1)}%`} changeSuffix="of total" changePositive
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#67f63bff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>}
-          iconBg="bg-slate-100"
+        <StatCard
+          label="Safe Customers"
+          value={data.safeCustomers.toLocaleString('en-US')}
+          accentColor="var(--g)"
+          icon={
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--g)]">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" />
+            </svg>
+          }
+          change={`${safeRate}%`}
+          changeSuffix="retention rate"
+          changePositive
         />
-        <StatCard label="Churn Risk" value={`${data.churnRisk}%`} 
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f63b51ff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7" /><polyline points="16 17 22 17 22 11" /></svg>}
-          iconBg="bg-slate-100"
+        <StatCard
+          label="Churn Risk Rate"
+          value={`${data.churnRisk}%`}
+          accentColor="var(--r)"
+          icon={
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--r)]">
+              <polyline points="22 17 13.5 8.5 8.5 13.5 2 7" /><polyline points="16 17 22 17 22 11" />
+            </svg>
+          }
+          change={data.churnRisk > 10 ? 'High' : 'Healthy'}
+          changeSuffix="risk threshold"
+          changePositive={data.churnRisk <= 10}
         />
-        <StatCard label="Predicted Churn" value={data.predictedChurn.toLocaleString('en-US')} 
-          icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f63b51ff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>}
-          iconBg="bg-slate-100"
+        <StatCard
+          label="Predicted Churn"
+          value={data.predictedChurn.toLocaleString('en-US')}
+          accentColor="var(--o)"
+          icon={
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--o)]">
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          }
+          change="High risk"
+          changeSuffix="customers flagged"
+          changePositive={false}
         />
       </div>
 
+      {/* ── Main grid ── */}
       <div className="grid grid-cols-12 gap-4">
-        <div className="col-span-9 grid gap-4">
+
+        {/* ── Left column (8/12) ── */}
+        <div className="col-span-12 xl:col-span-8 flex flex-col gap-4">
+
           {/* Charts row */}
-          <div className="grid grid-cols-9 gap-4">
-            <Card className="col-span-5"><ChurnTrendChart data={riskData} /></Card>
-            <Card className="col-span-4"><CustomerFlowChart data={flowData} /></Card>
-          </div>
-
-          {/* Distribution + Segments row */}
-          <div className="grid grid-cols-12 gap-4">
-            <Card className="col-span-4"><DonutChart data={planData} /></Card>
-
-            <Card className="col-span-8">
-              <h3 className="text-sm font-bold text-black mb-4">Customer Segment</h3>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
-                {segments.map(s => (
-                  <div key={s.name} className={`rounded-xl border border-gray-200 bg-white overflow-hidden flex min-h-29`}>
-                    <div className={`w-8 border-r flex items-start justify-center pt-3 ${s.panelBg} ${s.panelBorder}`}>
-                      <div className={`h-6 w-6 rounded-md flex items-center justify-center ${s.iconBg}`}>
-                        {s.icon}
-                      </div>
-                    </div>
-                    <div className="flex-1 p-2.5 flex flex-col gap-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-xs font-semibold text-gray-900 leading-tight">{s.name}</p>
-                        <span className={`text-[10px] font-semibold ${s.color}`}>{s.pct}</span>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-gray-400">Percentage</p>
-                        <p className={`text-sm font-black leading-tight ${s.color}`}>{s.pct}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-gray-400">Avg MRR</p>
-                        <p className="text-sm font-black leading-tight text-gray-900">{s.mrr}</p>
-                      </div>
-                      <button className="mt-auto text-[10px] font-semibold text-gray-600 border border-gray-200 rounded-md py-1 hover:bg-gray-50 transition-colors">
-                        View
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <Card className="md:col-span-3">
+              <ChurnTrendChart data={riskData} />
+            </Card>
+            <Card className="md:col-span-2">
+              <CustomerFlowChart data={flowData} />
             </Card>
           </div>
+
+          {/* Customer Segments — using real segments table data with same cards as SegmentationPage */}
+          <Card className="flex-1 flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-[13px] font-bold text-gray-900">Customer Segments</h3>
+                <div className="text-[11px] text-gray-400 mt-0.5">Behavioral cohort from latest prediction</div>
+              </div>
+              <Link href="/dashboard/segmentation" className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+                View All →
+              </Link>
+            </div>
+
+            {hasSegments ? (
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 flex-1">
+                {segments.map((s: any, idx: number) => {
+                  const colorSet = PALETTE[idx % PALETTE.length];
+                  return (
+                    <div
+                      key={s.name}
+                      className="h-full rounded-xl border border-gray-100 p-4 flex flex-col gap-3 hover:shadow-sm hover:border-gray-200 transition-all duration-200 cursor-default"
+                    >
+                      {/* Icon + high-risk badge */}
+                      <div className="flex items-start justify-between">
+                        <div
+                          className={`w-8 h-8 rounded-xl flex items-center justify-center ${colorSet.iconBgClass}`}
+                        >
+                          {getSegmentIcon(s.name, colorSet.textClass)}
+                        </div>
+                        {s.pctHighRisk > 0 && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-red-50 text-red-500">
+                            {s.pctHighRisk}% risk
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Name & Hero Metric - Wrapped in flex-1 to push bottom part down */}
+                      <div className="flex-1">
+                        <p className="text-[11px] text-gray-400 font-medium leading-tight mb-0.5">Segment</p>
+                        <p className="text-[12px] font-bold text-gray-800 leading-snug mb-2">{s.name}</p>
+                        
+                        <div className={`text-2xl font-black leading-none tracking-tight ${colorSet.textClass}`}>
+                          {s.count.toLocaleString('en-US')}
+                        </div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">customers</div>
+                      </div>
+
+                      {/* Progress bar + percentage */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-gray-400">Share</span>
+                          <span className="text-[10px] font-bold" style={{ color: colorSet.hex }}>{s.pct}%</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full"
+                            style={{ width: `${s.pct}%`, backgroundColor: colorSet.hex }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Avg MRR */}
+                      <div className="flex items-center justify-between pt-1 border-t border-gray-50">
+                        <span className="text-[10px] text-[var(--t4)] font-bold uppercase tracking-wider">Avg MRR</span>
+                        <span className={`text-[12px] font-black ${colorSet.textClass}`}>{s.avgMrr}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
+                <div className="w-10 h-10 rounded-xl bg-[var(--bg1)] border border-[var(--b)] flex items-center justify-center mb-1">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" /><path d="M12 2a10 10 0 0 1 10 10" />
+                  </svg>
+                </div>
+                <p className="text-[12px] font-bold text-[var(--t2)] uppercase tracking-wider">No segment data yet</p>
+                <p className="text-[11px] text-[var(--t4)] max-w-[220px] leading-relaxed">
+                  Upload and process a dataset to see behavioral customer segments.
+                </p>
+                <Link href="/dashboard/data-management" className="mt-1 text-[11px] font-black text-[var(--t)] hover:opacity-70 transition-opacity">
+                  Upload Dataset →
+                </Link>
+              </div>
+            )}
+          </Card>
+
         </div>
 
-        {/* Team Chat spans both rows */}
-        <Card className="col-span-3 flex h-full flex-col gap-3">
-          <h3 className="text-sm font-bold text-black">Team Chat</h3>
-          <Link href="/dashboard/chat?compose=group" className="block w-full">
-            <Button variant="blue" className="w-full justify-center">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-              Create Group Chat
-            </Button>
-          </Link>
-          <div className="flex flex-col gap-3 mt-1 overflow-y-auto overflow-x-hidden">
-            {recentChats.map(m => (
-              <Link href={`/dashboard/chat?convo=${m.id}`} key={m.id} className="flex items-start gap-2 cursor-pointer hover:bg-gray-50 rounded-xl p-1.5 -mx-1.5 transition-colors">
-                {m.avatarUrl ? (
-                  <img src={m.avatarUrl} alt={m.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
-                ) : (
-                  <Avatar initials={m.initials} size="sm" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-black truncate">{m.name}</span>
-                    <span className="text-[10px] text-gray-400 shrink-0 ml-1">{m.timeStr}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-[11px] text-gray-500 truncate">{m.lastMessage}</p>
-                    {m.unreadCount > 0 && (
-                      <span className="flex h-4 min-w-[16px] shrink-0 items-center justify-center rounded-full bg-blue-600 px-1 text-[9px] font-bold text-white ml-2">
-                        {m.unreadCount}
-                      </span>
-                    )}
+        {/* ── Right column (4/12) ── */}
+        <div className="col-span-12 xl:col-span-4 flex flex-col gap-4">
+
+          {/* Distribution donut */}
+          <Card>
+            <DonutChart data={planData} />
+          </Card>
+
+          {/* Insights panel */}
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[13px] font-bold text-[var(--t)]">Insights</h3>
+              {alerts.some(a => a.level === 'high') && (
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--r)] text-[9px] font-black text-[var(--inv-t)]">
+                  !
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {alerts.map((a, i) => (
+                <div key={i} className="flex items-start gap-3 p-3 rounded-xl transition-all hover:bg-[var(--bg1)] border border-transparent hover:border-[var(--b)]">
+                  <div
+                    className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
+                    style={{ backgroundColor: a.level === 'high' ? 'var(--r)' : a.level === 'med' ? 'var(--y)' : 'var(--g)' }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-medium text-[var(--t2)] leading-snug">{a.label}</div>
+                    <div className="text-[10px] text-[var(--t4)] mt-0.5 font-bold uppercase tracking-wider">{a.time}</div>
                   </div>
                 </div>
-              </Link>
-            ))}
-            {recentChats.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-4">No recent chats</p>
-            )}
-          </div>
-        </Card>
+              ))}
+            </div>
+          </Card>
+
+          {/* Quick actions */}
+          <Card className="flex-1 flex flex-col">
+            <h3 className="text-[13px] font-bold text-[var(--t)] mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-2 gap-3 flex-1">
+              {quickActions.map((action) => (
+                <Link
+                  key={action.label}
+                  href={action.href}
+                  className="h-full flex flex-col items-start gap-3 p-4 rounded-xl border border-[var(--b)] hover:border-[var(--b3)] hover:shadow-sm transition-all duration-300 group"
+                  style={{ background: action.bg }}
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110" style={{ background: 'var(--surf)', border: '1px solid var(--b)' }}>
+                    <span className="text-[14px] font-bold" style={{ color: action.color }}>{action.icon}</span>
+                  </div>
+                  <span className="text-[11.5px] font-bold leading-tight" style={{ color: 'var(--t)' }}>
+                    {action.label}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </Card>
+
+        </div>
       </div>
     </DashboardLayout>
   );

@@ -62,30 +62,34 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
 
   return (
     <div>
-      <h3 className="text-lg font-bold text-black mb-0.5">Customer Cluster Visualization</h3>
-      <p className="text-sm text-gray-400 mb-4">Engagement score vs Monthly Revenue</p>
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h3 className="text-[13px] font-bold text-[var(--t)]">Customer Cluster Visualization</h3>
+          <p className="text-[11px] text-[var(--t3)] mt-0.5">Engagement score vs Monthly Revenue</p>
+        </div>
+      </div>
 
       {loading ? (
-        <div className="w-full h-[200px] flex items-center justify-center bg-gray-50/50 rounded-xl">
-          <p className="text-xs text-gray-400 animate-pulse">Loading clusters...</p>
+        <div className="w-full h-[200px] flex items-center justify-center bg-[var(--bg1)] rounded-xl border border-[var(--b)]">
+          <p className="text-[10px] font-medium text-[var(--t3)] animate-pulse">Loading clusters...</p>
         </div>
       ) : (
         <>
           <ResponsiveContainer width="100%" height={200}>
             <ScatterChart margin={{ top: 5, right: 30, bottom: 5, left: -10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis type="number" dataKey="x" domain={[0, 100]} tick={{ fontSize: 12, fill: '#9ca3af' }}
+              <CartesianGrid strokeDasharray="4 4" stroke="var(--b)" vertical={false} />
+              <XAxis type="number" dataKey="x" domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--t3)', fontWeight: 500 }}
                 tickFormatter={(v) => `${v}%`} axisLine={false} tickLine={false} />
-              <YAxis type="number" dataKey="y" tick={{ fontSize: 12, fill: '#9ca3af' }}
+              <YAxis type="number" dataKey="y" tick={{ fontSize: 10, fill: 'var(--t3)', fontWeight: 500 }}
                 tickFormatter={(v) => `$${v}`} axisLine={false} tickLine={false} />
               <Tooltip
                 cursor={{ strokeDasharray: '3 3' }}
                 content={({ active, payload }) => {
                   if (active && payload?.length) {
                     return (
-                      <div className="bg-gray-900 text-white rounded-xl px-3 py-2 text-xs shadow-xl border border-gray-800">
-                        <p>Engagement: {payload[0]?.value}%</p>
-                        <p>Revenue: ${payload[1]?.value}</p>
+                      <div className="bg-[var(--t)] text-[var(--inv-t)] rounded-xl px-3 py-2 text-[10px] shadow-2xl border border-[var(--b3)] backdrop-blur-md opacity-95">
+                        <p className="opacity-90">Engagement: <span className="font-black text-[var(--inv-t)]">{payload[0]?.value}%</span></p>
+                        <p className="opacity-90">Revenue: <span className="font-black text-[var(--inv-t)]">${payload[1]?.value}</span></p>
                       </div>
                     );
                   }
@@ -98,11 +102,11 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
             </ScatterChart>
           </ResponsiveContainer>
 
-          <div className="flex flex-wrap gap-3 mt-2">
+          <div className="flex flex-wrap gap-4 mt-3">
             {filteredClusters.map(c => (
               <div key={c.name} className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: c.color }} />
-                <span className="text-xs text-gray-500">{c.name}</span>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.color }} />
+                <span className="text-[11px] text-[var(--t3)] font-medium">{c.name}</span>
               </div>
             ))}
           </div>

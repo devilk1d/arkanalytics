@@ -96,7 +96,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-17 bg-white border-r border-gray-100 flex flex-col items-center py-4 gap-2 shrink-0 h-screen sticky top-0 z-30">
+    <aside className="w-17 bg-[var(--surf)] border-r border-[var(--b)] flex flex-col items-center py-4 gap-2 shrink-0 h-screen sticky top-0 z-30">
       {/* Logo */}
       <Link href="/dashboard/overview" className="w-10 h-10 flex items-center justify-center mb-3 hover:opacity-75 transition-opacity">
         <Image src="/images/logo_arka_hitam.png" alt="Arka" width={28} height={28} />
@@ -111,7 +111,7 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               className={`relative w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200
-                ${isActive ? 'bg-black text-white' : 'text-gray-400 hover:text-black hover:bg-gray-100'}`}
+                ${isActive ? 'bg-[var(--t)] text-[var(--inv-t)]' : 'text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)]'}`}
             >
               {item.icon}
               {item.badge && !isActive && (
@@ -132,7 +132,7 @@ export default function Sidebar() {
         <Link
           href="/dashboard/settings"
           className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all duration-200
-            ${pathname?.startsWith('/dashboard/settings') ? 'bg-black text-white' : 'text-gray-400 hover:text-black hover:bg-gray-100'}`}
+            ${pathname?.startsWith('/dashboard/settings') ? 'bg-[var(--t)] text-[var(--inv-t)]' : 'text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)]'}`}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />
@@ -142,7 +142,7 @@ export default function Sidebar() {
         <button
           onClick={() => { void handleLogout(); }}
           title="Log Out"
-          className="w-10 h-10 flex items-center justify-center rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all duration-200"
+          className="w-10 h-10 flex items-center justify-center rounded-xl text-[var(--t3)] hover:text-red-500 hover:bg-red-50/50 transition-all duration-200"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
