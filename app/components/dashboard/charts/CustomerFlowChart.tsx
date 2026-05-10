@@ -44,13 +44,13 @@ export default function CustomerFlowChart({ data }: { data?: any }) {
           <XAxis dataKey="period" tick={{ fontSize: 10, fill: 'var(--t3)', fontWeight: 500 }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fontSize: 10, fill: 'var(--t3)', fontWeight: 500 }} axisLine={false} tickLine={false} width={36} />
           <Tooltip content={<CustomTooltip />} cursor={false} />
-          <Line type="monotone" dataKey="new" name="New" stroke="var(--t)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: 'var(--t)', stroke: 'var(--inv-t)', strokeWidth: 2 }} />
+          <Line type="monotone" dataKey="new" name="New" stroke="#10b981" strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: '#10b981', stroke: 'var(--inv-t)', strokeWidth: 2 }} />
           <Line type="monotone" dataKey="churned" name="Lost" stroke="var(--o)" strokeWidth={2.5} dot={false} activeDot={{ r: 5, fill: 'var(--o)', stroke: 'var(--inv-t)', strokeWidth: 2 }} />
         </LineChart>
       </ResponsiveContainer>
 
       <div className="flex items-center gap-4 mt-2">
-        <div className="flex items-center gap-1.5"><span className="w-2 rounded-full aspect-square bg-[var(--t)] inline-block" /><span className="text-[11px] font-medium text-[var(--t2)] font-sans">New</span></div>
+        <div className="flex items-center gap-1.5"><span className="w-2 rounded-full aspect-square bg-emerald-500 inline-block" /><span className="text-[11px] font-medium text-[var(--t2)] font-sans">New</span></div>
         <div className="flex items-center gap-1.5"><span className="w-2 rounded-full aspect-square bg-[var(--o)] inline-block" /><span className="text-[11px] font-medium text-[var(--t2)] font-sans">Lost</span></div>
       </div>
     </div>

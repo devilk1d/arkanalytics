@@ -16,6 +16,7 @@ import AuthDropdown from '@/app/components/auth/AuthDropdown';
 import { SendToChatModal } from './ActionModals';
 import { AnalyzeCustomerModal } from './AnalyzeCustomerModal';
 import { createClient } from '@/lib/supabase/client';
+import { getFallbackPalette } from '../segmentation/SegmentationPage';
 import type { CustomerPrediction } from '@/types/churn';
 import PermissionGate from '../../ui/PermissionGate';
 
@@ -48,8 +49,8 @@ interface CsvMetrics {
 
 const planColors: Record<string, string> = {
   Enterprise: 'bg-zinc-900 text-zinc-50 border border-zinc-800',
-  Professional: 'bg-indigo-50 text-indigo-700 border border-indigo-100',
-  Starter: 'bg-[var(--bg1)] text-[var(--n)] border border-[var(--b)]',
+  Professional: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
+  Starter: 'bg-gray-100 text-gray-600 border border-gray-200',
 };
 
 const riskColors = { Low: 'text-[var(--g)]', Medium: 'text-[var(--y)]', High: 'text-[var(--r)]' };
@@ -407,8 +408,9 @@ function AnalyticsPageContent() {
           change="Total"
           changeSuffix="customer base"
           changePositive={true}
+          accentColor="#3b82f6"
           icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--t)]">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
           }
@@ -419,9 +421,9 @@ function AnalyticsPageContent() {
           change={`${summaryStats.avgScore > 50 ? 'Needs Attention' : 'Healthy'}`}
           changePositive={summaryStats.avgScore <= 50}
           changeSuffix="overall risk"
-          accentColor="var(--t)"
+          accentColor="#a855f7"
           icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--t2)]">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-500">
               <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
             </svg>
           }
@@ -541,7 +543,7 @@ function AnalyticsPageContent() {
                 <tr><td colSpan={11} className="px-4 py-12 text-center text-xs text-gray-400">No customers found</td></tr>
               ) : (
                 rows.map(c => (
-                  <tr key={c.customer_id} className={`hover:bg-[var(--bg1)] transition-colors ${selectedIds.has(c.customer_id) ? 'bg-[var(--bg2)]' : ''}`}>
+                  <tr key={c.customer_id} className={`transition-colors ${c.churn_score >= 70 ? 'bg-red-50/40 hover:bg-red-50/60' : 'hover:bg-[var(--bg1)]'} ${selectedIds.has(c.customer_id) ? 'bg-[var(--bg2)]' : ''}`}>
                     <td className="px-4 py-3 text-center">
                       <input
                         type="checkbox"
@@ -563,7 +565,7 @@ function AnalyticsPageContent() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-0.5">
-                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md inline-block w-fit uppercase tracking-wider ${planColors[c.plan_type] || 'bg-[var(--bg1)] text-[var(--t3)]'}`}>
+                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md inline-block w-fit uppercase tracking-wider ${planColors[c.plan_type] || 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
                           {c.plan_type}
                         </span>
                         <span className="text-[10px] text-[var(--t4)] ml-1 capitalize">{c.contract_type}</span>
@@ -583,7 +585,7 @@ function AnalyticsPageContent() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-[11px] text-[var(--t2)] font-medium">{c.segment_label}</span>
+                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${c.churn_score >= 70 ? 'bg-red-500 text-white border-red-600' : getFallbackPalette(c.segment_label).badgeClass}`}>{c.segment_label}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs text-[var(--t2)]">{c.total_users ?? '0'}</span>

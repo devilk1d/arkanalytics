@@ -7,7 +7,7 @@ import ChurnTrendChart from '../../charts/ChurnTrendChart';
 import CustomerFlowChart from '../../charts/CustomerFlowChart';
 import DonutChart from '../../charts/DonutChart';
 import Link from 'next/link';
-import { PALETTE, getSegmentIcon } from '../segmentation/SegmentationPage';
+import { getFallbackPalette, getSegmentIcon } from '../segmentation/SegmentationPage';
 
 export type OverviewStats = {
   totalCustomers: number;
@@ -67,12 +67,12 @@ export default function OverviewPage({
         <StatCard
           label="Total Customers"
           value={data.totalCustomers.toLocaleString('en-US')}
-          accentColor="var(--t)"
+          accentColor="#3b82f6"
           change="Total"
           changeSuffix="customer base"
           changePositive={true}
           icon={
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--t)]">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
               <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
@@ -149,8 +149,8 @@ export default function OverviewPage({
 
             {hasSegments ? (
               <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 flex-1">
-                {segments.map((s: any, idx: number) => {
-                  const colorSet = PALETTE[idx % PALETTE.length];
+                {segments.map((s: any) => {
+                  const colorSet = getFallbackPalette(s.name);
                   return (
                     <div
                       key={s.name}
