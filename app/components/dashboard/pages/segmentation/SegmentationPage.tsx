@@ -15,7 +15,7 @@ import { useDashboardContext } from '../../context/DashboardContext';
 import { createClient } from '@/lib/supabase/client';
 
 export const PALETTE = [
-  { hex: '#ec4899', textClass: 'text-pink-600', iconBgClass: 'bg-pink-100', badgeClass: 'bg-pink-100 text-pink-700' },
+  { hex: '#ef4444', textClass: 'text-red-600', iconBgClass: 'bg-red-100', badgeClass: 'bg-red-100 text-red-700' },
   { hex: '#3b82f6', textClass: 'text-blue-600', iconBgClass: 'bg-blue-100', badgeClass: 'bg-blue-100 text-blue-700' },
   { hex: '#a855f7', textClass: 'text-purple-600', iconBgClass: 'bg-purple-100', badgeClass: 'bg-purple-100 text-purple-700' },
   { hex: '#10b981', textClass: 'text-emerald-600', iconBgClass: 'bg-emerald-100', badgeClass: 'bg-emerald-100 text-emerald-700' },
@@ -26,7 +26,7 @@ export const PALETTE = [
 export function getSegmentIcon(label: string, colorClass: string) {
   const lower = label.toLowerCase();
 
-  if (lower.includes('risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('leave')) {
+  if (lower.includes('risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('leave') || lower.includes('unhappy') || lower.includes('dissatisfied') || lower.includes('poor') || lower.includes('bad') || lower.includes('low')) {
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={colorClass}>
         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -81,7 +81,25 @@ export function getSegmentIcon(label: string, colorClass: string) {
   );
 }
 
-export function getFallbackPalette(label: string) {
+export function getSegmentColorway(label: string) {
+  const lower = label.toLowerCase();
+  
+  if (lower.includes('risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('leave') || lower.includes('unhappy') || lower.includes('dissatisfied') || lower.includes('poor') || lower.includes('bad') || lower.includes('low')) {
+    return PALETTE[0]; // Red
+  }
+  if (lower.includes('loyal') || lower.includes('champion') || lower.includes('satisfied') || lower.includes('best')) {
+    return PALETTE[3]; // Emerald
+  }
+  if (lower.includes('new') || lower.includes('adopter') || lower.includes('recent') || lower.includes('starter')) {
+    return PALETTE[1]; // Blue
+  }
+  if (lower.includes('value') || lower.includes('high') || lower.includes('premium') || lower.includes('whale') || lower.includes('tier')) {
+    return PALETTE[2]; // Purple
+  }
+  if (lower.includes('bill') || lower.includes('price') || lower.includes('cost') || lower.includes('usage') || lower.includes('intensive')) {
+    return PALETTE[4]; // Amber
+  }
+
   let hash = 0;
   for (let i = 0; i < label.length; i++) hash = label.charCodeAt(i) + ((hash << 5) - hash);
   return PALETTE[Math.abs(hash) % PALETTE.length];
@@ -139,7 +157,7 @@ export default function SegmentationPage() {
 
       if (!segError && segData) {
         const stats = segData.map((s: any, idx: number) => {
-          const colorSet = PALETTE[idx % PALETTE.length];
+          const colorSet = getSegmentColorway(s.segment_label);
 
           return {
             label: s.segment_label,
@@ -156,7 +174,7 @@ export default function SegmentationPage() {
         setSegmentStats(stats);
 
         const barChartData = segData.map((s: any, idx: number) => {
-          const colorSet = PALETTE[idx % PALETTE.length];
+          const colorSet = getSegmentColorway(s.segment_label);
           return {
             name: s.segment_label,
             count: s.total_customers,
@@ -302,21 +320,28 @@ export default function SegmentationPage() {
                     <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-gray-400">No customers found</td></tr>
                   ) : (
                     customers.map(c => (
-                      <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={c.id} className={`transition-colors ${c.score >= 70 ? 'bg-red-50/40 hover:bg-red-50/60' : 'hover:bg-gray-50'}`}>
                         <td className="px-4 py-3 text-xs font-mono text-gray-500">{c.id}</td>
                         <td className="px-4 py-3">
-                          <p className="text-sm font-semibold text-black">{c.name}</p>
-                          <p className="text-xs text-gray-400">{c.email}</p>
+                          <div className="flex items-center gap-2">
+                            <div>
+                              <p className="text-sm font-semibold text-black">{c.name}</p>
+                              <p className="text-xs text-gray-400">{c.email}</p>
+                            </div>
+                            {c.score >= 70 && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 uppercase tracking-wider ml-1">At Risk</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-600">{c.plan}</td>
                         <td className="px-4 py-3 text-sm font-bold text-black">{c.mrr}</td>
                         <td className="px-4 py-3">
-                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${c.score >= 70 ? 'bg-red-100 text-red-700' : (segmentStats.find(s => s.label === c.segment)?.colorSet.badgeClass || getFallbackPalette(c.segment).badgeClass)}`}>{c.segment}</span>
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getSegmentColorway(c.segment).badgeClass}`}>{c.segment}</span>
                         </td>
                         <td className="px-4 py-3 w-28">
                           <div className="flex items-center gap-2">
-                            <ProgressBar value={c.score} color="blue" height="sm" />
-                            <span className="text-xs text-gray-600 shrink-0">{c.score}</span>
+                            <ProgressBar value={c.score} color={c.score >= 70 ? 'red' : c.score >= 40 ? 'yellow' : 'green'} height="sm" />
+                            <span className={`text-xs font-bold shrink-0 ${c.score >= 70 ? 'text-red-600' : 'text-gray-600'}`}>{c.score}</span>
                           </div>
                         </td>
                       </tr>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
-import { PALETTE, getFallbackPalette } from '../pages/segmentation/SegmentationPage';
+import { getSegmentColorway } from '../pages/segmentation/SegmentationPage';
 
 export default function ClusterChart({ segmentOrder, activeSegment }: { segmentOrder?: string[], activeSegment?: string }) {
   const searchParams = useSearchParams();
@@ -39,8 +39,7 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
         });
 
         const newClusters = Object.keys(grouped).map((seg) => {
-          let idx = segmentOrder ? segmentOrder.indexOf(seg) : -1;
-          const colorSet = idx !== -1 ? PALETTE[idx % PALETTE.length] : getFallbackPalette(seg);
+          const colorSet = getSegmentColorway(seg);
 
           return {
             name: seg,
