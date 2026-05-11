@@ -122,12 +122,6 @@ const SegmentationPageContent = memo(() => {
   const [loading, setLoading] = useState(true);
   const [segmentStats, setSegmentStats] = useState<any[]>([]);
   const [barData, setBarData] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [totalCustomers, setTotalCustomers] = useState(0);
-  const [search, setSearch] = useState('');
-  const [seg, setSeg] = useState('all');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     async function init() {
@@ -149,7 +143,7 @@ const SegmentationPageContent = memo(() => {
   }, [datasetId, workspace, router, supabase]);
 
   const loadData = useCallback(async (
-    currentPage: number, searchVal: string, segVal: string, dsId: string, limit: number
+    dsId: string
   ) => {
     setLoading(true);
 
@@ -191,55 +185,13 @@ const SegmentationPageContent = memo(() => {
       }
     }
 
-    const from = (currentPage - 1) * limit;
-    const to = from + limit - 1;
-
-    let query = supabase
-      .from('predictions')
-      .select('customer_id,plan_type,contract_type,churn_score,risk_level,segment_label,segment_rfm_context,nlp_red_flag,loyalty_risk_flag', { count: 'exact' })
-      .eq('dataset_id', dsId)
-      .order('customer_id', { ascending: true })
-      .range(from, to);
-
-    if (segVal !== 'all') {
-      query = query.eq('segment_label', segVal);
-    }
-    if (searchVal.trim() !== '') {
-      query = query.ilike('customer_id', `%${searchVal.trim()}%`);
-    }
-
-    const { data: custData, count, error: custError } = await query;
-    if (!custError && custData) {
-      const formattedCustomers = custData.map((c: any) => {
-        const mrrVal = c.segment_rfm_context?.total_revenue?.customer || 0;
-        return {
-          id: c.customer_id,
-          plan: c.plan_type,
-          contract: c.contract_type,
-          mrr: `$${Math.round(mrrVal).toLocaleString()}`,
-          segment: c.segment_label,
-          score: Math.round(c.churn_score),
-          riskLevel: c.risk_level,
-          nlpFlag: c.nlp_red_flag === 1,
-          loyaltyFlag: c.loyalty_risk_flag === 1,
-        };
-      });
-      setCustomers(formattedCustomers);
-      setTotalCustomers(count ?? 0);
-    }
-
     setLoading(false);
   }, [segmentStats.length, supabase]);
 
   useEffect(() => {
     if (!datasetId) return;
-    loadData(page, search, seg, datasetId, pageSize);
-  }, [page, search, seg, datasetId, pageSize, loadData]);
-
-  const totalPages = Math.ceil(totalCustomers / pageSize);
-  const handleSearch = (v: string) => { setSearch(v); setPage(1); };
-  const handleSeg = (v: string) => { setSeg(v); setPage(1); };
-  const handlePageSizeChange = (v: number) => { setPageSize(v); setPage(1); };
+    loadData(datasetId);
+  }, [datasetId, loadData]);
 
   if (!isMounted) return <div className="h-screen bg-[var(--bg)] animate-pulse" />;
 
@@ -299,104 +251,6 @@ const SegmentationPageContent = memo(() => {
           <Card><ClusterChart segmentOrder={segmentStats.map(s => s.label)} /></Card>
           <Card>
             <SegmentDistributionChart data={barData} />
-          </Card>
-        </div>
-
-        <div>
-          <div className="flex items-center gap-3 mb-3">
-            <SearchBar value={search} onChange={handleSearch} placeholder="Search by ID..." className="flex-1" />
-            <AuthDropdown
-              value={seg}
-              onChange={handleSeg}
-              className="w-48"
-              placeholder="Filter Segment"
-              variant="filter"
-              options={[
-                { label: 'All Segments', value: 'all' },
-                ...segmentStats.map(s => ({ label: s.label, value: s.label }))
-              ]}
-            />
-            <span className="text-[10px] text-[var(--t3)] bg-[var(--bg1)] px-3 py-2 rounded-xl font-bold uppercase tracking-wider whitespace-nowrap border border-[var(--b)]">
-              {totalCustomers.toLocaleString()} customers
-            </span>
-          </div>
-
-          <Card padding="none">
-              <div className="min-h-[500px]">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[var(--b)]">
-                    {['ID', 'Plan & Contract', 'MRR', 'Segment', 'Risk Flags', 'Score'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--b)]/50">
-                  {loading ? (
-                    Array.from({ length: pageSize }).map((_, i) => (
-                      <tr key={i}>
-                        {Array.from({ length: 6 }).map((_, j) => (
-                          <td key={j} className="px-4 py-3">
-                            <div className="h-3 bg-[var(--bg1)] rounded animate-pulse" style={{ width: `${60 + ((i * 6 + j) % 4) * 10}%` }} />
-                          </td>
-                        ))}
-                      </tr>
-                    ))
-                  ) : customers.length === 0 ? (
-                    <tr><td colSpan={6} className="px-4 py-12 text-center text-xs text-[var(--t4)]">No customers found</td></tr>
-                  ) : (
-                    customers.map(c => (
-                      <tr key={c.id} className="transition-colors hover:bg-[var(--bg1)]">
-                        <td className="px-4 py-3 text-xs font-mono text-[var(--t4)]">{c.id}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col gap-0.5">
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block w-fit uppercase tracking-wider ${
-                              c.plan === 'Enterprise' ? 'bg-zinc-900 text-zinc-50 border border-zinc-800' :
-                              c.plan === 'Professional' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
-                              'bg-gray-100 text-gray-600 border border-gray-200'
-                            }`}>{c.plan}</span>
-                            <span className="text-[10px] text-[var(--t4)] ml-1 capitalize">{c.contract || '—'}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-xs font-bold text-[var(--t)]">{c.mrr}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${getSegmentColorway(c.segment).badgeClass} ${c.score >= 70 ? '!bg-red-50 !text-red-600 !border-red-200' : ''}`}>{c.segment}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1.5">
-                            {c.nlpFlag && (
-                              <span title="NLP Hidden Risk" className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-[var(--o)]/10 text-[var(--o)] border border-[var(--o)]/20 uppercase tracking-[0.05em]">
-                                <span className="w-1 h-1 rounded-full bg-[var(--o)] inline-block" />NLP
-                              </span>
-                            )}
-                            {c.loyaltyFlag && (
-                              <span title="Loyalty Risk" className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-[var(--p)]/10 text-[var(--p)] border border-[var(--p)]/20 uppercase tracking-[0.05em]">
-                                <span className="w-1 h-1 rounded-full bg-[var(--p)] inline-block" />Loyalty
-                              </span>
-                            )}
-                            {!c.nlpFlag && !c.loyaltyFlag && <span className="text-[10px] text-[var(--t4)]">—</span>}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 w-28">
-                          <div className="flex items-center gap-2">
-                            <ProgressBar value={c.score} color={c.score >= 70 ? 'red' : 'black'} height="xs" />
-                            <span className={`text-xs font-bold ${c.score >= 70 ? 'text-[var(--r)]' : 'text-[var(--t)]'}`}>{c.score}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              totalItems={totalCustomers}
-              pageSize={pageSize}
-              onPageChange={setPage}
-              onPageSizeChange={handlePageSizeChange}
-            />
           </Card>
         </div>
       </div>

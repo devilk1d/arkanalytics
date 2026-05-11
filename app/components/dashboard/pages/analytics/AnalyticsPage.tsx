@@ -77,6 +77,8 @@ function AnalyticsPageContent() {
   const [search, setSearch] = useState('');
   const [plan, setPlan] = useState('all');
   const [risk, setRisk] = useState('all');
+  const [segment, setSegment] = useState('all');
+  const [segmentOptions, setSegmentOptions] = useState<{label: string, value: string}[]>([]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [csvMetrics, setCsvMetrics] = useState<Map<string, CsvMetrics>>(new Map());
@@ -99,7 +101,7 @@ function AnalyticsPageContent() {
     // Optimized: Fetch from segments table which has pre-calculated aggregates
     const { data: segData, error: segErr } = await supabase
       .from('segments')
-      .select('total_customers, avg_churn_score, avg_revenue, pct_high_risk')
+      .select('segment_label, total_customers, avg_churn_score, avg_revenue, pct_high_risk')
       .eq('dataset_id', dsId);
 
     if (segErr || !segData) {
@@ -113,8 +115,12 @@ function AnalyticsPageContent() {
     let totalScoreWeighted = 0;
     let hrCount = 0;
     let hrRev = 0;
+    const options: {label: string, value: string}[] = [];
 
     segData.forEach(s => {
+      if (s.segment_label) {
+        options.push({ label: s.segment_label, value: s.segment_label });
+      }
       const count = s.total_customers || 0;
       total += count;
       totalScoreWeighted += (s.avg_churn_score || 0) * count;
@@ -134,6 +140,7 @@ function AnalyticsPageContent() {
       revenueAtRisk: hrRev,
       highRiskPct: total > 0 ? (hrCount / total) * 100 : 0
     });
+    setSegmentOptions(options);
   }, [supabase]);
 
   const loadCsvMetrics = async (dsId: string) => {
@@ -266,7 +273,7 @@ function AnalyticsPageContent() {
   };
 
   const loadPage = useCallback(async (
-    currentPage: number, searchVal: string, planVal: string, riskVal: string, dsId: string, pageSizeVal: number
+    currentPage: number, searchVal: string, planVal: string, riskVal: string, segmentVal: string, dsId: string, pageSizeVal: number
   ) => {
     setLoading(true);
     const from = (currentPage - 1) * pageSizeVal;
@@ -281,6 +288,7 @@ function AnalyticsPageContent() {
 
     if (planVal !== 'all') query = query.ilike('plan_type', planVal);
     if (riskVal !== 'all') query = query.ilike('risk_level', riskVal);
+    if (segmentVal !== 'all') query = query.eq('segment_label', segmentVal);
     if (searchVal.trim() !== '') {
       query = query.or(`customer_id.ilike.%${searchVal.trim()}%,plan_type.ilike.%${searchVal.trim()}%`);
     }
@@ -348,13 +356,14 @@ function AnalyticsPageContent() {
   // 3. Load Page Data
   useEffect(() => {
     if (!datasetId) return;
-    loadPage(page, search, plan, risk, datasetId, pageSize);
-  }, [page, search, plan, risk, datasetId, pageSize, loadPage]);
+    loadPage(page, search, plan, risk, segment, datasetId, pageSize);
+  }, [page, search, plan, risk, segment, datasetId, pageSize, loadPage]);
 
   const totalPages = Math.ceil(totalCount / pageSize);
   const handleSearch = (v: string) => { setSearch(v); setPage(1); };
   const handlePlan = (v: string) => { setPlan(v); setPage(1); };
   const handleRisk = (v: string) => { setRisk(v); setPage(1); };
+  const handleSegment = (v: string) => { setSegment(v); setPage(1); };
   const handlePageSizeChange = (v: number) => { setPageSize(v); setPage(1); };
 
   if (loading && !datasetId) {
@@ -478,6 +487,17 @@ function AnalyticsPageContent() {
             { label: 'High', value: 'high' },
             { label: 'Medium', value: 'medium' },
             { label: 'Low', value: 'low' },
+          ]}
+        />
+        <AuthDropdown
+          value={segment}
+          onChange={handleSegment}
+          className="w-44"
+          placeholder="Filter Segment"
+          variant="filter"
+          options={[
+            { label: 'All Segments', value: 'all' },
+            ...segmentOptions
           ]}
         />
         {selectedIds.size > 0 && (
