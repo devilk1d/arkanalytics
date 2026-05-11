@@ -73,7 +73,7 @@ const SegmentDistributionChart = ({ data }: { data: any[] }) => {
               content={<CustomTooltip />} 
               cursor={{ fill: 'var(--bg1)', opacity: 0.4, radius: 4 }} 
             />
-            <Bar dataKey="count" radius={[6, 6, 6, 6]} animationDuration={1000}>
+            <Bar dataKey="count" radius={[6, 6, 6, 6]} isAnimationActive={false}>
               {chartData.map((entry, i) => (
                 <Cell 
                   key={`cell-${i}`} 

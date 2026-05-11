@@ -188,8 +188,7 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
                   name={c.name} 
                   data={c.data} 
                   fill={c.color} 
-                  animationDuration={1500} 
-                  animationEasing="ease-out"
+                  isAnimationActive={false}
                 >
                   {c.data.map((entry, index) => (
                     <Cell 
