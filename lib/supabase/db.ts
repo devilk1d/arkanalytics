@@ -203,3 +203,57 @@ export async function getCustomersBySegment(datasetId: string, segmentLabel: str
     if (error) throw error
     return data
 }
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+export async function getReports(workspaceId: string) {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('reports')
+        .select('*')
+        .eq('workspace_id', workspaceId)
+        .order('created_at', { ascending: false })
+    if (error) throw error
+    return data
+}
+
+export async function createReport(reportData: {
+    workspace_id: string,
+    user_id: string,
+    dataset_id?: string,
+    name: string,
+    type: 'pdf' | 'csv' | 'xlsx',
+    status: 'pending' | 'ready' | 'error'
+}) {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('reports')
+        .insert(reportData)
+        .select()
+        .single()
+    if (error) throw error
+    return data
+}
+
+export async function updateReport(reportId: string, updates: {
+    status?: 'pending' | 'ready' | 'error',
+    storage_path?: string,
+    file_size?: number,
+    error_message?: string
+}) {
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('reports')
+        .update(updates)
+        .eq('id', reportId)
+    if (error) throw error
+}
+
+export async function deleteReport(reportId: string) {
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('reports')
+        .delete()
+        .eq('id', reportId)
+    if (error) throw error
+}
