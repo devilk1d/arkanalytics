@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import DashboardLayout from '../../layout/DashboardLayout';
 import StatCard from '../../ui/StatCard';
@@ -9,19 +9,19 @@ import SearchBar from '../../ui/SearchBar';
 import AuthDropdown from '@/app/components/auth/AuthDropdown';
 import ProgressBar from '../../ui/ProgressBar';
 import ClusterChart from '../../charts/ClusterChart';
+import SegmentDistributionChart from '../../charts/SegmentDistributionChart';
 import Pagination from '../../ui/Pagination';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 'recharts';
 import PermissionGate from '../../ui/PermissionGate';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { createClient } from '@/lib/supabase/client';
 
 export const PALETTE = [
-  { hex: '#ef4444', textClass: 'text-red-600', iconBgClass: 'bg-red-100', badgeClass: 'bg-red-100 text-red-700 border border-red-200' },
-  { hex: '#3b82f6', textClass: 'text-blue-600', iconBgClass: 'bg-blue-100', badgeClass: 'bg-blue-100 text-blue-700 border border-blue-200' },
-  { hex: '#a855f7', textClass: 'text-purple-600', iconBgClass: 'bg-purple-100', badgeClass: 'bg-purple-100 text-purple-700 border border-purple-200' },
-  { hex: '#10b981', textClass: 'text-emerald-600', iconBgClass: 'bg-emerald-100', badgeClass: 'bg-emerald-100 text-emerald-700 border border-emerald-200' },
-  { hex: '#f59e0b', textClass: 'text-amber-600', iconBgClass: 'bg-amber-100', badgeClass: 'bg-amber-100 text-amber-700 border border-amber-200' },
-  { hex: '#06b6d4', textClass: 'text-cyan-600', iconBgClass: 'bg-cyan-100', badgeClass: 'bg-cyan-100 text-cyan-700 border border-cyan-200' }
+  { hex: '#ef4444', textClass: 'text-red-600', iconBgClass: 'bg-red-50', badgeClass: 'bg-red-50/50 text-red-600 border border-red-100' },
+  { hex: '#3b82f6', textClass: 'text-blue-600', iconBgClass: 'bg-blue-50', badgeClass: 'bg-blue-50/50 text-blue-600 border border-blue-100' },
+  { hex: '#a855f7', textClass: 'text-purple-600', iconBgClass: 'bg-purple-50', badgeClass: 'bg-purple-50/50 text-purple-600 border border-purple-100' },
+  { hex: '#10b981', textClass: 'text-emerald-600', iconBgClass: 'bg-emerald-50', badgeClass: 'bg-emerald-50/50 text-emerald-600 border border-emerald-100' },
+  { hex: '#f59e0b', textClass: 'text-amber-600', iconBgClass: 'bg-amber-50', badgeClass: 'bg-amber-50/50 text-amber-600 border border-amber-100' },
+  { hex: '#06b6d4', textClass: 'text-cyan-600', iconBgClass: 'bg-cyan-50', badgeClass: 'bg-cyan-50/50 text-cyan-600 border border-cyan-100' }
 ];
 
 export function getSegmentIcon(label: string, colorClass: string) {
@@ -110,7 +110,9 @@ export function getFallbackPalette(label: string) {
   return getSegmentColorway(label);
 }
 
-function SegmentationPageContent() {
+const SegmentationPageContent = memo(() => {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
   const searchParams = useSearchParams();
   const router = useRouter();
   const datasetId = searchParams.get('dataset_id');
@@ -239,6 +241,8 @@ function SegmentationPageContent() {
   const handleSeg = (v: string) => { setSeg(v); setPage(1); };
   const handlePageSizeChange = (v: number) => { setPageSize(v); setPage(1); };
 
+  if (!isMounted) return <div className="h-screen bg-[var(--bg)] animate-pulse" />;
+
   if (loading && !datasetId) {
     return (
       <DashboardLayout page="Customer Segmentation">
@@ -294,34 +298,7 @@ function SegmentationPageContent() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card><ClusterChart segmentOrder={segmentStats.map(s => s.label)} /></Card>
           <Card>
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="text-[13px] font-bold text-[var(--t)]">Segment Distribution</h3>
-                <p className="text-[11px] text-[var(--t3)] mt-0.5">Customer count by segment</p>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={barData} layout="vertical" margin={{ left: 10, right: 30 }} barSize={14}>
-                <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--t3)', fontWeight: 500 }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: 'var(--t2)', fontWeight: 500 }} axisLine={false} tickLine={false} width={90} />
-                <Tooltip 
-                  cursor={{ fill: 'var(--bg1)', opacity: 0.4 }}
-                  content={({ active, payload }) => {
-                    if (active && payload?.length) {
-                      return (
-                        <div className="bg-[var(--t)] text-[var(--inv-t)] rounded-xl px-3 py-2 text-[10px] shadow-2xl border border-[var(--b3)] backdrop-blur-md opacity-95">
-                          <p className="font-black">{payload[0]?.value} customers</p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                  {barData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <SegmentDistributionChart data={barData} />
           </Card>
         </div>
 
@@ -369,11 +346,11 @@ function SegmentationPageContent() {
                     <tr><td colSpan={6} className="px-4 py-12 text-center text-xs text-[var(--t4)]">No customers found</td></tr>
                   ) : (
                     customers.map(c => (
-                      <tr key={c.id} className={`transition-colors ${c.score >= 70 ? 'bg-red-50/40 hover:bg-red-50/60' : 'hover:bg-[var(--bg1)]'}`}>
+                      <tr key={c.id} className="transition-colors hover:bg-[var(--bg1)]">
                         <td className="px-4 py-3 text-xs font-mono text-[var(--t4)]">{c.id}</td>
                         <td className="px-4 py-3">
                           <div className="flex flex-col gap-0.5">
-                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md inline-block w-fit uppercase tracking-wider ${
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block w-fit uppercase tracking-wider ${
                               c.plan === 'Enterprise' ? 'bg-zinc-900 text-zinc-50 border border-zinc-800' :
                               c.plan === 'Professional' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
                               'bg-gray-100 text-gray-600 border border-gray-200'
@@ -381,19 +358,19 @@ function SegmentationPageContent() {
                             <span className="text-[10px] text-[var(--t4)] ml-1 capitalize">{c.contract || '—'}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-xs font-black text-[var(--t)]">{c.mrr}</td>
+                        <td className="px-4 py-3 text-xs font-bold text-[var(--t)]">{c.mrr}</td>
                         <td className="px-4 py-3">
-                          <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${c.score >= 70 ? 'bg-red-500 text-white border-red-600' : getSegmentColorway(c.segment).badgeClass}`}>{c.segment}</span>
+                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${getSegmentColorway(c.segment).badgeClass} ${c.score >= 70 ? '!bg-red-50 !text-red-600 !border-red-200' : ''}`}>{c.segment}</span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
                             {c.nlpFlag && (
-                              <span title="NLP Hidden Risk" className="flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded-md bg-[var(--o)]/10 text-[var(--o)] border border-[var(--o)]/20 uppercase tracking-[0.05em]">
+                              <span title="NLP Hidden Risk" className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-[var(--o)]/10 text-[var(--o)] border border-[var(--o)]/20 uppercase tracking-[0.05em]">
                                 <span className="w-1 h-1 rounded-full bg-[var(--o)] inline-block" />NLP
                               </span>
                             )}
                             {c.loyaltyFlag && (
-                              <span title="Loyalty Risk" className="flex items-center gap-1 text-[9px] font-black px-1.5 py-0.5 rounded-md bg-[var(--p)]/10 text-[var(--p)] border border-[var(--p)]/20 uppercase tracking-[0.05em]">
+                              <span title="Loyalty Risk" className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-[var(--p)]/10 text-[var(--p)] border border-[var(--p)]/20 uppercase tracking-[0.05em]">
                                 <span className="w-1 h-1 rounded-full bg-[var(--p)] inline-block" />Loyalty
                               </span>
                             )}
@@ -403,7 +380,7 @@ function SegmentationPageContent() {
                         <td className="px-4 py-3 w-28">
                           <div className="flex items-center gap-2">
                             <ProgressBar value={c.score} color={c.score >= 70 ? 'red' : 'black'} height="xs" />
-                            <span className={`text-xs font-black ${c.score >= 70 ? 'text-[var(--r)]' : 'text-[var(--t)]'}`}>{c.score}</span>
+                            <span className={`text-xs font-bold ${c.score >= 70 ? 'text-[var(--r)]' : 'text-[var(--t)]'}`}>{c.score}</span>
                           </div>
                         </td>
                       </tr>
@@ -425,7 +402,7 @@ function SegmentationPageContent() {
       </div>
     </DashboardLayout>
   );
-}
+});
 
 export default function SegmentationPage() {
   return (

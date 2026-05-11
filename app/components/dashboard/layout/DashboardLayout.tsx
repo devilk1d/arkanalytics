@@ -34,7 +34,7 @@ function DashboardShell({
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar workspace={workspaceName} logoUrl={workspaceLogo} page={page} />
-        <main className="flex-1 overflow-y-auto p-6 relative">
+        <main className="flex-1 overflow-y-auto p-6 relative animate-in fade-in duration-500 ease-in-out">
           {children}
         </main>
       </div>

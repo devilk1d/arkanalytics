@@ -95,50 +95,45 @@ function AnalyticsPageContent() {
     highRiskPct: 0
   });
 
-  const loadSummaryStats = useCallback(async (dsId: string, metrics: Map<string, CsvMetrics>) => {
-    let allPreds: any[] = [];
-    let from = 0;
-    const step = 1000;
-    let hasMore = true;
+  const loadSummaryStats = useCallback(async (dsId: string) => {
+    // Optimized: Fetch from segments table which has pre-calculated aggregates
+    const { data: segData, error: segErr } = await supabase
+      .from('segments')
+      .select('total_customers, avg_churn_score, avg_revenue, pct_high_risk')
+      .eq('dataset_id', dsId);
 
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from('predictions')
-        .select('customer_id,churn_score,risk_level')
-        .eq('dataset_id', dsId)
-        .range(from, from + step - 1);
+    if (segErr || !segData) {
+      // Fallback to basic count if segments not ready
+      const { count } = await supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('dataset_id', dsId);
+      setSummaryStats(prev => ({ ...prev, total: count || 0 }));
+      return;
+    }
 
-      if (error || !data) {
-        hasMore = false;
-      } else {
-        allPreds = [...allPreds, ...data];
-        if (data.length < step) hasMore = false;
-        else from += step;
+    let total = 0;
+    let totalScoreWeighted = 0;
+    let hrCount = 0;
+    let hrRev = 0;
+
+    segData.forEach(s => {
+      const count = s.total_customers || 0;
+      total += count;
+      totalScoreWeighted += (s.avg_churn_score || 0) * count;
+      
+      // Calculate high risk and revenue at risk from segment metrics
+      if (s.pct_high_risk > 0) {
+        const highRiskInSegment = Math.round((s.pct_high_risk / 100) * count);
+        hrCount += highRiskInSegment;
+        hrRev += (s.avg_revenue || 0) * highRiskInSegment;
       }
-    }
+    });
 
-    if (allPreds.length > 0) {
-      let totalScore = 0;
-      let hrCount = 0;
-      let hrRev = 0;
-
-      allPreds.forEach(p => {
-        totalScore += p.churn_score || 0;
-        if (p.risk_level?.toLowerCase() === 'high') {
-          hrCount++;
-          const m = metrics.get(p.customer_id);
-          if (m) hrRev += m.mrr;
-        }
-      });
-
-      setSummaryStats({
-        total: allPreds.length,
-        avgScore: allPreds.length > 0 ? totalScore / allPreds.length : 0,
-        highRiskCount: hrCount,
-        revenueAtRisk: hrRev,
-        highRiskPct: allPreds.length > 0 ? (hrCount / allPreds.length) * 100 : 0
-      });
-    }
+    setSummaryStats({
+      total,
+      avgScore: total > 0 ? totalScoreWeighted / total : 0,
+      highRiskCount: hrCount,
+      revenueAtRisk: hrRev,
+      highRiskPct: total > 0 ? (hrCount / total) * 100 : 0
+    });
   }, [supabase]);
 
   const loadCsvMetrics = async (dsId: string) => {
@@ -345,10 +340,10 @@ function AnalyticsPageContent() {
   }, [datasetId]);
 
   useEffect(() => {
-    if (datasetId && csvMetrics.size > 0) {
-      loadSummaryStats(datasetId, csvMetrics);
+    if (datasetId) {
+      loadSummaryStats(datasetId);
     }
-  }, [datasetId, csvMetrics.size, loadSummaryStats]);
+  }, [datasetId, loadSummaryStats]);
 
   // 3. Load Page Data
   useEffect(() => {
@@ -543,7 +538,7 @@ function AnalyticsPageContent() {
                 <tr><td colSpan={11} className="px-4 py-12 text-center text-xs text-gray-400">No customers found</td></tr>
               ) : (
                 rows.map(c => (
-                  <tr key={c.customer_id} className={`transition-colors ${c.churn_score >= 70 ? 'bg-red-50/40 hover:bg-red-50/60' : 'hover:bg-[var(--bg1)]'} ${selectedIds.has(c.customer_id) ? 'bg-[var(--bg2)]' : ''}`}>
+                  <tr key={c.customer_id} className={`transition-colors hover:bg-[var(--bg1)] ${selectedIds.has(c.customer_id) ? 'bg-[var(--bg2)]' : ''}`}>
                     <td className="px-4 py-3 text-center">
                       <input
                         type="checkbox"
@@ -565,7 +560,7 @@ function AnalyticsPageContent() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-0.5">
-                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md inline-block w-fit uppercase tracking-wider ${planColors[c.plan_type] || 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block w-fit uppercase tracking-wider ${planColors[c.plan_type] || 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
                           {c.plan_type}
                         </span>
                         <span className="text-[10px] text-[var(--t4)] ml-1 capitalize">{c.contract_type}</span>
@@ -585,19 +580,19 @@ function AnalyticsPageContent() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider ${c.churn_score >= 70 ? 'bg-red-500 text-white border-red-600' : getFallbackPalette(c.segment_label).badgeClass}`}>{c.segment_label}</span>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${getFallbackPalette(c.segment_label).badgeClass} ${c.churn_score >= 70 ? '!bg-red-50 !text-red-600 !border-red-200' : ''}`}>{c.segment_label}</span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="text-xs text-[var(--t2)]">{c.total_users ?? '0'}</span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-sm font-black ${riskColors[c.risk_level]}`}>{c.churn_score}</span>
+                      <span className={`text-sm font-bold ${riskColors[c.risk_level]}`}>{c.churn_score}</span>
                     </td>
                     <td className="px-4 py-3">
                       <Badge label={c.risk_level} variant={c.risk_level === 'Low' ? 'low' : c.risk_level === 'High' ? 'high' : 'med'} />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="text-xs font-black text-[var(--t)]">${c.mrr?.toLocaleString('en-US') ?? '0'}</span>
+                      <span className="text-xs font-bold text-[var(--t)]">${c.mrr?.toLocaleString('en-US') ?? '0'}</span>
                     </td>
                     <td className="px-4 py-3 text-left">
                       <div className="flex items-center justify-start gap-2">

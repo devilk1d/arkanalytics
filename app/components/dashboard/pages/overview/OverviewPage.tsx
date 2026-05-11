@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect, useMemo, memo } from 'react';
 import DashboardLayout from '../../layout/DashboardLayout';
 import StatCard from '../../ui/StatCard';
 import Card from '../../ui/Card';
@@ -24,7 +25,7 @@ const quickActions = [
   { label: 'Open Team Chat', href: '/dashboard/chat', color: 'var(--p)', bg: 'var(--bg1)', icon: '●' },
 ];
 
-export default function OverviewPage({
+const OverviewPage = ({
   stats, riskData, flowData, planData, segmentData,
 }: {
   stats?: OverviewStats;
@@ -32,13 +33,16 @@ export default function OverviewPage({
   flowData?: any;
   planData?: any[];
   segmentData?: any[];
-}) {
-  const data = stats || {
+}) => {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
+
+  const data = useMemo(() => stats || {
     totalCustomers: 0,
     safeCustomers: 0,
     churnRisk: 0,
     predictedChurn: 0,
-  };
+  }, [stats]);
 
   const safeRate = data.totalCustomers > 0
     ? (data.safeCustomers / data.totalCustomers * 100).toFixed(1)
@@ -49,7 +53,7 @@ export default function OverviewPage({
   const hasSegments = segments.length > 0;
 
   /* Insight alerts — dynamic based on real data */
-  const alerts = [
+  const alerts = useMemo(() => [
     ...(data.predictedChurn > 0
       ? [{ level: 'high', label: `${data.predictedChurn.toLocaleString('en-US')} customers flagged as high churn risk`, time: 'Latest dataset' }]
       : []),
@@ -57,7 +61,9 @@ export default function OverviewPage({
       ? [{ level: 'med', label: `Churn rate at ${data.churnRisk}% — above 10% recommended threshold`, time: 'Current' }]
       : []),
     { level: 'low', label: 'Customer flow and risk level data is up to date', time: 'Auto-refreshed' },
-  ];
+  ], [data]);
+
+  if (!isMounted) return <div className="h-screen bg-[var(--bg)] animate-pulse" />;
 
   return (
     <DashboardLayout page="Dashboard Overview">
@@ -127,10 +133,10 @@ export default function OverviewPage({
 
           {/* Charts row */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <Card className="md:col-span-3">
+            <Card className="md:col-span-2">
               <ChurnTrendChart data={riskData} />
             </Card>
-            <Card className="md:col-span-2">
+            <Card className="md:col-span-3">
               <CustomerFlowChart data={flowData} />
             </Card>
           </div>
@@ -285,3 +291,4 @@ export default function OverviewPage({
     </DashboardLayout>
   );
 }
+export default memo(OverviewPage);
