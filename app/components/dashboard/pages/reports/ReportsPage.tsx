@@ -9,6 +9,7 @@ import PermissionGate from '../../ui/PermissionGate';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
+import AuthDropdown from '@/app/components/auth/AuthDropdown';
 
 type Report = {
   id: string;
@@ -51,6 +52,9 @@ const formatSize = (bytes: number | null) => {
 };
 
 function ReportsPageContent({ datasetId }: { datasetId?: string }) {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => setIsMounted(true), []);
+
   const { workspace, myRole } = useDashboardContext();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -171,7 +175,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
         body: JSON.stringify({
           workspace_id: workspace.id,
           dataset_id: datasetId,
-          name: reportName.trim() || `${reportType.toUpperCase()} Report - ${new Date().toLocaleDateString()}`,
+          name: reportName.trim() || `${reportType.toUpperCase()} Report - ${new Date().toLocaleDateString('en-US')}`,
           type: exportType,
           report_category: reportType,
           date_range: dateRange,
@@ -319,7 +323,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
           <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Report Name <span className="normal-case text-gray-400 font-normal">(optional)</span></label>
           <input
             type="text"
-            placeholder={`e.g. Q2 Churn Analysis - ${new Date().toLocaleDateString()}`}
+            placeholder={`e.g. Q2 Churn Analysis - ${isMounted ? new Date().toLocaleDateString('en-US') : ''}`}
             value={reportName}
             onChange={e => setReportName(e.target.value)}
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-black transition-colors placeholder:text-gray-300"
@@ -327,56 +331,46 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
         </div>
 
         <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Report Type</label>
-            <select
-              value={reportType}
-              onChange={e => setReportType(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-black transition-colors appearance-none bg-white"
-            >
-              <option value="churn">Churn Analysis</option>
-              <option value="segmentation">Customer Segmentation</option>
-              <option value="forecast">Revenue Forecast</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Date Range</label>
-            <select
-              value={dateRange}
-              onChange={e => setDateRange(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-black transition-colors appearance-none bg-white"
-            >
-              <option value="7d">Last 7 days</option>
-              <option value="30d">Last 30 days</option>
-              <option value="90d">Last 90 days</option>
-              <option value="all">Full Dataset</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Export Type</label>
-            <select
-              value={exportType}
-              onChange={e => setExportType(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-black transition-colors appearance-none bg-white"
-            >
-              <option value="pdf">PDF Document</option>
-              <option value="csv">CSV Spreadsheet</option>
-              <option value="xlsx">Excel (.xlsx)</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Select Segment</label>
-            <select
-              value={segments}
-              onChange={e => setSegments(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-black transition-colors appearance-none bg-white"
-            >
-              <option value="all">All Segments</option>
-              {availableSegments.map(label => (
-                <option key={label} value={label}>{label}</option>
-              ))}
-            </select>
-          </div>
+          <AuthDropdown
+            label="Report Type"
+            value={reportType}
+            onChange={setReportType}
+            options={[
+              { label: 'Churn Analysis', value: 'churn' },
+              { label: 'Customer Segmentation', value: 'segmentation' },
+              { label: 'Revenue Forecast', value: 'forecast' },
+            ]}
+          />
+          <AuthDropdown
+            label="Date Range"
+            value={dateRange}
+            onChange={setDateRange}
+            options={[
+              { label: 'Last 7 days', value: '7d' },
+              { label: 'Last 30 days', value: '30d' },
+              { label: 'Last 90 days', value: '90d' },
+              { label: 'Full Dataset', value: 'all' },
+            ]}
+          />
+          <AuthDropdown
+            label="Export Type"
+            value={exportType}
+            onChange={setExportType}
+            options={[
+              { label: 'PDF Document', value: 'pdf' },
+              { label: 'CSV Spreadsheet', value: 'csv' },
+              { label: 'Excel (.xlsx)', value: 'xlsx' },
+            ]}
+          />
+          <AuthDropdown
+            label="Select Segment"
+            value={segments}
+            onChange={setSegments}
+            options={[
+              { label: 'All Segments', value: 'all' },
+              ...availableSegments.map(label => ({ label, value: label }))
+            ]}
+          />
         </div>
 
         <div className="flex gap-3">
@@ -431,7 +425,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                     <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-lg ${typeColors[r.type] || 'bg-gray-100'}`}>{r.type}</span>
                   </td>
                   <td className="px-5 py-3 text-sm text-gray-600">
-                    {new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </td>
                   <td className="px-5 py-3">
                     <Badge 
@@ -569,7 +563,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                     </div>
                   </td>
                   <td className="px-5 py-3.5 text-xs text-gray-500">
-                    {new Date(s.next_run_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {new Date(s.next_run_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="text-xs text-gray-500 max-w-[150px] truncate" title={s.recipients?.join(', ')}>
@@ -623,33 +617,27 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
             </div>
 
             <form onSubmit={handleCreateSchedule} className="p-5 space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Select Base Report</label>
-                <select
-                  value={selectedBaseReportId}
-                  onChange={e => {
-                    const id = e.target.value;
-                    setSelectedBaseReportId(id);
-                    const r = reports.find(item => item.id === id);
-                    if (r) {
-                      setSchedName(`Auto: ${r.name.replace(/ - \d.*$/, '')}`);
-                      setSchedExport(r.type);
-                      const upper = r.name.toUpperCase();
-                      let cat: 'churn' | 'segmentation' | 'forecast' = 'churn';
-                      if (upper.includes('SEGMENT')) cat = 'segmentation';
-                      else if (upper.includes('FORECAST') || upper.includes('REVENUE')) cat = 'forecast';
-                      setSchedCat(cat);
-                    }
-                  }}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-black outline-none focus:border-black transition-colors bg-white truncate"
-                >
-                  {reports.map(r => (
-                    <option key={r.id} value={r.id}>
-                      {r.name} ({r.type.toUpperCase()})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <AuthDropdown
+                label="Select Base Report"
+                value={selectedBaseReportId}
+                onChange={id => {
+                  setSelectedBaseReportId(id);
+                  const r = reports.find(item => item.id === id);
+                  if (r) {
+                    setSchedName(`Auto: ${r.name.replace(/ - \d.*$/, '')}`);
+                    setSchedExport(r.type);
+                    const upper = r.name.toUpperCase();
+                    let cat: 'churn' | 'segmentation' | 'forecast' = 'churn';
+                    if (upper.includes('SEGMENT')) cat = 'segmentation';
+                    else if (upper.includes('FORECAST') || upper.includes('REVENUE')) cat = 'forecast';
+                    setSchedCat(cat);
+                  }
+                }}
+                options={reports.map(r => ({
+                  label: `${r.name} (${r.type.toUpperCase()})`,
+                  value: r.id
+                }))}
+              />
 
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Schedule Name</label>
@@ -676,18 +664,17 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                     {schedCat}
                   </div>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Frequency</label>
-                  <select
-                    value={schedFreq}
-                    onChange={e => setSchedFreq(e.target.value as any)}
-                    className="w-full border border-gray-200 rounded-xl px-2 py-2.5 text-xs text-black outline-none focus:border-black transition-colors bg-white"
-                  >
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
-                </div>
+                <AuthDropdown
+                  label="Frequency"
+                  value={schedFreq}
+                  onChange={v => setSchedFreq(v as any)}
+                  variant="compact"
+                  options={[
+                    { label: 'Daily', value: 'daily' },
+                    { label: 'Weekly', value: 'weekly' },
+                    { label: 'Monthly', value: 'monthly' }
+                  ]}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -702,35 +689,30 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                   />
                 </div>
                 {schedFreq === 'weekly' ? (
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Day of Week</label>
-                    <select
-                      value={schedDayOfWeek}
-                      onChange={e => setSchedDayOfWeek(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-black outline-none focus:border-black transition-colors bg-white"
-                    >
-                      <option value="0">Sunday</option>
-                      <option value="1">Monday</option>
-                      <option value="2">Tuesday</option>
-                      <option value="3">Wednesday</option>
-                      <option value="4">Thursday</option>
-                      <option value="5">Friday</option>
-                      <option value="6">Saturday</option>
-                    </select>
-                  </div>
+                  <AuthDropdown
+                    label="Day of Week"
+                    value={schedDayOfWeek}
+                    onChange={setSchedDayOfWeek}
+                    options={[
+                      { label: 'Sunday', value: '0' },
+                      { label: 'Monday', value: '1' },
+                      { label: 'Tuesday', value: '2' },
+                      { label: 'Wednesday', value: '3' },
+                      { label: 'Thursday', value: '4' },
+                      { label: 'Friday', value: '5' },
+                      { label: 'Saturday', value: '6' }
+                    ]}
+                  />
                 ) : schedFreq === 'monthly' ? (
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Day of Month</label>
-                    <select
-                      value={schedDayOfMonth}
-                      onChange={e => setSchedDayOfMonth(e.target.value)}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-black outline-none focus:border-black transition-colors bg-white"
-                    >
-                      {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                        <option key={d} value={d}>{d}{d === 1 ? 'st' : d === 2 ? 'nd' : d === 3 ? 'rd' : 'th'}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <AuthDropdown
+                    label="Day of Month"
+                    value={schedDayOfMonth}
+                    onChange={setSchedDayOfMonth}
+                    options={Array.from({ length: 31 }, (_, i) => i + 1).map(d => ({
+                      label: `${d}${d === 1 ? 'st' : d === 2 ? 'nd' : d === 3 ? 'rd' : 'th'}`,
+                      value: String(d)
+                    }))}
+                  />
                 ) : (
                   <div>
                     <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">Interval</label>

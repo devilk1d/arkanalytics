@@ -442,7 +442,7 @@ function DataManagementPageContent() {
                         <Badge label={statusLabel(ds.status)} variant={statusBadgeVariant(ds.status) as any} />
                       </td>
                       <td className="py-2.5 pr-2 text-xs text-gray-600">
-                        {ds.total_customers ? ds.total_customers.toLocaleString() : '—'}
+                        {ds.total_customers ? ds.total_customers.toLocaleString('en-US') : '—'}
                       </td>
                       <td className="py-2.5 pr-2">
                         {ds.churn_rate_pct != null ? (

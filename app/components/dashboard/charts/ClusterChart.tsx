@@ -23,7 +23,7 @@ const CustomTooltip = ({ active, payload }: any) => {
           </div>
           <div className="flex items-center justify-between gap-4">
             <span className="opacity-60">Revenue</span>
-            <span className="font-black text-[var(--inv-t)]">${Math.round(data.y).toLocaleString()}</span>
+            <span className="font-black text-[var(--inv-t)]">${Math.round(data.y).toLocaleString('en-US')}</span>
           </div>
         </div>
       </div>
@@ -210,7 +210,7 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
             <div key={c.name} className="flex items-center gap-2 group transition-all cursor-default">
               <span className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-transparent group-hover:ring-[var(--b2)]" style={{ backgroundColor: c.color }} />
               <span className="text-[10px] text-[var(--t2)] font-bold uppercase tracking-wider">{c.name}</span>
-              <span className="text-[10px] text-[var(--t4)] font-mono">{c.count.toLocaleString()}</span>
+              <span className="text-[10px] text-[var(--t4)] font-mono">{c.count.toLocaleString('en-US')}</span>
             </div>
           ))}
         </div>

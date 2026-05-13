@@ -28,7 +28,7 @@ export default function Pagination({
   return (
     <div className={`flex items-center justify-between px-4 py-3 border-t border-gray-100 ${className}`}>
       <p className="text-xs text-gray-500">
-        Showing {startItem}–{endItem} of {totalItems.toLocaleString()} results
+        Showing {startItem}–{endItem} of {totalItems.toLocaleString('en-US')} results
       </p>
       
       <div className="flex items-center gap-3">
