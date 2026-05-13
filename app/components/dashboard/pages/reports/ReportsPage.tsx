@@ -14,10 +14,27 @@ type Report = {
   id: string;
   name: string;
   type: 'pdf' | 'csv' | 'xlsx';
+  report_category?: 'churn' | 'segmentation' | 'forecast';
   status: 'pending' | 'ready' | 'error';
   storage_path: string | null;
   file_size: number | null;
   created_at: string;
+};
+
+type ScheduledReport = {
+  id: string;
+  name: string;
+  frequency: 'daily' | 'weekly' | 'monthly';
+  report_category: 'churn' | 'segmentation' | 'forecast';
+  export_type: 'pdf' | 'csv' | 'xlsx';
+  include_segments: string;
+  recipients: string[];
+  time_of_day: string;
+  day_of_week?: number | null;
+  day_of_month?: number | null;
+  next_run_at: string;
+  last_run_at: string | null;
+  is_active: boolean;
 };
 
 const typeColors: Record<string, string> = {
@@ -39,6 +56,26 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Scheduled Reports State
+  const [schedules, setSchedules] = useState<ScheduledReport[]>([]);
+  const [loadingSchedules, setLoadingSchedules] = useState(true);
+  const [deletingSchedId, setDeletingSchedId] = useState<string | null>(null);
+  const [runningScheduler, setRunningScheduler] = useState(false);
+
+  // Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [selectedBaseReportId, setSelectedBaseReportId] = useState<string>('');
+  const [creatingSched, setCreatingSched] = useState(false);
+  const [schedName, setSchedName] = useState('');
+  const [schedFreq, setSchedFreq] = useState<'daily'|'weekly'|'monthly'>('weekly');
+  const [schedCat, setSchedCat] = useState<'churn'|'segmentation'|'forecast'>('churn');
+  const [schedExport, setSchedExport] = useState<'pdf'|'csv'|'xlsx'>('pdf');
+  const [schedSegment, setSchedSegment] = useState('all');
+  const [schedRecipients, setSchedRecipients] = useState('');
+  const [schedTime, setSchedTime] = useState('08:00');
+  const [schedDayOfWeek, setSchedDayOfWeek] = useState('1');
+  const [schedDayOfMonth, setSchedDayOfMonth] = useState('1');
   
   // Dynamic segments list
   const [availableSegments, setAvailableSegments] = useState<string[]>([]);
@@ -58,6 +95,19 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
     }
   }, [workspace?.id]);
 
+  const fetchSchedules = useCallback(async () => {
+    if (!workspace?.id) return;
+    try {
+      const res = await fetch(`/api/reports/schedule?workspace_id=${workspace.id}`);
+      const data = await res.json();
+      if (res.ok) setSchedules(data);
+    } catch (err) {
+      console.error('Failed to fetch schedules:', err);
+    } finally {
+      setLoadingSchedules(false);
+    }
+  }, [workspace?.id]);
+
   const fetchSegments = useCallback(async () => {
     if (!datasetId) return;
     const supabase = createClient();
@@ -74,8 +124,9 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
 
   useEffect(() => {
     fetchReports();
+    fetchSchedules();
     fetchSegments();
-  }, [fetchReports, fetchSegments]);
+  }, [fetchReports, fetchSchedules, fetchSegments]);
 
   // Realtime subscription
   useEffect(() => {
@@ -100,6 +151,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
   }, [workspace?.id, fetchReports]);
 
   // Original State
+  const [reportName, setReportName]   = useState('');
   const [reportType, setReportType]   = useState('churn');
   const [dateRange, setDateRange]     = useState('30d');
   const [exportType, setExportType]   = useState('pdf');
@@ -119,7 +171,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
         body: JSON.stringify({
           workspace_id: workspace.id,
           dataset_id: datasetId,
-          name: `${reportType.toUpperCase()} Report - ${new Date().toLocaleDateString()}`,
+          name: reportName.trim() || `${reportType.toUpperCase()} Report - ${new Date().toLocaleDateString()}`,
           type: exportType,
           report_category: reportType,
           date_range: dateRange,
@@ -174,11 +226,105 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
     }
   };
 
+  const handleCreateSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!workspace?.id) return;
+    if (!schedName.trim()) {
+      toast.error('Schedule name is required');
+      return;
+    }
+
+    setCreatingSched(true);
+    try {
+      const emails = schedRecipients
+        .split(',')
+        .map(e => e.trim())
+        .filter(e => e.includes('@'));
+
+      const res = await fetch('/api/reports/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_id: workspace.id,
+          name: schedName.trim(),
+          frequency: schedFreq,
+          report_category: schedCat,
+          export_type: schedExport,
+          include_segments: schedSegment,
+          recipients: emails,
+          time_of_day: schedTime,
+          day_of_week: schedFreq === 'weekly' ? schedDayOfWeek : null,
+          day_of_month: schedFreq === 'monthly' ? schedDayOfMonth : null
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to create schedule');
+      }
+
+      toast.success('Schedule activated');
+      setShowModal(false);
+      setSchedName('');
+      setSchedRecipients('');
+      fetchSchedules();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setCreatingSched(false);
+    }
+  };
+
+  const handleDeleteSchedule = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this schedule?')) return;
+    setDeletingSchedId(id);
+    try {
+      const res = await fetch(`/api/reports/schedule?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete schedule');
+      toast.success('Schedule removed');
+      setSchedules(prev => prev.filter(s => s.id !== id));
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setDeletingSchedId(null);
+    }
+  };
+
+
+  const handleTriggerScheduler = async () => {
+    setRunningScheduler(true);
+    const toastId = toast.loading('Executing due schedules...');
+    try {
+      const res = await fetch('/api/reports/scheduler', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Scheduler failed');
+      
+      toast.success(`Executed ${data.executed_count || 0} scheduled reports`, { id: toastId });
+      fetchReports();
+      fetchSchedules();
+    } catch (err: any) {
+      toast.error(err.message, { id: toastId });
+    } finally {
+      setRunningScheduler(false);
+    }
+  };
+
   return (
     <DashboardLayout page="Reports">
       <Card className="mb-4">
         <h3 className="text-sm font-bold text-black mb-1">Generate Custom Report</h3>
         <p className="text-xs text-gray-400 mb-5">Create a new analytics report with custom parameters</p>
+
+        <div className="mb-4">
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5 block">Report Name <span className="normal-case text-gray-400 font-normal">(optional)</span></label>
+          <input
+            type="text"
+            placeholder={`e.g. Q2 Churn Analysis - ${new Date().toLocaleDateString()}`}
+            value={reportName}
+            onChange={e => setReportName(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-black transition-colors placeholder:text-gray-300"
+          />
+        </div>
 
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
@@ -347,25 +493,286 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
             <h3 className="text-sm font-bold text-black">Scheduled Reports</h3>
             <p className="text-xs text-gray-400">Automatically generated reports on a recurring schedule</p>
           </div>
-          <Button size="sm" variant="secondary"
-            icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}
-          >
-            Add Schedule
-          </Button>
+          <div className="flex items-center gap-2">
+            <button
+              disabled={runningScheduler}
+              onClick={handleTriggerScheduler}
+              title="Simulate Cron Execution Now"
+              className="px-3 py-2 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-black hover:text-white rounded-xl transition-all flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <svg className={runningScheduler ? "animate-spin" : ""} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+              Run Scheduler
+            </button>
+            <Button size="sm" variant="secondary"
+              onClick={() => {
+                if (reports.length === 0) {
+                  toast.error('Please generate a report first to use as a template');
+                  return;
+                }
+                const base = reports[0];
+                setSelectedBaseReportId(base.id);
+                setSchedName(`Auto: ${base.name.replace(/ - \d.*$/, '')}`);
+                setSchedExport(base.type);
+                const upper = base.name.toUpperCase();
+                let cat: 'churn' | 'segmentation' | 'forecast' = 'churn';
+                if (upper.includes('SEGMENT')) cat = 'segmentation';
+                else if (upper.includes('FORECAST') || upper.includes('REVENUE')) cat = 'forecast';
+                setSchedCat(cat);
+                setSchedSegment('all');
+                setSchedRecipients('');
+                setShowModal(true);
+              }}
+              icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}
+            >
+              Add Schedule
+            </Button>
+          </div>
         </div>
-        <table className="w-full text-gray-400">
-          <thead>
-            <tr className="border-b border-gray-100">
-              {['Report Name', 'Frequency', 'Next Run', 'Recipients', 'Actions'].map(h => (
-                <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100">
+                {['Schedule Name', 'Config', 'Frequency', 'Next Run', 'Recipients', 'Actions'].map(h => (
+                  <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loadingSchedules ? (
+                <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-gray-400">Loading schedules...</td></tr>
+              ) : schedules.length === 0 ? (
+                <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-gray-400">No scheduled reports active</td></tr>
+              ) : schedules.map(s => (
+                <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-5 py-3.5">
+                    <div className="text-sm font-medium text-black">{s.name}</div>
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wider mt-0.5">Target: {s.include_segments}</div>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-gray-100 text-gray-700">{s.report_category}</span>
+                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${typeColors[s.export_type] || 'bg-gray-100'}`}>{s.export_type}</span>
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <div className="text-xs font-semibold text-gray-700 capitalize">
+                      {s.frequency}
+                    </div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">
+                      {s.frequency === 'weekly' && s.day_of_week !== null && s.day_of_week !== undefined
+                        ? `Every ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][s.day_of_week || 0]} at ${s.time_of_day}`
+                        : s.frequency === 'monthly' && s.day_of_month 
+                        ? `Day ${s.day_of_month} at ${s.time_of_day}`
+                        : `At ${s.time_of_day}`}
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5 text-xs text-gray-500">
+                    {new Date(s.next_run_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <div className="text-xs text-gray-500 max-w-[150px] truncate" title={s.recipients?.join(', ')}>
+                      {s.recipients?.length ? s.recipients.join(', ') : 'Archive Only'}
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    {isAdmin && (
+                      <button 
+                        disabled={deletingSchedId === s.id}
+                        onClick={() => handleDeleteSchedule(s.id)}
+                        title="Remove Schedule"
+                        className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 hover:border-red-500 hover:bg-red-500 hover:text-white transition-all disabled:opacity-30 text-gray-400"
+                      >
+                        {deletingSchedId === s.id ? (
+                          <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                          </svg>
+                        ) : (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                          </svg>
+                        )}
+                      </button>
+                    )}
+                  </td>
+                </tr>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td colSpan={5} className="px-5 py-8 text-center text-sm">No scheduled reports yet</td></tr>
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </Card>
+
+      {/* MODAL: ADD SCHEDULE */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-gray-100">
+            <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+              <div>
+                <h3 className="text-base font-bold text-black">New Scheduled Report</h3>
+                <p className="text-xs text-gray-400 mt-0.5">Configure automated reporting interval</p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-black transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSchedule} className="p-5 space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Select Base Report</label>
+                <select
+                  value={selectedBaseReportId}
+                  onChange={e => {
+                    const id = e.target.value;
+                    setSelectedBaseReportId(id);
+                    const r = reports.find(item => item.id === id);
+                    if (r) {
+                      setSchedName(`Auto: ${r.name.replace(/ - \d.*$/, '')}`);
+                      setSchedExport(r.type);
+                      const upper = r.name.toUpperCase();
+                      let cat: 'churn' | 'segmentation' | 'forecast' = 'churn';
+                      if (upper.includes('SEGMENT')) cat = 'segmentation';
+                      else if (upper.includes('FORECAST') || upper.includes('REVENUE')) cat = 'forecast';
+                      setSchedCat(cat);
+                    }
+                  }}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-black outline-none focus:border-black transition-colors bg-white truncate"
+                >
+                  {reports.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.type.toUpperCase()})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Schedule Name</label>
+                <input 
+                  type="text" 
+                  required
+                  placeholder="e.g., Weekly Executive Briefing"
+                  value={schedName}
+                  onChange={e => setSchedName(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-black outline-none focus:border-black transition-colors"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">Locked Format</label>
+                  <div className="w-full border border-gray-100 rounded-xl px-3 py-2.5 text-xs font-bold text-gray-500 bg-gray-50 uppercase">
+                    {schedExport}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">Analytics Type</label>
+                  <div className="w-full border border-gray-100 rounded-xl px-3 py-2.5 text-xs font-bold text-gray-500 bg-gray-50 capitalize truncate">
+                    {schedCat}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Frequency</label>
+                  <select
+                    value={schedFreq}
+                    onChange={e => setSchedFreq(e.target.value as any)}
+                    className="w-full border border-gray-200 rounded-xl px-2 py-2.5 text-xs text-black outline-none focus:border-black transition-colors bg-white"
+                  >
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Execution Time</label>
+                  <input
+                    type="time"
+                    required
+                    value={schedTime}
+                    onChange={e => setSchedTime(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-black outline-none focus:border-black transition-colors bg-white"
+                  />
+                </div>
+                {schedFreq === 'weekly' ? (
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Day of Week</label>
+                    <select
+                      value={schedDayOfWeek}
+                      onChange={e => setSchedDayOfWeek(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-black outline-none focus:border-black transition-colors bg-white"
+                    >
+                      <option value="0">Sunday</option>
+                      <option value="1">Monday</option>
+                      <option value="2">Tuesday</option>
+                      <option value="3">Wednesday</option>
+                      <option value="4">Thursday</option>
+                      <option value="5">Friday</option>
+                      <option value="6">Saturday</option>
+                    </select>
+                  </div>
+                ) : schedFreq === 'monthly' ? (
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Day of Month</label>
+                    <select
+                      value={schedDayOfMonth}
+                      onChange={e => setSchedDayOfMonth(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-black outline-none focus:border-black transition-colors bg-white"
+                    >
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                        <option key={d} value={d}>{d}{d === 1 ? 'st' : d === 2 ? 'nd' : d === 3 ? 'rd' : 'th'}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-1.5">Interval</label>
+                    <div className="w-full border border-gray-100 rounded-xl px-3 py-2.5 text-sm text-gray-400 bg-gray-50/50">
+                      Every Day
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1.5">Notification Emails (Optional)</label>
+                <input 
+                  type="text" 
+                  placeholder="admin@company.com, vp@company.com"
+                  value={schedRecipients}
+                  onChange={e => setSchedRecipients(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-black outline-none focus:border-black transition-colors"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">Separate multiple emails with commas</p>
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 py-2.5 bg-gray-100 text-gray-600 text-sm font-semibold rounded-xl hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingSched}
+                  className="flex-1 py-2.5 bg-black text-white text-sm font-semibold rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {creatingSched ? 'Saving...' : 'Activate Schedule'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }
