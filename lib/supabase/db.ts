@@ -257,3 +257,69 @@ export async function deleteReport(reportId: string) {
         .eq('id', reportId)
     if (error) throw error
 }
+
+// ── Scheduled Reports ─────────────────────────────────────────────────────────
+
+export async function getScheduledReports(workspaceId: string) {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('scheduled_reports')
+        .select('*')
+        .eq('workspace_id', workspaceId)
+        .order('created_at', { ascending: false })
+    if (error) throw error
+    return data
+}
+
+export async function createScheduledReport(scheduleData: {
+    workspace_id: string,
+    user_id: string,
+    name: string,
+    frequency: 'daily' | 'weekly' | 'monthly',
+    report_category: 'churn' | 'segmentation' | 'forecast',
+    export_type: 'pdf' | 'csv' | 'xlsx',
+    include_segments: string,
+    recipients: string[],
+    time_of_day?: string,
+    day_of_week?: number | null,
+    day_of_month?: number | null,
+    next_run_at: string
+}) {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('scheduled_reports')
+        .insert(scheduleData)
+        .select()
+        .single()
+    if (error) throw error
+    return data
+}
+
+export async function deleteScheduledReport(scheduleId: string) {
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('scheduled_reports')
+        .delete()
+        .eq('id', scheduleId)
+    if (error) throw error
+}
+
+export async function getDueScheduledReports() {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('scheduled_reports')
+        .select('*')
+        .eq('is_active', true)
+        .lte('next_run_at', new Date().toISOString())
+    if (error) throw error
+    return data
+}
+
+export async function updateScheduledReportNextRun(scheduleId: string, nextRunAt: string, lastRunAt: string) {
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('scheduled_reports')
+        .update({ next_run_at: nextRunAt, last_run_at: lastRunAt })
+        .eq('id', scheduleId)
+    if (error) throw error
+}
