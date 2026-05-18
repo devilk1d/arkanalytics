@@ -17,6 +17,7 @@ interface ChurnXai {
     reason: string;
   };
   error?: string;
+  detail?: string;
 }
 
 /* ─── Sub-components ─── */
@@ -41,27 +42,57 @@ function LoyaltyRiskBadge({ show }: { show: boolean }) {
   );
 }
 
-function XaiPanel({ raw }: { raw: string | null }) {
+function XaiPanel({ raw, onRetry, isRetrying = false }: { raw: string | null, onRetry?: () => void, isRetrying?: boolean }) {
   if (!raw) return null;
 
   let xai: ChurnXai | null = null;
+  let parseError = false;
+
   try {
+    // Standard cleaning
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
     xai = JSON.parse(cleaned);
   } catch {
-    // not JSON — show as plain fallback
+    // Fallback: extract anything between { and }
+    try {
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        xai = JSON.parse(raw.substring(start, end + 1));
+      } else {
+        parseError = true;
+      }
+    } catch {
+      parseError = true;
+    }
   }
 
-  if (!xai || xai.error) {
+  // Basic validation of expected fields
+  const isInvalid = !xai || (!xai.score_reason && !xai.error && !xai.detail);
+
+  if (parseError || isInvalid || xai?.error || xai?.detail) {
     return (
-      <div className="border border-blue-100 bg-blue-50 rounded-2xl p-4 mb-4">
-        <div className="flex items-center gap-2 mb-2">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
-            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          <span className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide">AI Explanation</span>
+      <div className="border border-red-100 bg-red-50 rounded-2xl p-4 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span className="text-[11px] font-semibold text-red-700 uppercase tracking-wide">AI Error</span>
+          </div>
+          {onRetry && (
+            <button 
+              onClick={onRetry} 
+              disabled={isRetrying}
+              className="text-[10px] font-bold text-red-600 hover:underline disabled:opacity-50"
+            >
+              {isRetrying ? 'Retrying...' : 'Retry Generation'}
+            </button>
+          )}
         </div>
-        <p className="text-xs text-gray-600 leading-relaxed">{xai?.error ?? raw}</p>
+        <p className="text-[11px] text-gray-600 leading-relaxed font-mono bg-white/50 p-2 rounded-lg border border-red-100 overflow-hidden text-ellipsis">
+          {xai?.error || xai?.detail || (parseError ? `Parse Error: ${raw.slice(0, 100)}...` : raw)}
+        </p>
       </div>
     );
   }
@@ -77,14 +108,14 @@ function XaiPanel({ raw }: { raw: string | null }) {
 
       <div className="border-l-2 border-blue-300 pl-3 py-0.5">
         <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Mengapa Score Ini?</p>
-        <p className="text-xs text-gray-700 leading-relaxed">{xai.score_reason}</p>
+        <p className="text-xs text-gray-700 leading-relaxed">{xai!.score_reason}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-red-50 border border-red-100 rounded-xl p-3">
           <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wide mb-2">Faktor Risiko Utama</p>
           <div className="flex flex-col gap-1.5">
-            {xai.risk_factors?.map((f, i) => (
+            {xai!.risk_factors?.map((f, i) => (
               <div key={i} className="flex items-start gap-1.5">
                 <span className="text-[10px] text-red-400 mt-0.5 shrink-0">▲</span>
                 <p className="text-[11px] text-gray-700 leading-relaxed">{f}</p>
@@ -94,29 +125,29 @@ function XaiPanel({ raw }: { raw: string | null }) {
         </div>
         <div className="bg-gray-50 border border-gray-100 rounded-xl p-3">
           <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Sinyal Feedback</p>
-          <p className="text-[11px] text-gray-700 leading-relaxed">{xai.feedback_signal}</p>
+          <p className="text-[11px] text-gray-700 leading-relaxed">{xai!.feedback_signal}</p>
         </div>
       </div>
 
-      {xai.action && (
+      {xai!.action && (
         <div className="border border-gray-200 rounded-xl p-3">
           <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Rekomendasi Tindakan</p>
           <div className="grid grid-cols-2 gap-3 mb-2">
             <div>
               <p className="text-[10px] text-gray-400 mb-1">Retensi</p>
               <div className="inline-block text-[11px] font-bold bg-black text-white px-4 py-2.5 rounded-xl leading-tight">
-                {xai.action.retain}
+                {xai!.action.retain}
               </div>
             </div>
             <div>
               <p className="text-[10px] text-gray-400 mb-1">Penawaran</p>
               <div className="inline-block text-[11px] font-semibold bg-gray-100 text-gray-700 px-4 py-2.5 rounded-xl leading-tight border border-gray-200">
-                {xai.action.offer}
+                {xai!.action.offer}
               </div>
             </div>
           </div>
           <p className="text-[11px] text-gray-600 leading-relaxed border-t border-gray-100 pt-2 mt-1">
-            {xai.action.reason}
+            {xai!.action.reason}
           </p>
         </div>
       )}
@@ -263,6 +294,28 @@ export function AnalyzeCustomerModal({
       }
     };
   }, [open, customerId, datasetId, supabase]);
+
+  const handleManualXaiRetry = async () => {
+    if (!data || xaiGenerating) return;
+    setXaiGenerating(true);
+    try {
+      const form = await buildFormData(datasetId, setLoadingStage, setDownloadProgress, supabase);
+      if (!form) return;
+
+      const xaiRes = await window.fetch(
+        `/api/predict-single?customer_id=${encodeURIComponent(customerId)}&dataset_id=${datasetId}`,
+        { method: 'POST', body: form }
+      );
+      if (xaiRes.ok) {
+        const updated = await xaiRes.json();
+        setData(updated as CustomerPrediction);
+      }
+    } catch (err) {
+      console.error('XAI Retry Error:', err);
+    } finally {
+      setXaiGenerating(false);
+    }
+  };
 
   async function buildFormData(
     dsId: string,
@@ -414,7 +467,11 @@ export function AnalyzeCustomerModal({
                   </div>
                 </div>
               ) : (
-                <XaiPanel raw={data.xai_churn_explanation ?? null} />
+                <XaiPanel 
+                  raw={data.xai_churn_explanation ?? null} 
+                  onRetry={handleManualXaiRetry}
+                  isRetrying={xaiGenerating}
+                />
               )}
 
 

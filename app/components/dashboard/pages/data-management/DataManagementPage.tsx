@@ -9,6 +9,7 @@ import Pagination from '../../ui/Pagination';
 import { createClient } from '@/lib/supabase/client';
 import { useDashboardContext } from '../../context/DashboardContext';
 import PermissionGate from '../../ui/PermissionGate';
+import ActionConfirmation from '../../ui/ActionConfirmation';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface DatasetRow {
@@ -106,6 +107,8 @@ function DataManagementPageContent() {
   const PAGE_SIZE = 5;
 
   const [expandedDataset, setExpandedDataset] = useState<string | null>(null);
+  const [datasetToDelete, setDatasetToDelete] = useState<DatasetRow | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const allFilesSelected = Object.keys(REQUIRED_FILES).every(k => files[k as FileKey]);
 
@@ -146,8 +149,9 @@ function DataManagementPageContent() {
   useEffect(() => {
     if (!workspace?.id) return;
 
+    // Use a more unique channel name to avoid conflicts
     const channel = supabase
-      .channel('public:datasets')
+      .channel(`datasets-realtime-${workspace.id}`)
       .on(
         'postgres_changes',
         {
@@ -156,16 +160,36 @@ function DataManagementPageContent() {
           table: 'datasets',
           filter: `workspace_id=eq.${workspace.id}`,
         },
-        () => {
+        (payload) => {
+          console.log('Dataset change received:', payload);
           fetchDatasets();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`Supabase Realtime status for datasets: ${status}`);
+        if (status === 'SUBSCRIBED') {
+          fetchDatasets(); // Fetch once more on connect to be sure
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
   }, [supabase, workspace?.id, fetchDatasets]);
+
+  // Fallback Polling logic: if there are ANY datasets with 'pending' or 'analyzing' status,
+  // we poll every 10 seconds just in case the Realtime subscription fails or drops.
+  useEffect(() => {
+    const hasInProgress = datasets.some(ds => ds.status === 'pending' || ds.status === 'analyzing');
+    if (!hasInProgress) return;
+
+    const interval = setInterval(() => {
+      console.log('Polling datasets status fallback...');
+      fetchDatasets();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [datasets, fetchDatasets]);
 
   // Handle file multi-drop / select
   const handleMultipleFiles = useCallback((selectedFiles: FileList | File[]) => {
@@ -301,10 +325,44 @@ function DataManagementPageContent() {
     setUploading(false);
   }, [allFilesSelected, files, workspace?.id]);
 
+  const handleDeleteDataset = useCallback(async () => {
+    if (!datasetToDelete || !workspace?.id) return;
+    setIsDeleting(true);
+
+    try {
+      // 1. Delete files from storage
+      if (datasetToDelete.storage_path) {
+        const { data: filesInStorage } = await supabase.storage.from('files').list(datasetToDelete.storage_path);
+        if (filesInStorage && filesInStorage.length > 0) {
+          const filePaths = filesInStorage.map(f => `${datasetToDelete.storage_path}/${f.name}`);
+          await supabase.storage.from('files').remove(filePaths);
+        }
+      }
+
+      // 2. Delete the dataset row (cascades to predictions/segments if configured in DB)
+      const { error } = await supabase
+        .from('datasets')
+        .delete()
+        .eq('id', datasetToDelete.id);
+
+      if (error) throw error;
+
+      // 3. Refresh list
+      fetchDatasets();
+      setDatasetToDelete(null);
+    } catch (err) {
+      console.error('Error deleting dataset:', err);
+      alert('Failed to delete dataset. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [datasetToDelete, supabase, workspace?.id, fetchDatasets]);
+
   const statusBadgeVariant = (status: DatasetRow['status']) => {
     if (status === 'done') return 'cleaned';
     if (status === 'error') return 'raw';
     if (status === 'analyzing') return 'med';
+    if (status === 'pending') return 'pending';
     return 'default';
   };
 
@@ -439,7 +497,11 @@ function DataManagementPageContent() {
                         {formatDate(ds.created_at)}
                       </td>
                       <td className="py-2.5 pr-2">
-                        <Badge label={statusLabel(ds.status)} variant={statusBadgeVariant(ds.status) as any} />
+                        <Badge 
+                          label={statusLabel(ds.status)} 
+                          variant={statusBadgeVariant(ds.status) as any} 
+                          loading={ds.status === 'pending' || ds.status === 'analyzing'}
+                        />
                       </td>
                       <td className="py-2.5 pr-2 text-xs text-gray-600">
                         {ds.total_customers ? ds.total_customers.toLocaleString('en-US') : '—'}
@@ -467,6 +529,15 @@ function DataManagementPageContent() {
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={`transition-transform duration-200 ${expandedDataset === ds.id ? 'rotate-180' : ''}`}>
                               <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                          </button>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setDatasetToDelete(ds); }}
+                            className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-50 text-red-400 hover:text-red-500 transition-colors"
+                            title="Delete dataset"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                              <path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                             </svg>
                           </button>
                         </div>
@@ -593,6 +664,17 @@ function DataManagementPageContent() {
           </div>
         </Card>
       )}
+      {/* Deletion Confirmation */}
+      <ActionConfirmation
+        isOpen={!!datasetToDelete}
+        onClose={() => setDatasetToDelete(null)}
+        title="Delete Dataset"
+        description={`Are you sure you want to delete dataset ${datasetToDelete?.id.slice(0, 8)}? This action cannot be undone and will remove all associated analytics.`}
+        actionLabel="Delete"
+        isDangerous={true}
+        isLoading={isDeleting}
+        onConfirm={handleDeleteDataset}
+      />
     </DashboardLayout>
   );
 }

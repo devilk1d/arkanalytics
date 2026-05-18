@@ -85,20 +85,23 @@ export function getSegmentIcon(label: string, colorClass: string) {
 export function getSegmentColorway(label: string) {
   const lower = label.toLowerCase();
   
-  if (lower.includes('risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('leave') || lower.includes('unhappy') || lower.includes('dissatisfied') || lower.includes('poor') || lower.includes('bad') || lower.includes('low')) {
+  if (lower.includes('risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('leave') || lower.includes('unhappy') || lower.includes('dissatisfied') || lower.includes('poor') || lower.includes('bad') || lower.includes('low') || lower.includes('critical') || lower.includes('warning') || lower.includes('at-risk') || lower.includes('lost') || lower.includes('attrition')) {
     return PALETTE[0]; // Red
   }
-  if (lower.includes('loyal') || lower.includes('champion') || lower.includes('satisfied') || lower.includes('best')) {
+  if (lower.includes('champion') || lower.includes('satisfied') || lower.includes('best') || lower.includes('active')) {
     return PALETTE[3]; // Emerald
   }
   if (lower.includes('new') || lower.includes('adopter') || lower.includes('recent') || lower.includes('starter')) {
     return PALETTE[1]; // Blue
   }
-  if (lower.includes('value') || lower.includes('high') || lower.includes('premium') || lower.includes('whale') || lower.includes('tier')) {
+  if (lower.includes('value') || lower.includes('high') || lower.includes('premium') || lower.includes('whale') || lower.includes('tier') || lower.includes('big') || lower.includes('loyal')) {
     return PALETTE[2]; // Purple
   }
-  if (lower.includes('bill') || lower.includes('price') || lower.includes('cost') || lower.includes('usage') || lower.includes('intensive')) {
+  if (lower.includes('bill') || lower.includes('price') || lower.includes('cost') || lower.includes('usage') || lower.includes('intensive') || lower.includes('budget')) {
     return PALETTE[4]; // Amber
+  }
+  if (lower.includes('potential') || lower.includes('interest') || lower.includes('lead') || lower.includes('promising')) {
+    return PALETTE[5]; // Cyan
   }
 
   let hash = 0;
