@@ -3,26 +3,58 @@
 import { useState, useEffect, useCallback, memo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import DashboardLayout from '../../layout/DashboardLayout';
-import StatCard from '../../ui/StatCard';
 import Card from '../../ui/Card';
-import SearchBar from '../../ui/SearchBar';
-import AuthDropdown from '@/app/components/auth/AuthDropdown';
-import ProgressBar from '../../ui/ProgressBar';
-import ClusterChart from '../../charts/ClusterChart';
-import SegmentDistributionChart from '../../charts/SegmentDistributionChart';
-import Pagination from '../../ui/Pagination';
 import PermissionGate from '../../ui/PermissionGate';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { createClient } from '@/lib/supabase/client';
+import ClusterChart from '../../charts/ClusterChart';
+import AuthDropdown from '@/app/components/auth/AuthDropdown';
+
 
 export const PALETTE = [
-  { hex: '#ef4444', textClass: 'text-red-600', iconBgClass: 'bg-red-50', badgeClass: 'bg-red-50/50 text-red-600 border border-red-100' },
-  { hex: '#3b82f6', textClass: 'text-blue-600', iconBgClass: 'bg-blue-50', badgeClass: 'bg-blue-50/50 text-blue-600 border border-blue-100' },
-  { hex: '#a855f7', textClass: 'text-purple-600', iconBgClass: 'bg-purple-50', badgeClass: 'bg-purple-50/50 text-purple-600 border border-purple-100' },
-  { hex: '#10b981', textClass: 'text-emerald-600', iconBgClass: 'bg-emerald-50', badgeClass: 'bg-emerald-50/50 text-emerald-600 border border-emerald-100' },
-  { hex: '#f59e0b', textClass: 'text-amber-600', iconBgClass: 'bg-amber-50', badgeClass: 'bg-amber-50/50 text-amber-600 border border-amber-100' },
-  { hex: '#06b6d4', textClass: 'text-cyan-600', iconBgClass: 'bg-cyan-50', badgeClass: 'bg-cyan-50/50 text-cyan-600 border border-cyan-100' }
+  { hex: 'var(--c-red)', textClass: 'text-[var(--c-red)]', iconBgClass: 'bg-[var(--c-red-bg)]', badgeClass: 'bg-[var(--c-red-bg)] text-[var(--c-red)] border border-[var(--c-red-b)]' },
+  { hex: 'var(--c-blue)', textClass: 'text-[var(--c-blue)]', iconBgClass: 'bg-[var(--c-blue-bg)]', badgeClass: 'bg-[var(--c-blue-bg)] text-[var(--c-blue)] border border-[var(--c-blue-b)]' },
+  { hex: 'var(--c-purple)', textClass: 'text-[var(--c-purple)]', iconBgClass: 'bg-[var(--c-purple-bg)]', badgeClass: 'bg-[var(--c-purple-bg)] text-[var(--c-purple)] border border-[var(--c-purple-b)]' },
+  { hex: 'var(--c-emerald)', textClass: 'text-[var(--c-emerald)]', iconBgClass: 'bg-[var(--c-emerald-bg)]', badgeClass: 'bg-[var(--c-emerald-bg)] text-[var(--c-emerald)] border border-[var(--c-emerald-b)]' },
+  { hex: 'var(--c-amber)', textClass: 'text-[var(--c-amber)]', iconBgClass: 'bg-[var(--c-amber-bg)]', badgeClass: 'bg-[var(--c-amber-bg)] text-[var(--c-amber)] border border-[var(--c-amber-b)]' },
+  { hex: 'var(--c-cyan)', textClass: 'text-[var(--c-cyan)]', iconBgClass: 'bg-[var(--c-cyan-bg)]', badgeClass: 'bg-[var(--c-cyan-bg)] text-[var(--c-cyan)] border border-[var(--c-cyan-b)]' }
 ];
+
+/**
+ * Maps raw ML-generated segment labels from the database
+ * to the business-facing display names used in the UI.
+ */
+export const SEGMENT_LABEL_MAP: Record<string, string> = {
+  // Exact matches (case-insensitive lookup applied via normalizeSegmentLabel)
+  'critical':           'Unhappy Users',
+  'champions':          'Enterprise Anchors',
+  'loyalists':          'Satisfied Mid-Tier',
+  'potentials':         'Billing Intensive',
+  // Also handle common ML variants
+  'at-risk':            'Unhappy Users',
+  'at risk':            'Unhappy Users',
+  'churn risk':         'Unhappy Users',
+  'high risk':          'Unhappy Users',
+  'loyal':              'Satisfied Mid-Tier',
+  'loyal customers':    'Satisfied Mid-Tier',
+  'potential':          'Billing Intensive',
+  'champion':           'Enterprise Anchors',
+};
+
+/**
+ * Returns the display label for a raw segment_label from the DB.
+ * Falls back to the original label if no mapping is found.
+ */
+export function normalizeSegmentLabel(rawLabel: string): string {
+  const lower = rawLabel.toLowerCase().trim();
+  // Exact match first
+  if (SEGMENT_LABEL_MAP[lower]) return SEGMENT_LABEL_MAP[lower];
+  // Partial match fallback
+  for (const [key, mapped] of Object.entries(SEGMENT_LABEL_MAP)) {
+    if (lower.includes(key)) return mapped;
+  }
+  return rawLabel;
+}
 
 export function getSegmentIcon(label: string, colorClass: string) {
   const lower = label.toLowerCase();
@@ -91,11 +123,14 @@ export function getSegmentColorway(label: string) {
   if (lower.includes('champion') || lower.includes('satisfied') || lower.includes('best') || lower.includes('active')) {
     return PALETTE[3]; // Emerald
   }
+  if (lower.includes('enterprise') || lower.includes('anchor') || lower.includes('flagship') || lower.includes('key account')) {
+    return PALETTE[2]; // Purple — premium/enterprise tier
+  }
   if (lower.includes('new') || lower.includes('adopter') || lower.includes('recent') || lower.includes('starter')) {
     return PALETTE[1]; // Blue
   }
   if (lower.includes('value') || lower.includes('high') || lower.includes('premium') || lower.includes('whale') || lower.includes('tier') || lower.includes('big') || lower.includes('loyal')) {
-    return PALETTE[2]; // Purple
+    return PALETTE[3]; // Emerald
   }
   if (lower.includes('bill') || lower.includes('price') || lower.includes('cost') || lower.includes('usage') || lower.includes('intensive') || lower.includes('budget')) {
     return PALETTE[4]; // Amber
@@ -113,6 +148,86 @@ export function getFallbackPalette(label: string) {
   return getSegmentColorway(label);
 }
 
+export function getSegmentDescriptionAndTraits(label: string, avgChurn: number, avgNps: number, avgRevenue: number) {
+  const lower = label.toLowerCase();
+  let desc = '';
+  let traits: string[] = [];
+
+  if (lower.includes('unhappy') || lower.includes('dissatisfied') || lower.includes('critical') || lower.includes('at-risk') || lower.includes('churn risk')) {
+    desc = `High-priority cohort showing critical signals of customer dissatisfaction. These users have low engagement, poor sentiment scores, and elevated churn risk. Immediate intervention via outreach campaigns or pricing adjustments is strongly recommended.`;
+    traits = ['High Churn Score', 'Low Engagement', 'Negative Sentiment', 'Support Escalations'];
+  } else if (lower.includes('enterprise') || lower.includes('anchor')) {
+    desc = `Top-tier enterprise customers serving as anchor accounts. These accounts drive disproportionate revenue, have deep product adoption across multiple seats, and show strong expansion potential. Prioritize for Executive Business Reviews and premium support.`;
+    traits = ['High MRR', 'Multi-seat', 'Deep Adoption', 'Expansion Ready'];
+  } else if (lower.includes('satisfied') && (lower.includes('mid') || lower.includes('tier'))) {
+    desc = `Healthy and consistent mid-market segment showing stable usage and positive satisfaction signals. These users are broadly content with the product and have solid retention profiles, making them ideal candidates for upsell campaigns.`;
+    traits = ['Stable Usage', 'Positive NPS', 'Consistent Billing', 'Upsell Ready'];
+  } else if (lower.includes('billing') || lower.includes('intensive')) {
+    desc = `Usage-heavy segment characterized by high billing volumes relative to their plan tier. These customers extract significant value but may be approaching pricing thresholds. Monitor for plan upgrade opportunities and usage-limit friction points.`;
+    traits = ['High Usage', 'Billing Sensitive', 'Feature-Heavy', 'Plan Upgrade Target'];
+  } else if (lower.includes('power') || lower.includes('champion') || lower.includes('loyal') || lower.includes('best') || lower.includes('high value')) {
+    desc = `Premium tier customer cohort driving high consistent revenue. Characterized by excellent engagement and high product adoption across multiple features.`;
+    traits = ['High MRR', 'Strong NPS', 'Active Daily', 'Multi-seat'];
+  } else if (lower.includes('at-risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('warning') || lower.includes('risk')) {
+    desc = `Critical risk segment exhibiting significant engagement drops, usage declines, or poor customer satisfaction scores. High likelihood of imminent subscription termination.`;
+    traits = ['Declining Usage', 'Low NPS', 'Support Heavy', 'Month-to-Month'];
+  } else if (lower.includes('new') || lower.includes('adopter') || lower.includes('recent') || lower.includes('starter')) {
+    desc = `Newly acquired accounts showing strong initial setup, but requiring active onboarding. Crucial phase for driving feature adoption and preventing early churn.`;
+    traits = ['Fresh Signup', 'Onboarding Phase', 'Basic Plan', 'Active Setup'];
+  } else if (lower.includes('steady') || lower.includes('satisfied') || lower.includes('mid') || lower.includes('normal')) {
+    desc = `Consistent mid-market customers with steady login frequencies and stable usage curves. Represents the core utility segment of our user base.`;
+    traits = ['Stable Usage', 'Consistent Billing', 'Moderate NPS', 'Standard Tier'];
+  } else if (lower.includes('disengaged') || lower.includes('lost') || lower.includes('inactive')) {
+    desc = `Highly inactive or dormant customer cohort showing extremely low login frequencies. Requires immediate reactivation campaigns or proactive support outreach.`;
+    traits = ['No logins >14d', 'Zero Engagement', 'Legacy Setup', 'High Churn Score'];
+  } else if (lower.includes('discount') || lower.includes('promo') || lower.includes('price') || lower.includes('cost')) {
+    desc = `Price-sensitive group predominantly acquired via promotional codes or lower-priced tiers. High risk during price hikes or contract renewal cycles.`;
+    traits = ['Promo-driven', 'Low Margin', 'Cost Conscious', 'Standard Support'];
+  } else {
+    if (avgChurn > 50) {
+      desc = `Cohort characterized by elevated churn risk patterns (${avgChurn}% score) and lower-than-average user retention trends. Proactive outreach is recommended.`;
+      traits = ['Elevated Churn Risk', 'Low Activity', 'Review Required'];
+    } else {
+      desc = `Healthy user cluster exhibiting consistent product engagement patterns and solid commercial metrics. Stable long-term customer segment.`;
+      traits = ['Healthy Accounts', 'Stable LTV', 'Consistent Activity'];
+    }
+  }
+
+  if (avgNps > 0) {
+    desc += ` Shows an average NPS score of ${avgNps.toFixed(1)}/10.`;
+  }
+  if (avgRevenue > 0) {
+    desc += ` Average revenue contribution is $${Math.round(avgRevenue).toLocaleString('en-US')}/month.`;
+  }
+
+  return { desc, traits };
+}
+
+/* Horizontal Stacked share composition bar */
+const StackedBar = ({ data, total }: { data: { label: string; value: number; color: string }[], total: number }) => {
+  return (
+    <div className="w-full">
+      <div className="h-4 w-full bg-[var(--bg3)] rounded-full overflow-hidden flex shadow-inner border border-[var(--b)]">
+        {data.map((item, idx) => {
+          const percentage = total > 0 ? (item.value / total) * 100 : 0;
+          if (percentage === 0) return null;
+          return (
+            <div
+              key={idx}
+              className="h-full first:rounded-l-full last:rounded-r-full transition-all duration-500 hover:opacity-90 relative group cursor-pointer"
+              style={{
+                width: `${percentage}%`,
+                backgroundColor: item.color,
+              }}
+              title={`${item.label}: ${item.value.toLocaleString()} (${percentage.toFixed(1)}%)`}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const SegmentationPageContent = memo(() => {
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => setIsMounted(true), []);
@@ -123,8 +238,17 @@ const SegmentationPageContent = memo(() => {
   const supabase = createClient();
 
   const [loading, setLoading] = useState(true);
+  const [dataset, setDataset] = useState<any>(null);
   const [segmentStats, setSegmentStats] = useState<any[]>([]);
-  const [barData, setBarData] = useState<any[]>([]);
+  const [activeSegLabel, setActiveSegLabel] = useState<string>('');
+  
+  // Campaign Drawer state
+  const [campaignModalOpen, setCampaignModalOpen] = useState(false);
+  const [campaignSubject, setCampaignSubject] = useState('');
+  const [campaignBody, setCampaignBody] = useState('');
+  const [campaignChannel, setCampaignChannel] = useState<'email' | 'push' | 'inapp'>('email');
+  const [campaignSending, setCampaignSending] = useState(false);
+  const [campaignSent, setCampaignSent] = useState(false);
 
   useEffect(() => {
     async function init() {
@@ -145,56 +269,110 @@ const SegmentationPageContent = memo(() => {
     init();
   }, [datasetId, workspace, router, supabase]);
 
-  const loadData = useCallback(async (
-    dsId: string
-  ) => {
+  const loadData = useCallback(async (dsId: string) => {
     setLoading(true);
 
-    if (segmentStats.length === 0) {
-      const { data: segData, error: segError } = await supabase
-        .from('segments')
-        .select('*')
-        .eq('dataset_id', dsId)
-        .order('avg_churn_score', { ascending: false });
+    // Fetch dataset details
+    const { data: datasetData } = await supabase
+      .from('datasets')
+      .select('*')
+      .eq('id', dsId)
+      .single();
+    if (datasetData) setDataset(datasetData);
 
-      if (!segError && segData) {
-        const stats = segData.map((s: any) => {
-          const colorSet = getSegmentColorway(s.segment_label);
+    const { data: segData, error: segError } = await supabase
+      .from('segments')
+      .select('*')
+      .eq('dataset_id', dsId)
+      .order('avg_churn_score', { ascending: false });
 
-          return {
-            label: s.segment_label,
-            value: s.total_customers.toLocaleString('en-US'),
-            badge: `${s.pct_high_risk}%`,
-            avgMrr: `$${Math.round(s.avg_revenue).toLocaleString('en-US')}`,
-            totalMrr: `$${Math.round((s.avg_revenue * s.total_customers) / 1000).toLocaleString('en-US')}K`,
-            metricColorClass: colorSet.textClass,
-            iconBgClass: colorSet.iconBgClass,
-            icon: getSegmentIcon(s.segment_label, colorSet.textClass),
-            accentColor: colorSet.hex,
-            colorSet
-          };
-        });
-        setSegmentStats(stats);
+    if (!segError && segData) {
+      const totalCustomersAll = segData.reduce((acc: number, curr: any) => acc + curr.total_customers, 0);
 
-        const barChartData = segData.map((s: any) => {
-          const colorSet = getSegmentColorway(s.segment_label);
-          return {
-            name: s.segment_label,
-            count: s.total_customers,
-            fill: colorSet.hex
-          };
-        });
-        setBarData(barChartData);
+      const stats = segData.map((s: any) => {
+        const displayLabel = normalizeSegmentLabel(s.segment_label);
+        const colorSet = getSegmentColorway(displayLabel);
+        const share = totalCustomersAll > 0 ? parseFloat(((s.total_customers / totalCustomersAll) * 100).toFixed(1)) : 0;
+        const { desc, traits } = getSegmentDescriptionAndTraits(
+          displayLabel,
+          s.avg_churn_score,
+          s.avg_nps,
+          s.avg_revenue
+        );
+
+        return {
+          label: displayLabel,
+          rawLabel: s.segment_label,
+          count: s.total_customers,
+          value: s.total_customers.toLocaleString('en-US'),
+          share,
+          badge: `${s.pct_high_risk}%`,
+          avgMrrVal: s.avg_revenue,
+          avgMrr: `$${Math.round(s.avg_revenue).toLocaleString('en-US')}`,
+          totalMrr: `$${Math.round((s.avg_revenue * s.total_customers) / 1000).toLocaleString('en-US')}K`,
+          metricColorClass: colorSet.textClass,
+          iconBgClass: colorSet.iconBgClass,
+          icon: getSegmentIcon(s.segment_label, colorSet.textClass),
+          accentColor: colorSet.hex,
+          colorSet,
+          avgUsage: Math.round(s.avg_usage_hrs || 0),
+          avgNps: s.avg_nps || 0,
+          desc,
+          traits
+        };
+      });
+      
+      setSegmentStats(stats);
+      if (stats.length > 0) {
+        setActiveSegLabel(stats[0].label);
       }
     }
 
     setLoading(false);
-  }, [segmentStats.length, supabase]);
+  }, [supabase]);
 
   useEffect(() => {
     if (!datasetId) return;
     loadData(datasetId);
   }, [datasetId, loadData]);
+
+  // Campaign modal triggering
+  const openCampaignModal = (seg: any) => {
+    setCampaignSubject(`[Action Required] Specialized Offer for ${seg.label} Cohort`);
+    setCampaignBody(`Hello,\n\nWe noticed you are one of our key partners. We have prepared exclusive insights and optimization offers for you to get the absolute most out of your current subscription.\n\nBest Regards,\nCustomer Experience Team`);
+    setCampaignChannel('email');
+    setCampaignSent(false);
+    setCampaignSending(false);
+    setCampaignModalOpen(true);
+  };
+
+  const handleSendCampaign = () => {
+    setCampaignSending(true);
+    setTimeout(() => {
+      setCampaignSending(false);
+      setCampaignSent(true);
+      setTimeout(() => {
+        setCampaignModalOpen(false);
+      }, 1500);
+    }, 2000);
+  };
+
+  const getRelativeTime = (dateStr: string) => {
+    try {
+      const parsed = new Date(dateStr);
+      if (isNaN(parsed.getTime())) return '2h ago';
+      const diffMs = Date.now() - parsed.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      const diffHrs = Math.floor(diffMins / 60);
+      if (diffHrs < 24) return `${diffHrs}h ago`;
+      const diffDays = Math.floor(diffHrs / 24);
+      return `${diffDays}d ago`;
+    } catch {
+      return '2h ago';
+    }
+  };
 
   if (!isMounted) return <div className="h-screen bg-[var(--bg)] animate-pulse" />;
 
@@ -230,33 +408,306 @@ const SegmentationPageContent = memo(() => {
     );
   }
 
+  const activeSegmentObj = segmentStats.find(s => s.label === activeSegLabel) || segmentStats[0];
+  const totalCustomersAll = segmentStats.reduce((acc, s) => acc + s.count, 0);
+
   return (
     <DashboardLayout page="Customer Segmentation">
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-4">
-        {segmentStats.map((s, i) => {
-          const colorSet = getSegmentColorway(s.label);
-          return (
-            <StatCard
-              key={i}
-              label={s.label}
-              value={s.value}
-              change={s.avgMrr}
-              changeSuffix={`avg MRR · ${s.badge} high risk`}
-              changePositive={parseFloat(s.badge) < 30}
-              accentColor={colorSet.hex}
-              icon={getSegmentIcon(s.label, colorSet.textClass)}
-            />
-          );
-        })}
-      </div>
-      <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card><ClusterChart segmentOrder={segmentStats.map(s => s.label)} /></Card>
-          <Card>
-            <SegmentDistributionChart data={barData} />
-          </Card>
+      <div className="fade-in pb-10">
+        
+        {/* ── Page Header ── */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-[var(--b)] pb-5">
+          <div>
+            <p className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.14em] mb-1">
+              Insights · Behavioral cohorts
+            </p>
+            <h1 className="font-display text-2xl font-black text-[var(--t)] leading-tight tracking-tight">
+              Customer Segmentation
+            </h1>
+            <p className="text-[12px] text-[var(--t3)] mt-1 max-w-xl">
+              Behavior-based customer cohorts derived from usage, billing, and engagement features using dynamic clustering models.
+            </p>
+          </div>
         </div>
+
+        {/* ── Cohort Selector Cards (replaces static KPI row) ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {segmentStats.map((s, idx) => {
+            const isActive = s.label === activeSegLabel;
+            return (
+              <button
+                key={`top-card-${idx}`}
+                onClick={() => setActiveSegLabel(s.label)}
+                className={`text-left p-4 rounded-2xl border flex flex-col justify-between min-h-[130px] transition-all cursor-pointer ${
+                  isActive
+                    ? 'border-[var(--b3)] bg-[var(--bg2)] shadow-sm'
+                    : 'border-[var(--b)] bg-[var(--surf)] hover:border-[var(--b2)] hover:bg-[var(--bg1)]'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.accentColor }} />
+                  <span className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.08em] truncate">{s.label}</span>
+                </div>
+
+                <div>
+                  <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight mb-1">{s.value}</p>
+                  <p className="text-[10px] font-mono text-[var(--t3)] mb-3">
+                    {s.share}% share · {s.badge} high risk
+                  </p>
+                  <div className="h-1 bg-[var(--bg3)] w-full rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${s.share}%`, backgroundColor: s.accentColor }}
+                    />
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── Bento Grid ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-6">
+          
+          {/* Cluster Map & Customer Share (8/12 Columns) */}
+          <div className="lg:col-span-8 flex flex-col gap-6">
+            <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex-1 min-h-[460px] flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-[13px] font-bold text-[var(--t)]">Cluster Map</h3>
+                    <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">Engagement (x) × Monthly Revenue (y) · Projection</p>
+                  </div>
+                  <div className="flex-shrink-0 z-10 w-44">
+                    <AuthDropdown
+                      value={activeSegLabel || 'all'}
+                      onChange={(val) => setActiveSegLabel(val === 'all' ? '' : val)}
+                      placeholder="Filter Segment"
+                      variant="compact"
+                      options={[
+                        { label: 'All Segments', value: 'all' },
+                        ...segmentStats.map(s => ({ label: s.label, value: s.label }))
+                      ]}
+                    />
+                  </div>
+                </div>
+                <div className="h-[280px]">
+                  <ClusterChart segmentOrder={segmentStats.map(s => s.label)} activeSegment={activeSegLabel} />
+                </div>
+              </div>
+
+              <div>
+                <div className="h-px bg-[var(--b)] my-4" />
+                <div className="text-[10px] font-mono text-[var(--t3)] uppercase tracking-wider mb-2.5">
+                  Composition · share of customer base
+                </div>
+                <StackedBar 
+                  data={segmentStats.map(s => ({ label: s.label, value: s.count, color: s.accentColor }))} 
+                  total={totalCustomersAll} 
+                />
+                <div className="flex justify-between items-center text-[10px] text-[var(--t3)] font-mono mt-1.5">
+                  <span>0</span>
+                  <span>{totalCustomersAll.toLocaleString()} customers</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Active Cohort Inspector (4/12 Columns) */}
+          <div className="lg:col-span-4">
+            {activeSegmentObj ? (
+              <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-6 h-full flex flex-col justify-between min-h-[460px]">
+                <div>
+                  <div className="flex items-start justify-between border-b border-[var(--b)] pb-4 mb-4">
+                    <div>
+                      <h2 className="text-lg font-black text-[var(--t)] leading-tight tracking-tight">{activeSegmentObj.label}</h2>
+                      <p className="text-[11px] text-[var(--t3)] font-medium mt-0.5 font-mono">
+                        {activeSegmentObj.value} customers · {activeSegmentObj.share}% share
+                      </p>
+                    </div>
+                    <span className="w-3.5 h-3.5 rounded-md flex-shrink-0" style={{ backgroundColor: activeSegmentObj.accentColor }} />
+                  </div>
+
+                  <p className="text-[12px] text-[var(--t2)] leading-relaxed mb-6 font-medium">
+                    {activeSegmentObj.desc}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3 mb-6">
+                    <div className="border border-[var(--b)] bg-[var(--bg1)] rounded-xl p-3 flex flex-col justify-between">
+                      <span className="text-[9px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Avg MRR</span>
+                      <span className="font-mono text-lg font-bold text-[var(--t)] mt-1">{activeSegmentObj.avgMrr}</span>
+                    </div>
+
+                    <div className="border border-[var(--b)] bg-[var(--bg1)] rounded-xl p-3 flex flex-col justify-between">
+                      <span className="text-[9px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Avg Usage</span>
+                      <span className="font-mono text-lg font-bold text-[var(--t)] mt-1">{activeSegmentObj.avgUsage}h</span>
+                    </div>
+
+                    <div className="border border-[var(--b)] bg-[var(--bg1)] rounded-xl p-3 flex flex-col justify-between">
+                      <span className="text-[9px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Churn Risk</span>
+                      <span className="font-mono text-lg font-bold mt-1" style={{ color: parseFloat(activeSegmentObj.badge) > 30 ? 'var(--danger)' : 'var(--accent)' }}>
+                        {activeSegmentObj.badge}
+                      </span>
+                    </div>
+
+                    <div className="border border-[var(--b)] bg-[var(--bg1)] rounded-xl p-3 flex flex-col justify-between">
+                      <span className="text-[9px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Avg NPS</span>
+                      <span className="font-mono text-lg font-bold text-[var(--t)] mt-1">{activeSegmentObj.avgNps.toFixed(1)}/10</span>
+                    </div>
+                  </div>
+
+                  <div className="mb-6">
+                    <span className="text-[9px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono block mb-2">Defining traits</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {activeSegmentObj.traits.map((t: string) => (
+                        <span key={t} className="inline-flex items-center py-0.5 px-2 bg-[var(--bg1)] border border-[var(--b2)] rounded-md text-[9px] font-mono font-semibold text-[var(--t2)] uppercase tracking-wider">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4 border-t border-[var(--b)]">
+                  <button
+                    onClick={() => router.push(`/dashboard/analytics?dataset_id=${datasetId}&segment=${encodeURIComponent(activeSegmentObj.rawLabel || activeSegmentObj.label)}`)}
+                    className="flex-1 inline-flex justify-center items-center gap-1.5 text-[11px] font-bold text-[var(--t2)] border border-[var(--b2)] rounded-lg px-3 py-2 hover:bg-[var(--bg2)] hover:text-[var(--t)] transition-all"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                    </svg>
+                    View customers
+                  </button>
+
+                  <button
+                    onClick={() => openCampaignModal(activeSegmentObj)}
+                    className="flex-1 inline-flex justify-center items-center gap-1.5 text-[11px] font-bold bg-[var(--t)] text-[var(--inv-t)] rounded-lg px-3 py-2 hover:opacity-95 transition-opacity"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="22" y1="2" x2="11" y2="13" />
+                      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                    </svg>
+                    Campaign
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+        </div>
+
       </div>
+
+      {/* ── Campaign Simulation Drawer / Modal ── */}
+      {campaignModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[var(--surf)] border border-[var(--b3)] rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            
+            <div className="px-6 py-4 border-b border-[var(--b)] flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--t)]">Launch Marketing Campaign</h3>
+                <p className="text-[10px] font-mono text-[var(--t3)] uppercase mt-0.5">Segment: {activeSegmentObj?.label}</p>
+              </div>
+              <button 
+                onClick={() => setCampaignModalOpen(false)}
+                className="text-[var(--t3)] hover:text-[var(--t)] p-1 rounded"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            {campaignSent ? (
+              <div className="p-8 text-center flex flex-col items-center justify-center min-h-[300px]">
+                <div className="w-16 h-16 rounded-full bg-[var(--accent-bg)] border border-[var(--accent)] flex items-center justify-center text-[var(--accent)] mb-4 animate-bounce">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </div>
+                <h4 className="text-sm font-bold text-[var(--t)] mb-1">Campaign Launched Successfully!</h4>
+                <p className="text-xs text-[var(--t3)] max-w-sm">
+                  The notification sequence has been compiled and dispatched to all {activeSegmentObj?.value} customers in the cohort.
+                </p>
+              </div>
+            ) : (
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="text-[10px] font-mono text-[var(--t3)] uppercase tracking-wider block mb-1.5">Channel</label>
+                  <div className="flex gap-2">
+                    {(['email', 'push', 'inapp'] as const).map(c => (
+                      <button
+                        key={c}
+                        onClick={() => setCampaignChannel(c)}
+                        className={`flex-1 py-1.5 px-3 rounded-lg border text-[11px] font-bold capitalize transition-all ${
+                          campaignChannel === c
+                            ? 'bg-[var(--t)] text-[var(--inv-t)] border-[var(--t)]'
+                            : 'border-[var(--b)] hover:border-[var(--b2)] text-[var(--t2)]'
+                        }`}
+                      >
+                        {c === 'email' ? '📧 Email' : c === 'push' ? '📱 Push' : '💬 In-App'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-mono text-[var(--t3)] uppercase tracking-wider block mb-1.5">Subject Line</label>
+                  <input
+                    type="text"
+                    value={campaignSubject}
+                    onChange={(e) => setCampaignSubject(e.target.value)}
+                    className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl px-4 py-2 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-mono text-[var(--t3)] uppercase tracking-wider block mb-1.5">Message Body</label>
+                  <textarea
+                    rows={4}
+                    value={campaignBody}
+                    onChange={(e) => setCampaignBody(e.target.value)}
+                    className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl px-4 py-3 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors resize-none leading-relaxed"
+                  />
+                </div>
+
+                <div className="bg-[var(--bg1)] border border-[var(--b)] rounded-xl p-3 flex items-center justify-between text-[11px] font-medium text-[var(--t3)]">
+                  <span>Target base:</span>
+                  <span className="font-bold text-[var(--t)]">{activeSegmentObj?.value} recipients</span>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setCampaignModalOpen(false)}
+                    className="flex-1 py-2 rounded-xl border border-[var(--b2)] hover:bg-[var(--bg2)] text-xs font-bold transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSendCampaign}
+                    disabled={campaignSending}
+                    className="flex-1 py-2 bg-[var(--t)] text-[var(--inv-t)] rounded-xl font-bold text-xs hover:opacity-95 transition-opacity flex items-center justify-center gap-2"
+                  >
+                    {campaignSending ? (
+                      <>
+                        <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                        </svg>
+                        Sending...
+                      </>
+                    ) : (
+                      'Dispatch Campaign'
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 });

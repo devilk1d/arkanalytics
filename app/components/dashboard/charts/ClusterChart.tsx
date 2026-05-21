@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
-import { getFallbackPalette } from '../pages/segmentation/SegmentationPage';
-import AuthDropdown from '@/app/components/auth/AuthDropdown';
+import { getFallbackPalette, normalizeSegmentLabel } from '../pages/segmentation/SegmentationPage';
 
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
@@ -44,9 +43,7 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
   useEffect(() => setIsMounted(true), []);
 
   useEffect(() => {
-    if (activeSegment) {
-      setLocalSegment(activeSegment);
-    }
+    setLocalSegment(activeSegment || 'all');
   }, [activeSegment]);
 
   useEffect(() => {
@@ -79,7 +76,8 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
       if (!error && data) {
         const grouped: Record<string, any[]> = {};
         data.forEach(d => {
-          const seg = d.segment_label || 'Unknown';
+          const rawSeg = d.segment_label || 'Unknown';
+          const seg = normalizeSegmentLabel(rawSeg);
           if (!grouped[seg]) grouped[seg] = [];
           
           // Use 100 - churn_score as Engagement Score (0-100)
@@ -89,10 +87,19 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
           grouped[seg].push({ x: engagement, y: Math.round(revenue), name: seg });
         });
 
-        // Order segments if segmentOrder is provided
-        const segKeys = segmentOrder ? segmentOrder.filter(s => countsMap[s] || grouped[s]) : Object.keys(countsMap).length > 0 ? Object.keys(countsMap) : Object.keys(grouped);
+        // Normalize the countsMap keys too
+        const normalizedCountsMap: Record<string, number> = {};
+        Object.entries(countsMap).forEach(([rawKey, count]) => {
+          const normalized = normalizeSegmentLabel(rawKey);
+          normalizedCountsMap[normalized] = (normalizedCountsMap[normalized] || 0) + count;
+        });
+
+        // Order segments: use normalized segmentOrder if provided
+        const segKeys = segmentOrder
+          ? segmentOrder.filter(s => normalizedCountsMap[s] !== undefined || grouped[s])
+          : Object.keys(normalizedCountsMap).length > 0 ? Object.keys(normalizedCountsMap) : Object.keys(grouped);
         
-        // Add any remaining segments that weren't in segmentOrder
+        // Add any remaining segments not in segmentOrder
         Object.keys(grouped).forEach(k => {
           if (!segKeys.includes(k)) segKeys.push(k);
         });
@@ -103,7 +110,7 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
             name: seg,
             color: colorSet.hex,
             data: grouped[seg] || [],
-            count: countsMap[seg] !== undefined ? countsMap[seg] : (grouped[seg] ? grouped[seg].length : 0)
+            count: normalizedCountsMap[seg] !== undefined ? normalizedCountsMap[seg] : (grouped[seg] ? grouped[seg].length : 0)
           };
         });
 
@@ -122,25 +129,7 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h3 className="text-[13px] font-bold text-[var(--t)]">Customer Cluster Visualization</h3>
-          <p className="text-[11px] text-[var(--t3)] mt-0.5 font-medium">Engagement score vs Monthly Revenue</p>
-        </div>
-        <div className="flex-shrink-0 ml-4 z-10">
-          <AuthDropdown
-            value={localSegment}
-            onChange={setLocalSegment}
-            className="w-40"
-            placeholder="Filter Segment"
-            variant="filter"
-            options={[
-              { label: 'All Segments', value: 'all' },
-              ...(segmentOrder || clusters.map(c => c.name)).map(s => ({ label: s, value: s }))
-            ]}
-          />
-        </div>
-      </div>
+
 
       {loading ? (
         <div className="w-full h-[220px] flex items-center justify-center bg-[var(--bg1)] rounded-2xl border border-[var(--b)] border-dashed">

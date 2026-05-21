@@ -2,7 +2,6 @@
 
 import { useState, useEffect, memo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import Tabs from '../ui/Tabs';
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
@@ -44,12 +43,21 @@ const CustomerFlowChart = ({ data }: { data?: any }) => {
           <h3 className="text-[13px] font-bold text-[var(--t)]">Customer Flow</h3>
           <p className="text-[11px] text-[var(--t3)] mt-0.5">Tracking acquisition vs churn</p>
         </div>
-        <Tabs
-          tabs={[{ label: 'Month', value: 'Month' }, { label: 'Year', value: 'Year' }]}
-          active={period}
-          onChange={setPeriod}
-          variant="pill"
-        />
+        <div className="flex gap-1">
+          {(['Week', 'Month', 'Year'] as const).map(p => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full transition-colors cursor-pointer ${
+                period === p
+                  ? 'bg-[var(--t)] text-[var(--inv-t)]'
+                  : 'border border-[var(--b)] text-[var(--t3)] hover:bg-[var(--bg2)]'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex-1 min-h-[220px]">

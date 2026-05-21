@@ -47,10 +47,10 @@ function formatLastActive(lastActiveAt: string | null) {
 }
 
 const inputCls =
-  'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition-all bg-white placeholder:text-gray-300';
+  'w-full border border-[var(--b2)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--t2)] transition-all bg-[var(--surf)] text-[var(--t)] placeholder:text-[var(--t3)]';
 const disabledInputCls =
-  'w-full border border-gray-100 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400 cursor-not-allowed font-mono text-xs';
-const labelCls = 'block text-xs font-medium text-gray-500 mb-1';
+  'w-full border border-[var(--b)] rounded-lg px-3 py-2 text-sm bg-[var(--bg1)] text-[var(--t3)] cursor-not-allowed font-mono text-xs';
+const labelCls = 'block text-xs font-medium text-[var(--t2)] mb-1';
 
 // Default roles (hardcoded)
 const DEFAULT_ROLES = ['admin', 'members'];
@@ -103,11 +103,24 @@ function SettingsContent() {
     deleteCustomRole,
   } = useDashboardContext();
 
-  const [isDark, setIsDark] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+    const updateTheme = () => {
+      const stored = localStorage.getItem('theme') as 'light' | 'dark' | null;
+      const initial = stored || (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
+      setTheme(initial);
+    };
+
+    updateTheme();
+    window.addEventListener('themechange', updateTheme);
+    return () => {
+      window.removeEventListener('themechange', updateTheme);
+    };
+  }, []);
 
   const normalizedMyRole = (myRole ?? '').trim().toLowerCase();
   const hasAdminRole = normalizedMyRole === 'admin';
@@ -175,6 +188,13 @@ function SettingsContent() {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', tab);
     router.push(`?${params.toString()}`, { scroll: false });
+  };
+
+  const handleThemeChange = (nextTheme: 'light' | 'dark') => {
+    setTheme(nextTheme);
+    document.documentElement.setAttribute('data-theme', nextTheme);
+    localStorage.setItem('theme', nextTheme);
+    window.dispatchEvent(new Event('themechange'));
   };
 
   const roleRows = useMemo<RoleRow[]>(
@@ -415,35 +435,35 @@ function SettingsContent() {
       <div className="col-span-3 flex flex-col gap-3">
 
         {/* User identity card */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3">
+        <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)] p-4 flex items-center gap-3">
           <div className="relative shrink-0">
-            <label className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
+            <label className="w-12 h-12 rounded-full bg-[var(--bg2)] flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
               {profile?.avatarUrl ? (
                 <img src={profile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-base font-bold text-gray-500">
+                <span className="text-base font-bold text-[var(--t2)]">
                   {getInitials(profile?.fullName || 'U')}
                 </span>
               )}
               <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
             </label>
-            <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center pointer-events-none">
-              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+            <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[var(--t)] rounded-full flex items-center justify-center pointer-events-none">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="var(--inv-t)" strokeWidth="2.5" strokeLinecap="round">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
               </svg>
             </span>
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-900 truncate">{profile?.fullName || '—'}</p>
-            <p className="text-xs text-gray-400 truncate">{profile?.email || '—'}</p>
+            <p className="text-sm font-semibold text-[var(--t)] truncate">{profile?.fullName || '—'}</p>
+            <p className="text-xs text-[var(--t3)] truncate">{profile?.email || '—'}</p>
           </div>
         </div>
 
         {/* Nav menu */}
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div className="px-3 py-3 border-b border-gray-50">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-1">Account</p>
+        <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)] overflow-hidden">
+          <div className="px-3 py-3 border-b border-[var(--b)]">
+            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-widest px-1">Account</p>
           </div>
           {[
             {
@@ -492,20 +512,20 @@ function SettingsContent() {
               key={item.key}
               onClick={() => handleTabChange(item.key)}
               className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-l-2 ${activeTab === item.key
-                ? 'bg-gray-50 border-gray-900 text-gray-900'
-                : 'border-transparent text-gray-500 hover:bg-gray-50/60 hover:text-gray-700'
+                ? 'bg-[var(--bg1)] border-[var(--t)] text-[var(--t)]'
+                : 'border-transparent text-[var(--t2)] hover:bg-[var(--bg2)]/60 hover:text-[var(--t)]'
                 }`}
             >
-              <span className={activeTab === item.key ? 'text-gray-900' : 'text-gray-400'}>{item.icon}</span>
+              <span className={activeTab === item.key ? 'text-[var(--t)]' : 'text-[var(--t3)]'}>{item.icon}</span>
               <div>
                 <p className="text-xs font-semibold leading-tight">{item.label}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{item.sub}</p>
+                <p className="text-[10px] text-[var(--t3)] mt-0.5 leading-tight">{item.sub}</p>
               </div>
             </button>
           ))}
 
-          <div className="px-3 py-3 border-t border-b border-gray-50 mt-1">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-1">Workspace</p>
+          <div className="px-3 py-3 border-t border-b border-[var(--b)] mt-1">
+            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-widest px-1">Workspace</p>
           </div>
           {[
             {
@@ -526,14 +546,14 @@ function SettingsContent() {
               key={item.key}
               onClick={() => handleTabChange(item.key)}
               className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-l-2 ${activeTab === item.key
-                ? 'bg-gray-50 border-gray-900 text-gray-900'
-                : 'border-transparent text-gray-500 hover:bg-gray-50/60 hover:text-gray-700'
+                ? 'bg-[var(--bg1)] border-[var(--t)] text-[var(--t)]'
+                : 'border-transparent text-[var(--t2)] hover:bg-[var(--bg2)]/60 hover:text-[var(--t)]'
                 }`}
             >
-              <span className={activeTab === item.key ? 'text-gray-900' : 'text-gray-400'}>{item.icon}</span>
+              <span className={activeTab === item.key ? 'text-[var(--t)]' : 'text-[var(--t3)]'}>{item.icon}</span>
               <div>
                 <p className="text-xs font-semibold leading-tight">{item.label}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{item.sub}</p>
+                <p className="text-[10px] text-[var(--t3)] mt-0.5 leading-tight">{item.sub}</p>
               </div>
             </button>
           ))}
@@ -546,34 +566,34 @@ function SettingsContent() {
         {/* Profile tab */}
         {activeTab === 'profile' && (
           <>
-            <div className="bg-white rounded-2xl border border-gray-100">
-              <div className="px-6 py-5 border-b border-gray-100">
-                <h2 className="text-sm font-semibold text-gray-900">My Profile</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Manage your personal information</p>
+            <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)]">
+              <div className="px-6 py-5 border-b border-[var(--b)]">
+                <h2 className="text-sm font-semibold text-[var(--t)]">My Profile</h2>
+                <p className="text-xs text-[var(--t3)] mt-0.5">Manage your personal information</p>
               </div>
               <div className="p-6">
                 {/* Avatar section */}
-                <div className="flex items-center gap-5 pb-6 border-b border-gray-100">
+                <div className="flex items-center gap-5 pb-6 border-b border-[var(--b)]">
                   <div className="relative">
-                    <label className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
+                    <label className="w-20 h-20 rounded-2xl bg-[var(--bg2)] flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
                       {profile?.avatarUrl ? (
                         <img src={profile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-2xl font-bold text-gray-400">{getInitials(profile?.fullName || 'U')}</span>
+                        <span className="text-2xl font-bold text-[var(--t3)]">{getInitials(profile?.fullName || 'U')}</span>
                       )}
                       <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
                     </label>
-                    <span className="absolute -bottom-1 -right-1 w-6 h-6 bg-gray-900 rounded-full flex items-center justify-center pointer-events-none shadow-sm">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+                    <span className="absolute -bottom-1 -right-1 w-6 h-6 bg-[var(--t)] rounded-full flex items-center justify-center pointer-events-none shadow-sm">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--inv-t)" strokeWidth="2.5" strokeLinecap="round">
                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                       </svg>
                     </span>
                   </div>
                   <div>
-                    <p className="text-base font-semibold text-gray-900">{profile?.fullName || '—'}</p>
-                    <p className="text-sm text-gray-400 mt-0.5">{profile?.email || '—'}</p>
-                    <p className="text-xs text-gray-300 mt-1">Click photo to upload a new one</p>
+                    <p className="text-base font-semibold text-[var(--t)]">{profile?.fullName || '—'}</p>
+                    <p className="text-sm text-[var(--t3)] mt-0.5">{profile?.email || '—'}</p>
+                    <p className="text-xs text-[var(--t3)] mt-1">Click photo to upload a new one</p>
                   </div>
                 </div>
 
@@ -584,12 +604,12 @@ function SettingsContent() {
                     <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your full name" className={inputCls} />
                   </div>
                   <div className="col-span-2 sm:col-span-1">
-                    <label className={labelCls}>Email <span className="text-gray-300 font-normal">(read-only)</span></label>
+                    <label className={labelCls}>Email <span className="text-[var(--t3)] font-normal">(read-only)</span></label>
                     <input value={profile?.email || ''} readOnly disabled className={disabledInputCls} />
                   </div>
                   {profile?.arkaId && (
                     <div className="col-span-2 sm:col-span-1">
-                      <label className={labelCls}>Arka ID <span className="text-gray-300 font-normal">(read-only)</span></label>
+                      <label className={labelCls}>Arka ID <span className="text-[var(--t3)] font-normal">(read-only)</span></label>
                       <input value={profile.arkaId} readOnly disabled className={disabledInputCls} />
                     </div>
                   )}
@@ -599,9 +619,9 @@ function SettingsContent() {
                   </div>
                 </div>
               </div>
-              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl flex items-center justify-between">
+              <div className="px-6 py-4 border-t border-[var(--b)] bg-[var(--bg1)]/50 rounded-b-2xl flex items-center justify-between">
                 {profileStatus ? (
-                  <p className="text-xs text-gray-500">{profileStatus}</p>
+                  <p className="text-xs text-[var(--t2)]">{profileStatus}</p>
                 ) : <span />}
                 <Button onClick={handleSaveProfile} isLoading={savingProfile}>
                   Save Profile
@@ -613,32 +633,32 @@ function SettingsContent() {
 
         {/* Company tab */}
         {activeTab === 'company' && (
-          <div className="bg-white rounded-2xl border border-gray-100">
-            <div className="px-6 py-5 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-900">Company Information</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Manage your workspace details</p>
+          <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)]">
+            <div className="px-6 py-5 border-b border-[var(--b)]">
+              <h2 className="text-sm font-semibold text-[var(--t)]">Company Information</h2>
+              <p className="text-xs text-[var(--t3)] mt-0.5">Manage your workspace details</p>
             </div>
             <div className="p-6">
               {/* Logo section */}
-              <div className="flex items-center gap-5 pb-6 border-b border-gray-100">
-                <label className="w-20 h-20 shrink-0 bg-gray-100 rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-gray-200 cursor-pointer hover:border-gray-400 transition-colors overflow-hidden">
+              <div className="flex items-center gap-5 pb-6 border-b border-[var(--b)]">
+                <label className="w-20 h-20 shrink-0 bg-[var(--bg2)] rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-[var(--b2)] cursor-pointer hover:border-[var(--t3)] transition-colors overflow-hidden">
                   {workspace?.logoUrl ? (
                     <img src={workspace.logoUrl} alt="Company logo" className="w-full h-full object-cover" />
                   ) : (
                     <>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="1.5" strokeLinecap="round">
                         <polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" />
                         <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
                       </svg>
-                      <p className="text-[9px] text-gray-300 mt-1">Upload</p>
+                      <p className="text-[9px] text-[var(--t3)] mt-1">Upload</p>
                     </>
                   )}
                   <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
                 </label>
                 <div>
-                  <p className="text-base font-semibold text-gray-900">{workspace?.name || 'Your Company'}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{workspace?.websiteUrl || 'No website set'}</p>
-                  <button onClick={handleRemoveLogo} className="text-xs text-red-400 hover:text-red-600 transition-colors mt-1.5">
+                  <p className="text-base font-semibold text-[var(--t)]">{workspace?.name || 'Your Company'}</p>
+                  <p className="text-xs text-[var(--t3)] mt-0.5">{workspace?.websiteUrl || 'No website set'}</p>
+                  <button onClick={handleRemoveLogo} className="text-xs text-[var(--d)] hover:underline mt-1.5">
                     Remove logo
                   </button>
                 </div>
@@ -659,9 +679,9 @@ function SettingsContent() {
                 </div>
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl flex items-center justify-between">
+            <div className="px-6 py-4 border-t border-[var(--b)] bg-[var(--bg1)]/50 rounded-b-2xl flex items-center justify-between">
               {(companyStatus || error) ? (
-                <p className="text-xs text-gray-500">{companyStatus || error}</p>
+                <p className="text-xs text-[var(--t2)]">{companyStatus || error}</p>
               ) : <span />}
               <Button onClick={handleSaveCompany} isLoading={saving}>
                 Save Changes
@@ -672,24 +692,24 @@ function SettingsContent() {
 
         {/* Appearance tab */}
         {activeTab === 'appearance' && (
-          <div className="bg-white rounded-2xl border border-gray-100">
-            <div className="px-6 py-5 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-900">Appearance</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Choose how the dashboard looks for you</p>
+          <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)]">
+            <div className="px-6 py-5 border-b border-[var(--b)]">
+              <h2 className="text-sm font-semibold text-[var(--t)]">Appearance</h2>
+              <p className="text-xs text-[var(--t3)] mt-0.5">Choose how the dashboard looks for you</p>
             </div>
             <div className="p-6">
               <p className={labelCls}>Theme</p>
               <div className="flex gap-3 mt-2">
                 {[
-                  { val: false, label: 'Light', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg> },
-                  { val: true, label: 'Dark', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg> },
+                  { val: 'light' as const, label: 'Light', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg> },
+                  { val: 'dark' as const, label: 'Dark', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg> },
                 ].map(({ val, label, icon }) => (
                   <button
                     key={label}
-                    onClick={() => setIsDark(val)}
-                    className={`flex items-center gap-2.5 px-5 py-3 rounded-xl border text-sm font-medium transition-all ${isDark === val
-                      ? 'border-gray-900 bg-gray-900 text-white shadow-sm'
-                      : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                    onClick={() => handleThemeChange(val)}
+                    className={`flex items-center gap-2.5 px-5 py-3 rounded-xl border text-sm font-medium transition-all ${theme === val
+                      ? 'border-[var(--t)] bg-[var(--t)] text-[var(--inv-t)] shadow-sm'
+                      : 'border-[var(--b2)] text-[var(--t2)] hover:border-[var(--b3)] hover:text-[var(--t)] bg-[var(--surf)]'
                       }`}
                   >
                     {icon}
@@ -704,11 +724,11 @@ function SettingsContent() {
         {/* Members tab (always shown, or via nav) */}
         {activeTab === 'members' && (
           <>
-            <div className="bg-white rounded-2xl border border-gray-100">
-              <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+            <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)]">
+              <div className="px-6 py-5 border-b border-[var(--b)] flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-semibold text-gray-900">Team Members</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Manage user access and permissions</p>
+                  <h2 className="text-sm font-semibold text-[var(--t)]">Team Members</h2>
+                  <p className="text-xs text-[var(--t3)] mt-0.5">Manage user access and permissions</p>
                 </div>
                 {canManageMembers && (
                   <Button
@@ -728,44 +748,44 @@ function SettingsContent() {
               </div>
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/60">
+                  <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/60">
                     {['Member', 'Email', 'Role', 'Status', 'Last Active'].map((h, i) => (
-                      <th key={i} className="px-5 py-3 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">
+                      <th key={i} className="px-5 py-3 text-left text-[11px] font-medium text-[var(--t3)] uppercase tracking-wider whitespace-nowrap">
                         {h}
                       </th>
                     ))}
                     {isAdmin && (
-                      <th className="px-5 py-3 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">
+                      <th className="px-5 py-3 text-left text-[11px] font-medium text-[var(--t3)] uppercase tracking-wider whitespace-nowrap">
                         Actions
                       </th>
                     )}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody className="divide-y divide-[var(--b)]">
                   {members.map(m => (
-                    <tr key={m.userId} className="hover:bg-gray-50/60 transition-colors group">
+                    <tr key={m.userId} className="hover:bg-[var(--bg2)]/60 transition-colors group">
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-2.5">
                           <Avatar initials={getInitials(m.fullName)} src={m.avatarUrl || undefined} size="sm" />
-                          <span className="text-sm font-medium text-gray-900">{m.fullName}</span>
+                          <span className="text-sm font-medium text-[var(--t)]">{m.fullName}</span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-sm text-gray-500">{m.email || <span className="text-gray-300 italic text-xs">Hidden</span>}</td>
+                      <td className="px-5 py-3.5 text-sm text-[var(--t2)]">{m.email || <span className="text-[var(--t3)] italic text-xs">Hidden</span>}</td>
                       <td className="px-5 py-3.5">
-                        <span className="inline-flex px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium text-gray-600">
+                        <span className="inline-flex px-2 py-0.5 rounded-md bg-[var(--bg2)] text-xs font-medium text-[var(--t2)]">
                           {formatRoleLabel(m.role)}
                         </span>
                       </td>
                       <td className="px-5 py-3.5"><Badge label="Active" variant="active" /></td>
-                      <td className="px-5 py-3.5 text-xs text-gray-400 whitespace-nowrap">{formatLastActive(m.lastActiveAt)}</td>
+                      <td className="px-5 py-3.5 text-xs text-[var(--t3)] whitespace-nowrap">{formatLastActive(m.lastActiveAt)}</td>
                       {isAdmin && (
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
-                            <button className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors disabled:opacity-40"
+                            <button className="text-xs font-medium text-[var(--t2)] hover:text-[var(--t)] transition-colors disabled:opacity-40"
                               onClick={() => { void handleEditMemberRole(m.userId, m.role); }} disabled={actionLoading}>
                               Edit role
                             </button>
-                            <button className="text-red-300 hover:text-red-500 transition-colors disabled:opacity-40"
+                            <button className="text-[var(--d)] opacity-75 hover:opacity-100 transition-colors disabled:opacity-40"
                               onClick={() => handleDeleteMember(m.userId, m.fullName)} disabled={actionLoading}>
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                                 <polyline points="3 6 5 6 21 6" />
@@ -778,7 +798,7 @@ function SettingsContent() {
                     </tr>
                   ))}
                   {!loading && members.length === 0 && (
-                    <tr><td colSpan={isAdmin ? 6 : 5} className="px-5 py-10 text-sm text-gray-400 text-center">No members found.</td></tr>
+                    <tr><td colSpan={isAdmin ? 6 : 5} className="px-5 py-10 text-sm text-[var(--t3)] text-center">No members found.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -786,11 +806,11 @@ function SettingsContent() {
 
             {/* Roles & Permissions */}
             {isAdmin && (
-              <div className="bg-white rounded-2xl border border-gray-100">
-                <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+              <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)]">
+                <div className="px-6 py-5 border-b border-[var(--b)] flex items-center justify-between">
                   <div>
-                    <h2 className="text-sm font-semibold text-gray-900">Roles & Permissions</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">Access levels for each role in this workspace</p>
+                    <h2 className="text-sm font-semibold text-[var(--t)]">Roles & Permissions</h2>
+                    <p className="text-xs text-[var(--t3)] mt-0.5">Access levels for each role in this workspace</p>
                   </div>
                   <Button
                     size="sm"
@@ -807,33 +827,33 @@ function SettingsContent() {
                 </div>
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-gray-100 bg-gray-50/60">
+                    <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/60">
                       {['Role', 'Description', 'Permissions', 'Members', 'Actions'].map((h, i) => (
-                        <th key={i} className="px-5 py-3 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        <th key={i} className="px-5 py-3 text-left text-[11px] font-medium text-[var(--t3)] uppercase tracking-wider whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody className="divide-y divide-[var(--b)]">
                     {roleRows.map(r => (
-                      <tr key={r.role} className="hover:bg-gray-50/60 transition-colors group">
+                      <tr key={r.role} className="hover:bg-[var(--bg2)]/60 transition-colors group">
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-gray-900">{r.role}</span>
-                            {r.isCustom && <span className="inline-block px-1.5 py-0.5 text-xs font-medium text-blue-600 bg-blue-50 rounded">Custom</span>}
+                            <span className="text-sm font-semibold text-[var(--t)]">{r.role}</span>
+                            {r.isCustom && <span className="inline-block px-1.5 py-0.5 text-xs font-medium text-[var(--p)] bg-[var(--p)]/10 rounded">Custom</span>}
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-sm text-gray-500">{r.desc || '-'}</td>
-                        <td className="px-5 py-3.5 text-sm text-gray-500 max-w-xs truncate">{r.perms || '-'}</td>
+                        <td className="px-5 py-3.5 text-sm text-[var(--t2)]">{r.desc || '-'}</td>
+                        <td className="px-5 py-3.5 text-sm text-[var(--t2)] max-w-xs truncate">{r.perms || '-'}</td>
                         <td className="px-5 py-3.5">
-                          <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">{r.users} users</span>
+                          <span className="text-xs font-medium text-[var(--t2)] bg-[var(--bg2)] px-2 py-0.5 rounded-md">{r.users} users</span>
                         </td>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
                             {!r.isCustom ? (
-                              <button disabled className="text-xs font-medium text-gray-300 cursor-not-allowed">Edit</button>
+                              <button disabled className="text-xs font-medium text-[var(--t4)] cursor-not-allowed">Edit</button>
                             ) : (
                               <button
-                                className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors disabled:opacity-40"
+                                className="text-xs font-medium text-[var(--t2)] hover:text-[var(--t)] transition-colors disabled:opacity-40"
                                 onClick={() => r.roleId && handleEditCustomRole(r.roleId)}
                                 disabled={actionLoading}
                               >
@@ -842,7 +862,7 @@ function SettingsContent() {
                             )}
                             {r.isCustom && (
                               <button
-                                className="text-red-300 hover:text-red-500 transition-colors disabled:opacity-40"
+                                className="text-[var(--d)] opacity-75 hover:opacity-100 transition-colors disabled:opacity-40"
                                 onClick={() => r.roleId && handleDeleteRole(r.roleId, r.role, r.users)}
                                 disabled={actionLoading}
                               >
@@ -857,7 +877,7 @@ function SettingsContent() {
                       </tr>
                     ))}
                     {!loading && roleRows.length === 0 && (
-                      <tr><td colSpan={5} className="px-5 py-10 text-sm text-gray-400 text-center">No roles available.</td></tr>
+                      <tr><td colSpan={5} className="px-5 py-10 text-sm text-[var(--t3)] text-center">No roles available.</td></tr>
                     )}
                   </tbody>
                 </table>

@@ -29,6 +29,14 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
+      {/* Prevent dark-mode flash: apply stored theme before first paint */}
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         <SessionTimeout />
         {children}
