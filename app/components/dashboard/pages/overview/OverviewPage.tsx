@@ -5,9 +5,9 @@ import DashboardLayout from '../../layout/DashboardLayout';
 import Link from 'next/link';
 import CustomerFlowChart from '../../charts/CustomerFlowChart';
 import DonutChart from '../../charts/DonutChart';
-import { getFallbackPalette } from '../segmentation/SegmentationPage';
+import { getFallbackPalette, normalizeSegmentLabel } from '../segmentation/SegmentationPage';
 import { useDashboardContext } from '../../context/DashboardContext';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+
 
 export type OverviewStats = {
   totalCustomers: number;
@@ -60,71 +60,7 @@ function KpiCard({
   );
 }
 
-/* ─── Churn Trajectory Area Chart ─── */
-function ChurnTrajectoryChart({ data }: { data: { label: string; value: number }[] }) {
-  if (!data || data.length === 0) {
-    return (
-      <div className="h-[220px] flex items-center justify-center text-[11px] text-[var(--t3)] font-mono">
-        No trajectory data available
-      </div>
-    );
-  }
-  return (
-    <div className="h-[220px] w-full">
-      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-        <AreaChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: -25 }}>
-          <defs>
-            <linearGradient id="colorTrajectory" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--p)" stopOpacity={0.2}/>
-              <stop offset="95%" stopColor="var(--p)" stopOpacity={0}/>
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="0" stroke="var(--b)" vertical={false} opacity={0.5} />
-          <XAxis 
-            dataKey="label" 
-            tick={{ fontSize: 9, fill: 'var(--t3)', fontWeight: 500 }} 
-            axisLine={false} 
-            tickLine={false}
-            dy={10}
-          />
-          <YAxis 
-            tick={{ fontSize: 9, fill: 'var(--t3)', fontWeight: 500 }} 
-            axisLine={false} 
-            tickLine={false} 
-            tickFormatter={(v) => `${v}%`}
-            width={40}
-          />
-          <Tooltip 
-            content={({ active, payload }) => {
-              if (active && payload && payload.length) {
-                const d = payload[0];
-                return (
-                  <div className="bg-[var(--t)] text-[var(--inv-t)] rounded-xl px-3 py-2 text-[10px] shadow-2xl border border-[var(--b3)] backdrop-blur-md opacity-95">
-                    <p className="font-bold mb-0.5">{d.payload.label}</p>
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="opacity-70">Rate</span>
-                      <span className="font-black text-[var(--inv-t)]">{d.value}%</span>
-                    </div>
-                  </div>
-                );
-              }
-              return null;
-            }} 
-          />
-          <Area 
-            type="monotone" 
-            dataKey="value" 
-            stroke="var(--p)" 
-            strokeWidth={2} 
-            fillOpacity={1} 
-            fill="url(#colorTrajectory)" 
-            activeDot={{ r: 4, strokeWidth: 0, fill: 'var(--p)' }}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
+
 
 /* ─── Main OverviewPage Component ─── */
 const OverviewPage = ({
@@ -135,8 +71,7 @@ const OverviewPage = ({
   segmentData,
   sparklines,
   deltas,
-  trajectorySummary,
-  trajectoryData,
+  // trajectorySummary and trajectoryData are unused but kept in props type to match caller signature
 }: {
   stats?: OverviewStats;
   riskData?: any[];
@@ -161,8 +96,6 @@ const OverviewPage = ({
   const [isMounted, setIsMounted] = useState(false);
   const { workspace } = useDashboardContext();
 
-  const [trajectoryMode, setTrajectoryMode] = useState<'churn' | 'retention' | 'net'>('churn');
-
   useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -181,79 +114,7 @@ const OverviewPage = ({
   const segments = segmentData && segmentData.length > 0 ? segmentData : [];
   const hasSegments = segments.length > 0;
 
-  // Process Trajectory Data & Mode Client-side
-  const transformedTrajectoryData = useMemo(() => {
-    if (!trajectoryData || trajectoryData.length === 0) return [];
-    
-    const mapped = trajectoryData.map(d => {
-      let val = d.value;
-      if (trajectoryMode === 'retention') val = 100 - d.value;
-      if (trajectoryMode === 'net') val = 100 - 2 * d.value;
-      return {
-        label: d.label,
-        value: parseFloat(val.toFixed(1))
-      };
-    });
 
-    if (mapped.length === 1) {
-      // Duplicate to draw horizontal line if only 1 data point
-      return [
-        { label: 'PREV', value: mapped[0].value },
-        mapped[0]
-      ];
-    }
-    return mapped;
-  }, [trajectoryData, trajectoryMode]);
-
-  // Client-side calculate Avg, Best, Trend based on transformedTrajectoryData
-  const trajectoryStats = useMemo(() => {
-    if (!transformedTrajectoryData || transformedTrajectoryData.length === 0) {
-      return { avg: '0%', best: '0%', trend: '0 pts', trendColor: 'var(--accent)' };
-    }
-    
-    // If it was duplicated for length=1, remove the duplicated one for calculation
-    const actualData = trajectoryData && trajectoryData.length === 1 
-      ? [transformedTrajectoryData[1]] 
-      : transformedTrajectoryData;
-
-    const values = actualData.map(d => d.value);
-    const avg = values.reduce((s, v) => s + v, 0) / values.length;
-    
-    let best = values[0];
-    let bestLabel = actualData[0]?.label || '';
-    
-    if (trajectoryMode === 'churn') {
-      // Best is lowest churn rate
-      actualData.forEach(d => {
-        if (d.value < best) {
-          best = d.value;
-          bestLabel = d.label;
-        }
-      });
-    } else {
-      // Best is highest retention / net score
-      actualData.forEach(d => {
-        if (d.value > best) {
-          best = d.value;
-          bestLabel = d.label;
-        }
-      });
-    }
-
-    const latest = values[values.length - 1] || 0;
-    const oldest = values[0] || 0;
-    const diff = latest - oldest;
-
-    // Trend positive indicator (lower churn is positive, higher retention/net is positive)
-    const isPositive = trajectoryMode === 'churn' ? diff <= 0 : diff >= 0;
-
-    return {
-      avg: `${avg.toFixed(1)}%`,
-      best: `${best.toFixed(1)}% · ${bestLabel}`,
-      trend: `${diff >= 0 ? '+' : '−'}${Math.abs(diff).toFixed(1)} pts`,
-      trendColor: isPositive ? 'var(--accent)' : 'var(--danger)'
-    };
-  }, [transformedTrajectoryData, trajectoryMode, trajectoryData]);
 
   // Alerts
   const alerts = useMemo(() => {
@@ -388,77 +249,7 @@ const OverviewPage = ({
           {/* Left Column (8/12 span) */}
           <div className="col-span-12 xl:col-span-8 flex flex-col gap-4">
             
-            {/* Churn rate trajectory */}
-            <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-[13px] font-bold text-[var(--t)]">Churn rate trajectory</h3>
-                  <p className="text-[11px] text-[var(--t3)] mt-0.5">12 months · monthly aggregate</p>
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setTrajectoryMode('churn')}
-                    className={`inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full transition-colors ${
-                      trajectoryMode === 'churn'
-                        ? 'bg-[var(--t)] text-[var(--inv-t)]'
-                        : 'border border-[var(--b)] text-[var(--t3)] hover:bg-[var(--bg2)]'
-                    }`}
-                  >
-                    Churn
-                  </button>
-                  <button
-                    onClick={() => setTrajectoryMode('retention')}
-                    className={`inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full transition-colors ${
-                      trajectoryMode === 'retention'
-                        ? 'bg-[var(--t)] text-[var(--inv-t)]'
-                        : 'border border-[var(--b)] text-[var(--t3)] hover:bg-[var(--bg2)]'
-                    }`}
-                  >
-                    Retention
-                  </button>
-                  <button
-                    onClick={() => setTrajectoryMode('net')}
-                    className={`inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full transition-colors ${
-                      trajectoryMode === 'net'
-                        ? 'bg-[var(--t)] text-[var(--inv-t)]'
-                        : 'border border-[var(--b)] text-[var(--t3)] hover:bg-[var(--bg2)]'
-                    }`}
-                  >
-                    Net
-                  </button>
-                </div>
-              </div>
-              
-              <ChurnTrajectoryChart data={transformedTrajectoryData} />
-              
-              <div className="h-px bg-[var(--b)] my-4" />
-              
-              <div className="flex flex-wrap items-center gap-6 text-[11px] text-[var(--t3)]">
-                <div>
-                  <div className="font-mono uppercase tracking-[0.08em] text-[10px]">Avg</div>
-                  <div className="text-base font-black text-[var(--t)] font-mono mt-0.5">
-                    {trajectoryStats.avg}
-                  </div>
-                </div>
-                <div className="w-px h-6 bg-[var(--b)] self-center" />
-                <div>
-                  <div className="font-mono uppercase tracking-[0.08em] text-[10px]">Best</div>
-                  <div className="text-base font-black text-[var(--t)] font-mono mt-0.5">
-                    {trajectoryStats.best}
-                  </div>
-                </div>
-                <div className="w-px h-6 bg-[var(--b)] self-center" />
-                <div>
-                  <div className="font-mono uppercase tracking-[0.08em] text-[10px]">Trend</div>
-                  <div className="text-base font-black font-mono mt-0.5" style={{ color: trajectoryStats.trendColor }}>
-                    {trajectoryStats.trend}
-                  </div>
-                </div>
-                <div className="ml-auto text-[10px] self-end font-mono">
-                  Live database sync active
-                </div>
-              </div>
-            </div>
+
 
             {/* Customer flow */}
             <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5">
@@ -488,13 +279,14 @@ const OverviewPage = ({
                   {/* First row of 3 segments */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {segments.slice(0, 3).map((s: any, i: number) => {
-                      const colorSet = getFallbackPalette(s.name);
+                      const displayName = normalizeSegmentLabel(s.name);
+                      const colorSet = getFallbackPalette(displayName);
                       return (
                         <div key={i} className="border border-[var(--b)] rounded-xl p-4 flex flex-col justify-between min-h-[140px] bg-[var(--bg1)]">
                           <div>
                             <div className="flex items-center gap-2 mb-2">
                               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colorSet.hex }}></span>
-                              <span className="text-[12px] font-bold text-[var(--t)]">{s.name}</span>
+                              <span className="text-[12px] font-bold text-[var(--t)]">{displayName}</span>
                             </div>
                             <div className="font-mono text-2xl font-black text-[var(--t)] tracking-tight">
                               {s.count.toLocaleString('en-US')}
@@ -521,13 +313,14 @@ const OverviewPage = ({
                   {segments.length > 3 && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {segments.slice(3, 5).map((s: any, i: number) => {
-                        const colorSet = getFallbackPalette(s.name);
+                        const displayName = normalizeSegmentLabel(s.name);
+                        const colorSet = getFallbackPalette(displayName);
                         return (
                           <div key={i} className="border border-[var(--b)] rounded-xl p-4 flex flex-col justify-between min-h-[140px] bg-[var(--bg1)]">
                             <div>
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: colorSet.hex }}></span>
-                                <span className="text-[12px] font-bold text-[var(--t)]">{s.name}</span>
+                                <span className="text-[12px] font-bold text-[var(--t)]">{displayName}</span>
                               </div>
                               <div className="font-mono text-2xl font-black text-[var(--t)] tracking-tight">
                                 {s.count.toLocaleString('en-US')}
