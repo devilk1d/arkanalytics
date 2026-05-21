@@ -10,16 +10,16 @@ interface BadgeProps {
 }
 
 const variantStyles: Record<BadgeVariant, string> = {
-  low:       'bg-emerald-50 text-[var(--s)] border border-emerald-100',
-  med:       'bg-amber-50 text-[var(--w)] border border-amber-100',
-  high:      'bg-rose-50 text-[var(--d)] border border-rose-100',
-  active:    'bg-indigo-50 text-[var(--p)] border border-indigo-100',
-  invited:   'bg-zinc-50 text-[var(--n)] border border-zinc-200',
-  ready:     'bg-indigo-50 text-[var(--p)] border border-indigo-100',
-  pending:   'bg-zinc-50 text-[var(--n)] border border-zinc-200',
-  scheduled: 'bg-zinc-50 text-[var(--n)] border border-zinc-200',
-  cleaned:   'bg-indigo-50 text-[var(--p)] border border-indigo-100',
-  raw:       'bg-zinc-50 text-[var(--n)] border border-zinc-200',
+  low:       'bg-[var(--s-bg)] text-[var(--s)] border border-[var(--s-b)]',
+  med:       'bg-[var(--w-bg)] text-[var(--w)] border border-[var(--w-b)]',
+  high:      'bg-[var(--d-bg)] text-[var(--d)] border border-[var(--d-b)]',
+  active:    'bg-[var(--p-bg)] text-[var(--p)] border border-[var(--p-b)]',
+  invited:   'bg-[var(--n-bg)] text-[var(--n)] border border-[var(--n-b)]',
+  ready:     'bg-[var(--p-bg)] text-[var(--p)] border border-[var(--p-b)]',
+  pending:   'bg-[var(--n-bg)] text-[var(--n)] border border-[var(--n-b)]',
+  scheduled: 'bg-[var(--n-bg)] text-[var(--n)] border border-[var(--n-b)]',
+  cleaned:   'bg-[var(--p-bg)] text-[var(--p)] border border-[var(--p-b)]',
+  raw:       'bg-[var(--n-bg)] text-[var(--n)] border border-[var(--n-b)]',
   default:   'bg-[var(--bg1)] text-[var(--t3)] border border-[var(--b)]',
 };
 

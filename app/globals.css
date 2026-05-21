@@ -3,12 +3,12 @@
 /* ─── Smooth Scroll ─── */
 html { scroll-behavior: smooth; }
 
-/* ─── Custom Scrollbar (unchanged) ─── */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #f5f5f5; }
-::-webkit-scrollbar-thumb { background: #000; border-radius: 999px; }
-::-webkit-scrollbar-thumb:hover { background: #333; }
-* { scrollbar-width: thin; scrollbar-color: #000 #f5f5f5; }
+/* ─── Custom Scrollbar ─── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--b3); }
+* { scrollbar-width: thin; scrollbar-color: var(--bg3) transparent; }
 
 /* ─── Base ─── */
 * { box-sizing: border-box; }
@@ -56,12 +56,49 @@ html { scroll-behavior: smooth; }
 
   --ease:  cubic-bezier(.22,1,.36,1);
   --ease2: cubic-bezier(.4,0,.2,1);
+
+  /* ─── Badge theme-aware colors (Light Mode) ─── */
+  --s-bg: rgba(16, 185, 129, 0.08);
+  --s-b:  rgba(16, 185, 129, 0.15);
+  --w-bg: rgba(245, 158, 11, 0.08);
+  --w-b:  rgba(245, 158, 11, 0.15);
+  --d-bg: rgba(239, 68, 68, 0.08);
+  --d-b:  rgba(239, 68, 68, 0.15);
+  --p-bg: rgba(79, 70, 229, 0.08);
+  --p-b:  rgba(79, 70, 229, 0.15);
+  --n-bg: rgba(113, 113, 122, 0.08);
+  --n-b:  rgba(113, 113, 122, 0.15);
+
+  /* Segment Palette colors */
+  --c-red: #EF4444;
+  --c-red-bg: rgba(239, 68, 68, 0.06);
+  --c-red-b: rgba(239, 68, 68, 0.15);
+
+  --c-blue: #3B82F6;
+  --c-blue-bg: rgba(59, 130, 246, 0.06);
+  --c-blue-b: rgba(59, 130, 246, 0.15);
+
+  --c-purple: #A855F7;
+  --c-purple-bg: rgba(168, 85, 247, 0.06);
+  --c-purple-b: rgba(168, 85, 247, 0.15);
+
+  --c-emerald: #10B981;
+  --c-emerald-bg: rgba(16, 185, 129, 0.06);
+  --c-emerald-b: rgba(16, 185, 129, 0.15);
+
+  --c-amber: #F59E0B;
+  --c-amber-bg: rgba(245, 158, 11, 0.06);
+  --c-amber-b: rgba(245, 158, 11, 0.15);
+
+  --c-cyan: #06B6D4;
+  --c-cyan-bg: rgba(6, 182, 212, 0.06);
+  --c-cyan-b: rgba(6, 182, 212, 0.15);
 }
 
 /* ══════════════════════════════════════════
    DARK MODE — toggled via [data-theme="dark"]
    on <html> element
-══════════════════════════════════════════ */
+ ══════════════════════════════════════════ */
 [data-theme="dark"] {
   --bg:    #0C0C0C;
   --bg1:   #111111;
@@ -88,6 +125,43 @@ html { scroll-behavior: smooth; }
   --o:     var(--w);
   --r:     var(--d);
   --p:     #818CF8;
+
+  /* ─── Badge theme-aware colors (Dark Mode) ─── */
+  --s-bg: rgba(16, 185, 129, 0.15);
+  --s-b:  rgba(16, 185, 129, 0.25);
+  --w-bg: rgba(245, 158, 11, 0.15);
+  --w-b:  rgba(245, 158, 11, 0.25);
+  --d-bg: rgba(239, 68, 68, 0.15);
+  --d-b:  rgba(239, 68, 68, 0.25);
+  --p-bg: rgba(129, 140, 248, 0.15);
+  --p-b:  rgba(129, 140, 248, 0.25);
+  --n-bg: rgba(161, 161, 170, 0.15);
+  --n-b:  rgba(161, 161, 170, 0.25);
+
+  /* Segment Palette colors */
+  --c-red: #F87171;
+  --c-red-bg: rgba(248, 113, 113, 0.15);
+  --c-red-b: rgba(248, 113, 113, 0.25);
+
+  --c-blue: #60A5FA;
+  --c-blue-bg: rgba(96, 165, 250, 0.15);
+  --c-blue-b: rgba(96, 165, 250, 0.25);
+
+  --c-purple: #C084FC;
+  --c-purple-bg: rgba(192, 132, 252, 0.15);
+  --c-purple-b: rgba(192, 132, 252, 0.25);
+
+  --c-emerald: #34D399;
+  --c-emerald-bg: rgba(52, 211, 153, 0.15);
+  --c-emerald-b: rgba(52, 211, 153, 0.25);
+
+  --c-amber: #FBBF24;
+  --c-amber-bg: rgba(251, 191, 36, 0.15);
+  --c-amber-b: rgba(251, 191, 36, 0.25);
+
+  --c-cyan: #22D3EE;
+  --c-cyan-bg: rgba(34, 211, 238, 0.15);
+  --c-cyan-b: rgba(34, 211, 238, 0.25);
 }
 
 /* ─── Body ─── */
@@ -357,3 +431,11 @@ h1, h2, h3, h4, h5, h6, .font-display {
 }
 .theme-toggle-btn:hover { background:var(--bg2); color:var(--t); }
 .theme-toggle-btn svg { width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+
+/* ─── Logo Theme Switcher ─── */
+.logo-theme-sensitive {
+  content: url('/images/logo_arka_hitam.png');
+}
+[data-theme="dark"] .logo-theme-sensitive {
+  content: url('/images/logo_arka_putih.png');
+}

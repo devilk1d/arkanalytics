@@ -41,13 +41,13 @@ const DonutChart = ({ data }: { data?: any[] }) => {
       </div>
 
       <div className="flex items-center gap-6 flex-1">
-        <div className="relative shrink-0 w-[140px] h-[140px]">
+        <div className="relative shrink-0 w-[170px] h-[170px]">
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <PieChart>
               <Pie
                 data={enriched} cx="50%" cy="50%"
-                innerRadius={45} 
-                outerRadius={65}
+                innerRadius={55} 
+                outerRadius={80}
                 dataKey="value" 
                 stroke="none"
                 paddingAngle={4}
@@ -57,9 +57,9 @@ const DonutChart = ({ data }: { data?: any[] }) => {
               >
                 {enriched.map((entry, i) => (
                   <Cell 
-                    key={i} 
-                    fill={entry.color} 
-                    style={{ filter: `drop-shadow(0px 2px 4px ${entry.color}33)` }} 
+                     key={i} 
+                     fill={entry.color} 
+                     style={{ filter: `drop-shadow(0px 2px 4px ${entry.color}33)` }} 
                   />
                 ))}
               </Pie>
@@ -68,7 +68,7 @@ const DonutChart = ({ data }: { data?: any[] }) => {
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-0">
             <span className="text-[9px] text-[var(--t4)] font-bold uppercase tracking-widest">Total</span>
-            <span className="text-xl font-black text-[var(--t)] leading-tight">
+            <span className="text-2xl font-black text-[var(--t)] leading-tight">
               {total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total.toLocaleString('en-US')}
             </span>
           </div>

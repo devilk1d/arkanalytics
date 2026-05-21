@@ -77,7 +77,7 @@ async function handleRequest(
     return NextResponse.json({ error: errDetail }, { status: railwayRes.status })
   }
 
-  let prediction: Record<string, unknown>
+  let prediction: any
   try {
     prediction = await railwayRes.json()
   } catch {

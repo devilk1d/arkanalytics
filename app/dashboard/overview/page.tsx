@@ -42,6 +42,21 @@ export default async function Page() {
   let customerFlowData: any[] = [];
   let segmentData: any[] = [];
 
+  let sparkTotalCustomers: number[] = [];
+  let sparkSafeCustomers: number[] = [];
+  let sparkChurnRisk: number[] = [];
+  let sparkPredictedChurn: number[] = [];
+
+  let deltas = {
+    totalCustomers: { change: '', positive: true },
+    safeCustomers: { change: '', positive: true },
+    churnRisk: { change: '', positive: true },
+    predictedChurn: { change: '', positive: true }
+  };
+
+  let trajectorySummary = { avg: '0%', best: '0%', trend: '0 pts' };
+  let trajectoryData: { label: string; value: number }[] = [];
+
   if (authData.user) {
     const { data: membership } = await supabase
       .from('workspace_members')
@@ -50,30 +65,32 @@ export default async function Page() {
       .limit(1)
       .single();
 
-    let datasetQuery = supabase
+    let datasetsHistoryQuery = supabase
       .from('datasets')
-      .select('id, storage_path, total_customers, churn_rate_pct')
+      .select('id, total_customers, churn_rate_pct, created_at, storage_path')
       .not('total_customers', 'is', null)
       .order('created_at', { ascending: false })
-      .limit(1);
+      .limit(12);
 
     if (membership?.workspace_id) {
-      datasetQuery = datasetQuery.eq('workspace_id', membership.workspace_id);
+      datasetsHistoryQuery = datasetsHistoryQuery.eq('workspace_id', membership.workspace_id);
     }
 
-    let { data: dataset } = await datasetQuery.maybeSingle();
+    let { data: datasetsHistory } = await datasetsHistoryQuery;
 
-    if (!dataset) {
+    if (!datasetsHistory || datasetsHistory.length === 0) {
       // Fallback
-      const { data: fallbackDataset } = await supabase
+      const { data: fallbackHistory } = await supabase
         .from('datasets')
-        .select('id, storage_path, total_customers, churn_rate_pct')
+        .select('id, total_customers, churn_rate_pct, created_at, storage_path')
         .not('total_customers', 'is', null)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      dataset = fallbackDataset;
+        .limit(12);
+      datasetsHistory = fallbackHistory;
     }
+
+    const dataset = datasetsHistory?.[0];
+    const prevDataset = datasetsHistory?.[1];
 
     if (dataset) {
       stats.totalCustomers = dataset.total_customers || 0;
@@ -87,6 +104,73 @@ export default async function Page() {
         .eq('risk_level', 'High');
         
       stats.predictedChurn = count || Math.round(stats.totalCustomers * (stats.churnRisk / 100));
+
+      // Compute sparklines (chronological: oldest to newest)
+      if (datasetsHistory) {
+        sparkTotalCustomers = datasetsHistory.map(d => d.total_customers || 0).reverse();
+        sparkChurnRisk = datasetsHistory.map(d => d.churn_rate_pct || 0).reverse();
+        sparkSafeCustomers = datasetsHistory.map(d => Math.round((d.total_customers || 0) * (1 - (d.churn_rate_pct || 0) / 100))).reverse();
+        sparkPredictedChurn = datasetsHistory.map(d => Math.round((d.total_customers || 0) * ((d.churn_rate_pct || 0) / 100))).reverse();
+
+        // Trajectory Summary (Avg, Best, Trend)
+        const validChurns = datasetsHistory.map(d => d.churn_rate_pct || 0);
+        const avg = validChurns.reduce((s, v) => s + v, 0) / validChurns.length;
+        
+        const bestDataset = datasetsHistory.reduce((min, d) => (d.churn_rate_pct || 0) < (min.churn_rate_pct || 0) ? d : min, datasetsHistory[0]);
+        const bestMonth = new Date(bestDataset.created_at).toLocaleString('en-US', { month: 'short' });
+        
+        const oldestDataset = datasetsHistory[datasetsHistory.length - 1];
+        const diff = (dataset.churn_rate_pct || 0) - (oldestDataset.churn_rate_pct || 0);
+
+        trajectorySummary = {
+          avg: `${avg.toFixed(1)}%`,
+          best: `${(bestDataset.churn_rate_pct || 0).toFixed(1)}% · ${bestMonth}`,
+          trend: `${diff >= 0 ? '+' : ''}${diff.toFixed(1)} pts`
+        };
+
+        trajectoryData = datasetsHistory.map(d => ({
+          label: new Date(d.created_at).toLocaleString('en-US', { month: 'short' }).toUpperCase(),
+          value: d.churn_rate_pct || 0,
+          timestamp: new Date(d.created_at).getTime()
+        })).sort((a, b) => a.timestamp - b.timestamp).map(d => ({ label: d.label, value: d.value }));
+      }
+
+      // Compute Deltas
+      if (prevDataset) {
+        // Total customers
+        const diffCust = (dataset.total_customers || 0) - (prevDataset.total_customers || 0);
+        const pctCust = prevDataset.total_customers ? (diffCust / prevDataset.total_customers) * 100 : 0;
+        deltas.totalCustomers = {
+          change: `${diffCust >= 0 ? '+' : ''}${pctCust.toFixed(1)}%`,
+          positive: diffCust >= 0
+        };
+
+        // Safe customers
+        const latestSafe = Math.round((dataset.total_customers || 0) * (1 - (dataset.churn_rate_pct || 0) / 100));
+        const prevSafe = Math.round((prevDataset.total_customers || 0) * (1 - (prevDataset.churn_rate_pct || 0) / 100));
+        const diffSafe = latestSafe - prevSafe;
+        const pctSafe = prevSafe ? (diffSafe / prevSafe) * 100 : 0;
+        deltas.safeCustomers = {
+          change: `${diffSafe >= 0 ? '+' : ''}${pctSafe.toFixed(1)}%`,
+          positive: diffSafe >= 0
+        };
+
+        // Churn Risk
+        const diffChurn = (dataset.churn_rate_pct || 0) - (prevDataset.churn_rate_pct || 0);
+        deltas.churnRisk = {
+          change: `${diffChurn >= 0 ? '+' : '−'}${Math.abs(diffChurn).toFixed(1)} pts`,
+          positive: diffChurn <= 0
+        };
+
+        // Predicted Churn
+        const latestPred = stats.predictedChurn;
+        const prevPred = Math.round((prevDataset.total_customers || 0) * ((prevDataset.churn_rate_pct || 0) / 100));
+        const diffPred = latestPred - prevPred;
+        deltas.predictedChurn = {
+          change: `${diffPred >= 0 ? '+' : ''}${diffPred}`,
+          positive: diffPred <= 0
+        };
+      }
 
       // 1. Fetch Risk Distribution (Low, Medium, High) using count queries to bypass 1000 row limit
       const [
@@ -150,8 +234,18 @@ export default async function Page() {
           const text = await fileData.text();
           const rows = parseSimpleCSV(text);
           
+          const weeklyFlow: Record<string, { new: number, churned: number }> = {};
           const monthlyFlow: Record<string, { new: number, churned: number }> = {};
           const yearlyFlow: Record<string, { new: number, churned: number }> = {};
+
+          // Helper to get week label (e.g. "W20 2026")
+          const getWeekLabel = (date: Date) => {
+            const onejan = new Date(date.getFullYear(), 0, 1);
+            const millisecs = date.getTime() - onejan.getTime();
+            const dayOfYear = Math.floor(millisecs / (24 * 60 * 60 * 1000));
+            const weekNum = Math.ceil((dayOfYear + onejan.getDay() + 1) / 7);
+            return `W${weekNum} ${date.getFullYear()}`;
+          };
           
           rows.forEach(row => {
             const subDate = row['subscription_date'];
@@ -160,12 +254,15 @@ export default async function Page() {
             if (subDate) {
               const d = new Date(subDate);
               if (!isNaN(d.getTime())) {
+                const week = getWeekLabel(d);
                 const month = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
                 const year = d.getFullYear().toString();
                 
+                if (!weeklyFlow[week]) weeklyFlow[week] = { new: 0, churned: 0 };
                 if (!monthlyFlow[month]) monthlyFlow[month] = { new: 0, churned: 0 };
                 if (!yearlyFlow[year]) yearlyFlow[year] = { new: 0, churned: 0 };
                 
+                weeklyFlow[week].new++;
                 monthlyFlow[month].new++;
                 yearlyFlow[year].new++;
               }
@@ -174,19 +271,42 @@ export default async function Page() {
             if (unsubDate && unsubDate.trim() !== '' && unsubDate !== 'null') {
               const d = new Date(unsubDate);
               if (!isNaN(d.getTime())) {
+                const week = getWeekLabel(d);
                 const month = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
                 const year = d.getFullYear().toString();
                 
+                if (!weeklyFlow[week]) weeklyFlow[week] = { new: 0, churned: 0 };
                 if (!monthlyFlow[month]) monthlyFlow[month] = { new: 0, churned: 0 };
                 if (!yearlyFlow[year]) yearlyFlow[year] = { new: 0, churned: 0 };
                 
+                weeklyFlow[week].churned++;
                 monthlyFlow[month].churned++;
                 yearlyFlow[year].churned++;
               }
             }
           });
 
-          // Sort chronologically
+          // Sort weekly chronologically
+          const weeklyData = Object.keys(weeklyFlow)
+            .map(week => {
+              const parts = week.split(' ');
+              const weekNum = parseInt(parts[0].substring(1));
+              const year = parseInt(parts[1]);
+              return {
+                period: week,
+                weekNum,
+                year,
+                new: weeklyFlow[week].new,
+                churned: weeklyFlow[week].churned
+              };
+            })
+            .sort((a, b) => {
+              if (a.year !== b.year) return a.year - b.year;
+              return a.weekNum - b.weekNum;
+            })
+            .map(item => ({ period: item.period, new: item.new, churned: item.churned }));
+
+          // Sort monthly chronologically
           const monthlyData = Object.keys(monthlyFlow)
             .map(month => ({
               period: month,
@@ -197,6 +317,7 @@ export default async function Page() {
             .sort((a, b) => a.timestamp - b.timestamp)
             .map(item => ({ period: item.period, new: item.new, churned: item.churned }));
 
+          // Sort yearly chronologically
           const yearlyData = Object.keys(yearlyFlow)
             .map(year => ({
               period: year,
@@ -205,11 +326,28 @@ export default async function Page() {
             }))
             .sort((a, b) => parseInt(a.period) - parseInt(b.period));
 
-          customerFlowData = { month: monthlyData, year: yearlyData } as any;
+          customerFlowData = { week: weeklyData, month: monthlyData, year: yearlyData } as any;
         }
       }
     }
   }
 
-  return <OverviewPage stats={stats} riskData={riskDistributionData} flowData={customerFlowData} planData={planDistributionData} segmentData={segmentData} />;
+  return (
+    <OverviewPage
+      stats={stats}
+      riskData={riskDistributionData}
+      flowData={customerFlowData}
+      planData={planDistributionData}
+      segmentData={segmentData}
+      sparklines={{
+        totalCustomers: sparkTotalCustomers,
+        safeCustomers: sparkSafeCustomers,
+        churnRisk: sparkChurnRisk,
+        predictedChurn: sparkPredictedChurn
+      }}
+      deltas={deltas}
+      trajectorySummary={trajectorySummary}
+      trajectoryData={trajectoryData}
+    />
+  );
 }

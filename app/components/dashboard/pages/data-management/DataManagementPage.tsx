@@ -3,9 +3,9 @@
 import { useState, useRef, useCallback, useEffect, Fragment } from 'react';
 import DashboardLayout from '../../layout/DashboardLayout';
 import Card from '../../ui/Card';
-import Button from '../../ui/Button';
 import Badge from '../../ui/Badge';
 import Pagination from '../../ui/Pagination';
+import StatCard from '../../ui/StatCard';
 import { createClient } from '@/lib/supabase/client';
 import { useDashboardContext } from '../../context/DashboardContext';
 import PermissionGate from '../../ui/PermissionGate';
@@ -22,12 +22,6 @@ interface DatasetRow {
   error_message: string | null;
 }
 
-interface CsvFile {
-  key: keyof typeof REQUIRED_FILES;
-  file: File | null;
-}
-
-// 5 file yang wajib diupload — nama key harus persis sama dengan Railway parameter
 const REQUIRED_FILES = {
   customer_accounts: { label: 'customer_accounts.csv', desc: 'Customer accounts & plan data' },
   monthly_usage_metrics: { label: 'monthly_usage_metrics.csv', desc: 'Usage hours & feature adoption' },
@@ -38,7 +32,6 @@ const REQUIRED_FILES = {
 
 type FileKey = keyof typeof REQUIRED_FILES;
 
-// Preview columns per file type
 const PREVIEW_COLS: Record<FileKey, string[]> = {
   customer_accounts: ['customer_id', 'plan_type', 'contract_type', 'subscription_date', 'total_users', 'unsubscribed_date'],
   monthly_usage_metrics: ['customer_id', 'monthly_usage_hrs', 'feature_adoption_pct', 'last_login_date'],
@@ -46,6 +39,38 @@ const PREVIEW_COLS: Record<FileKey, string[]> = {
   support_tickets: ['ticket_id', 'customer_id', 'category', 'priority', 'status'],
   nps_surveys_with_feedback: ['customer_id', 'nps_score', 'segment', 'feedback_category', 'feedback_text'],
 };
+
+// ── SVG Icons ─────────────────────────────────────────────────────────────────
+const DatabaseIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <ellipse cx="12" cy="5" rx="9" ry="3" />
+    <path d="M3 5V19A9 3 0 0 0 21 19V5" />
+    <path d="M3 12A9 3 0 0 0 21 12" />
+  </svg>
+);
+
+const UsersIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+
+const AlertIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+
+const ActivityIcon = () => (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+  </svg>
+);
 
 // Simple CSV parser (first N rows)
 function parseCSVPreview(text: string, maxRows = 8): { headers: string[]; rows: string[][] } {
@@ -149,7 +174,6 @@ function DataManagementPageContent() {
   useEffect(() => {
     if (!workspace?.id) return;
 
-    // Use a more unique channel name to avoid conflicts
     const channel = supabase
       .channel(`datasets-realtime-${workspace.id}`)
       .on(
@@ -373,297 +397,349 @@ function DataManagementPageContent() {
     return 'Pending';
   };
 
-  const previewCols = previewKey ? PREVIEW_COLS[previewKey] : [];
+  const latestDataset = datasets.find(ds => ds.status === 'done');
+  const hasError = datasets.some(ds => ds.status === 'error');
 
   return (
     <DashboardLayout page="Data Management">
-
-      {/* ── Top row: Upload zone + Dataset history ── */}
-      <div className="grid grid-cols-2 gap-4 mb-4">
-
-        {/* Upload 5 files */}
-        <Card>
-          <h3 className="text-sm font-bold text-black mb-0.5">Upload Datasets</h3>
-          <p className="text-xs text-gray-400 mb-4">Upload all 5 required CSV files to begin analysis</p>
-
-          <div
-            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDropMulti}
-            onClick={() => fileInputRef.current?.click()}
-            className={`flex flex-col items-center justify-center py-10 px-6 border-2 border-dashed rounded-xl transition-colors cursor-pointer mb-4
-              ${dragOver ? 'border-black bg-gray-50' : 'border-gray-200 hover:border-black bg-white'}`}
-          >
-            <input
-              type="file"
-              accept=".csv"
-              multiple
-              className="hidden"
-              ref={fileInputRef}
-              onChange={e => { if (e.target.files) handleMultipleFiles(e.target.files); }}
-            />
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" className="mb-3">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
-            </svg>
-            <p className="text-sm font-semibold text-black">Click or drop files here</p>
-            <p className="text-[10px] text-gray-400 mt-1">Upload the 5 required CSV files</p>
-          </div>
-
-          {/* List selected files */}
-          {Object.keys(files).length > 0 && (
-            <div className="flex flex-col gap-2">
-              {Object.entries(files).map(([k, file]) => {
-                const key = k as FileKey;
-                const progress = uploadProgress[key];
-                return (
-                  <div key={key} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-gray-100 bg-white">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 
-                      ${progress === 'uploading' ? 'bg-black' : progress === 'done' ? 'bg-green-500' : 'bg-gray-100'}`}>
-                      {progress === 'uploading' ? (
-                        <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                      ) : progress === 'done' ? (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
-                      ) : (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
-                        </svg>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold text-black truncate">{file.name}</p>
-                      <p className="text-[10px] text-gray-400 truncate">{formatFileSize(file.size)}</p>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button onClick={e => { e.stopPropagation(); openPreview(key); }} className="text-[10px] font-semibold text-blue-600 hover:underline px-1.5 py-0.5">Preview</button>
-                      <button onClick={e => { e.stopPropagation(); setFiles(prev => { const n = { ...prev }; delete n[key]; return n; }); }} className="text-gray-400 hover:text-red-500 transition-colors">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Upload button */}
-          <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-            <p className="text-xs text-gray-500">
-              {Object.keys(files).length} of {Object.keys(REQUIRED_FILES).length} files selected
+      <div className="fade-in pb-10">
+        
+        {/* ── Page Header ── */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-[var(--b)] pb-5">
+          <div>
+            <p className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.14em] mb-1 font-mono">
+              Workspace · Data Sources
             </p>
-            <Button
-              onClick={handleUpload}
-              disabled={!allFilesSelected || uploading}
-              size="sm"
-            >
-              {uploading ? 'Uploading...' : 'Upload All Files'}
-            </Button>
+            <h1 className="font-display text-2xl font-black text-[var(--t)] leading-tight tracking-tight">
+              Data Management
+            </h1>
+            <p className="text-[12px] text-[var(--t3)] mt-1 max-w-xl">
+              Ingest customer accounts, usage logs, billing information, and support tickets to compute churn risk scores.
+            </p>
           </div>
-        </Card>
-
-        {/* Dataset history */}
-        <Card>
-          <h3 className="text-sm font-bold text-black mb-0.5">Uploaded Datasets</h3>
-          <p className="text-xs text-gray-400 mb-4">Your uploaded datasets and their status</p>
-
-          {loadingDatasets ? (
-            <div className="flex items-center justify-center py-10">
-              <svg className="animate-spin text-gray-300" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-            </div>
-          ) : datasets.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" className="mb-2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
-              </svg>
-              <p className="text-xs text-gray-400">No datasets uploaded yet</p>
-            </div>
-          ) : (
-            <div className="flex-1 min-h-[140px]">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                  {['Dataset ID', 'Uploaded', 'Status', 'Customers', 'High Risk%', 'Actions'].map(h => (
-                    <th key={h} className="pb-2 text-left text-xs font-semibold text-gray-500 pr-2">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {datasets.map(ds => (
-                  <Fragment key={ds.id}>
-                    <tr className="hover:bg-gray-50 transition-colors">
-                      <td className="py-2.5 pr-2">
-                        <span className="text-xs font-mono text-gray-500">{ds.id.slice(0, 8)}…</span>
-                      </td>
-                      <td className="py-2.5 pr-2 text-xs text-gray-500 whitespace-nowrap">
-                        {formatDate(ds.created_at)}
-                      </td>
-                      <td className="py-2.5 pr-2">
-                        <Badge 
-                          label={statusLabel(ds.status)} 
-                          variant={statusBadgeVariant(ds.status) as any} 
-                          loading={ds.status === 'pending' || ds.status === 'analyzing'}
-                        />
-                      </td>
-                      <td className="py-2.5 pr-2 text-xs text-gray-600">
-                        {ds.total_customers ? ds.total_customers.toLocaleString('en-US') : '—'}
-                      </td>
-                      <td className="py-2.5 pr-2">
-                        {ds.churn_rate_pct != null ? (
-                          <span className={`text-xs font-bold ${ds.churn_rate_pct >= 30 ? 'text-red-500' : 'text-green-500'}`}>
-                            {ds.churn_rate_pct}%
-                          </span>
-                        ) : <span className="text-xs text-gray-400">—</span>}
-                      </td>
-                      <td className="py-2.5">
-                        <div className="flex items-center gap-2">
-                          {ds.status === 'done' && (
-                            <a
-                              href={`/dashboard/analytics?dataset_id=${ds.id}`}
-                              className="text-xs font-semibold text-blue-600 hover:underline px-2 py-1.5"
-                            >
-                              View →
-                            </a>
-                          )}
-                          <button 
-                            onClick={() => setExpandedDataset(p => p === ds.id ? null : ds.id)}
-                            className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-gray-200 text-gray-500 transition-colors"
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={`transition-transform duration-200 ${expandedDataset === ds.id ? 'rotate-180' : ''}`}>
-                              <polyline points="6 9 12 15 18 9" />
-                            </svg>
-                          </button>
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); setDatasetToDelete(ds); }}
-                            className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-50 text-red-400 hover:text-red-500 transition-colors"
-                            title="Delete dataset"
-                          >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                              <path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            </svg>
-                          </button>
-                        </div>
-                        {ds.status === 'error' && (
-                          <span className="block mt-1 text-[10px] text-red-500 max-w-[120px] line-clamp-2" title={ds.error_message || ''}>{ds.error_message}</span>
-                        )}
-                      </td>
-                    </tr>
-                    {expandedDataset === ds.id && (
-                      <tr className="bg-gray-50/50">
-                        <td colSpan={6} className="px-4 py-3 border-t border-gray-100">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Dataset Files</p>
-                          <div className="flex flex-wrap gap-2">
-                            {(Object.keys(REQUIRED_FILES) as FileKey[]).map(k => (
-                               <button 
-                                 key={k}
-                                 onClick={() => openRemotePreview(ds.id, ds.storage_path, k)}
-                                 className="text-[10px] font-semibold text-gray-700 bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:border-black transition-colors"
-                               >
-                                 {REQUIRED_FILES[k].label}
-                               </button>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex items-center gap-2.5">
+            {/* Action buttons if any */}
           </div>
-        )}
-        <div className="mt-6 mb-2 font-medium">
-          <Pagination
-            currentPage={page}
-            totalPages={Math.ceil(totalDatasets / PAGE_SIZE)}
-            totalItems={totalDatasets}
-            pageSize={PAGE_SIZE}
-            onPageChange={setPage}
+        </div>
+
+        {/* ── StatCards Row (4 cards) ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard
+            label="Total Datasets"
+            value={totalDatasets.toString()}
+            icon={<DatabaseIcon />}
+            accentColor="var(--p)"
+          />
+          <StatCard
+            label="Active Records"
+            value={latestDataset?.total_customers ? latestDataset.total_customers.toLocaleString('en-US') : '—'}
+            icon={<UsersIcon />}
+            accentColor="var(--s)"
+          />
+          <StatCard
+            label="Risk Baseline"
+            value={latestDataset?.churn_rate_pct != null ? `${latestDataset.churn_rate_pct}%` : '—'}
+            icon={<AlertIcon />}
+            accentColor={latestDataset?.churn_rate_pct && latestDataset.churn_rate_pct >= 30 ? 'var(--d)' : 'var(--s)'}
+          />
+          <StatCard
+            label="Pipeline Status"
+            value={hasError ? 'Issues' : datasets.length > 0 ? 'Healthy' : 'No Data'}
+            icon={<ActivityIcon />}
+            accentColor={hasError ? 'var(--d)' : 'var(--s)'}
           />
         </div>
-      </Card>
-      </div>
 
-      {/* ── Bottom row: CSV Preview ── */}
-      {previewData && previewKey && (
-        <Card padding="none">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <div>
-              <h3 className="text-sm font-bold text-black">Data Preview</h3>
-              <p className="text-xs text-gray-400">
-                {REQUIRED_FILES[previewKey].label} — first {previewData.rows.length} rows
-              </p>
+        {/* ── Main Layout Grid ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+          {/* Left Column: Upload datasets */}
+          <Card>
+            <h3 className="text-sm font-bold text-[var(--t)] mb-0.5 font-display">Upload Datasets</h3>
+            <p className="text-xs text-[var(--t3)] mb-4">Upload all 5 required CSV files to begin analysis</p>
+
+            <div
+              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDropMulti}
+              onClick={() => fileInputRef.current?.click()}
+              className={`flex flex-col items-center justify-center py-10 px-6 border-2 border-dashed rounded-xl transition-all duration-300 cursor-pointer mb-4
+                ${dragOver ? 'border-[var(--t)] bg-[var(--bg2)]' : 'border-[var(--b2)] hover:border-[var(--t2)] bg-[var(--surf)]'}`}
+            >
+              <input
+                type="file"
+                accept=".csv"
+                multiple
+                className="hidden"
+                ref={fileInputRef}
+                onChange={e => { if (e.target.files) handleMultipleFiles(e.target.files); }}
+              />
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="mb-3 text-[var(--t3)]">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <p className="text-sm font-semibold text-[var(--t)]">Click or drop files here</p>
+              <p className="text-[10px] text-[var(--t3)] mt-1 font-mono">Upload the 5 required CSV files</p>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Tab switcher for files */}
-              <div className="flex items-center gap-1">
-                {(Object.keys(REQUIRED_FILES) as FileKey[]).map(k => {
-                  const showTab = previewOptions?.source === 'remote' || files[k];
-                  if (!showTab) return null;
+
+            {/* List selected files */}
+            {Object.keys(files).length > 0 && (
+              <div className="flex flex-col gap-2">
+                {Object.entries(files).map(([k, file]) => {
+                  const key = k as FileKey;
+                  const progress = uploadProgress[key];
                   return (
-                    <button
-                      key={k}
-                      onClick={() => previewOptions?.source === 'remote' ? openRemotePreview(previewOptions.datasetId!, previewOptions.datasetPath!, k) : openPreview(k)}
-                      className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all
-                        ${previewKey === k ? 'border-black bg-black text-white' : 'border-gray-200 text-gray-500 hover:border-gray-400'}`}
-                    >
-                      {k.replace(/_/g, ' ').replace('nps surveys with feedback', 'nps').replace('monthly usage metrics', 'usage').replace('customer accounts', 'accounts').replace('billing data', 'billing').replace('support tickets', 'tickets')}
-                    </button>
+                    <div key={key} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-[var(--b)] bg-[var(--bg1)] transition-all hover:border-[var(--b2)]">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors
+                        ${progress === 'uploading' ? 'bg-[var(--t)] text-[var(--inv-t)]' : progress === 'done' ? 'bg-[var(--s)] text-[var(--inv-t)]' : 'bg-[var(--bg2)] text-[var(--t2)]'}`}>
+                        {progress === 'uploading' ? (
+                          <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                        ) : progress === 'done' ? (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+                        ) : (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-[var(--t)] truncate">{file.name}</p>
+                        <p className="text-[10px] text-[var(--t3)] truncate font-mono">{formatFileSize(file.size)}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button onClick={e => { e.stopPropagation(); openPreview(key); }} className="text-[10px] font-bold text-[var(--p)] hover:underline px-1.5 py-0.5 font-sans">Preview</button>
+                        <button onClick={e => { e.stopPropagation(); setFiles(prev => { const n = { ...prev }; delete n[key]; return n; }); }} className="text-[var(--t3)] hover:text-[var(--d)] transition-colors">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                        </button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
+            )}
+
+            {/* Upload button */}
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-[var(--b)]">
+              <p className="text-xs text-[var(--t3)] font-mono">
+                {Object.keys(files).length} of {Object.keys(REQUIRED_FILES).length} files selected
+              </p>
               <button
-                onClick={() => { setPreviewKey(null); setPreviewData(null); }}
-                className="text-gray-400 hover:text-black transition-colors"
+                onClick={handleUpload}
+                disabled={!allFilesSelected || uploading}
+                className="inline-flex items-center justify-center gap-2 font-medium rounded-lg text-xs font-bold bg-[var(--t)] text-[var(--inv-t)] px-4 py-2 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-sans active:scale-[0.98]"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                {uploading ? 'Uploading...' : 'Upload All Files'}
               </button>
             </div>
-          </div>
+          </Card>
 
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  {previewData.headers.map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {previewData.rows.map((row, ri) => (
-                  <tr key={ri} className="hover:bg-gray-50 transition-colors">
-                    {row.map((cell, ci) => (
-                      <td key={ci} className="px-4 py-2.5 text-xs text-gray-700 whitespace-nowrap max-w-xs truncate font-mono">
-                        {cell || <span className="text-gray-300">—</span>}
-                      </td>
+          {/* Right Column: Dataset history */}
+          <Card>
+            <h3 className="text-sm font-bold text-[var(--t)] mb-0.5 font-display">Uploaded Datasets</h3>
+            <p className="text-xs text-[var(--t3)] mb-4">Your uploaded datasets and analysis status</p>
+
+            {loadingDatasets ? (
+              <div className="flex items-center justify-center py-10">
+                <svg className="animate-spin text-[var(--t3)]" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+              </div>
+            ) : datasets.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="mb-2 text-[var(--t3)]">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+                </svg>
+                <p className="text-xs text-[var(--t3)] font-sans">No datasets uploaded yet</p>
+              </div>
+            ) : (
+              <div className="flex-1 min-h-[140px] overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/40">
+                      {['Dataset ID', 'Uploaded', 'Status', 'Customers', 'High Risk %', 'Actions'].map(h => (
+                        <th key={h} className="px-4 py-3 text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono pr-2">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--b)]">
+                    {datasets.map(ds => (
+                      <Fragment key={ds.id}>
+                        <tr className="hover:bg-[var(--bg1)]/50 transition-colors">
+                          <td className="px-4 py-3">
+                            <span className="text-xs font-mono text-[var(--t2)]">{ds.id.slice(0, 8)}…</span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-[var(--t2)] font-mono whitespace-nowrap">
+                            {formatDate(ds.created_at)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge 
+                              label={statusLabel(ds.status)} 
+                              variant={statusBadgeVariant(ds.status) as any} 
+                              loading={ds.status === 'pending' || ds.status === 'analyzing'}
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-xs text-[var(--t2)] font-mono">
+                            {ds.total_customers ? ds.total_customers.toLocaleString('en-US') : '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            {ds.churn_rate_pct != null ? (
+                              <span className={`text-xs font-mono font-bold ${ds.churn_rate_pct >= 30 ? 'text-[var(--d)]' : 'text-[var(--s)]'}`}>
+                                {ds.churn_rate_pct}%
+                              </span>
+                            ) : <span className="text-xs text-[var(--t3)]">—</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              {ds.status === 'done' && (
+                                <a
+                                  href={`/dashboard/analytics?dataset_id=${ds.id}`}
+                                  className="text-xs font-semibold text-[var(--p)] hover:underline px-2 py-1.5 font-sans"
+                                >
+                                  View →
+                                </a>
+                              )}
+                              <button 
+                                onClick={() => setExpandedDataset(p => p === ds.id ? null : ds.id)}
+                                className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-[var(--bg2)] text-[var(--t2)] transition-colors cursor-pointer"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={`transition-transform duration-200 ${expandedDataset === ds.id ? 'rotate-180' : ''}`}>
+                                  <polyline points="6 9 12 15 18 9" />
+                                </svg>
+                              </button>
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); setDatasetToDelete(ds); }}
+                                className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-[var(--d)]/10 text-[var(--d)] transition-colors cursor-pointer"
+                                title="Delete dataset"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                  <path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                              </button>
+                            </div>
+                            {ds.status === 'error' && (
+                              <span className="block mt-1 text-[10px] text-[var(--d)] max-w-[120px] line-clamp-2" title={ds.error_message || ''}>{ds.error_message}</span>
+                            )}
+                          </td>
+                        </tr>
+                        {expandedDataset === ds.id && (
+                          <tr className="bg-[var(--bg1)]/40">
+                            <td colSpan={6} className="px-4 py-3 border-t border-[var(--b)]">
+                              <p className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-widest mb-2 font-mono">Dataset Files</p>
+                              <div className="flex flex-wrap gap-2">
+                                {(Object.keys(REQUIRED_FILES) as FileKey[]).map(k => (
+                                   <button 
+                                     key={k}
+                                     onClick={() => openRemotePreview(ds.id, ds.storage_path, k)}
+                                     className="text-[10px] font-semibold text-[var(--t2)] bg-[var(--surf)] border border-[var(--b)] px-3 py-1.5 rounded-lg hover:border-[var(--b3)] hover:text-[var(--t)] transition-colors font-sans cursor-pointer"
+                                   >
+                                     {REQUIRED_FILES[k].label}
+                                   </button>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="mt-6 mb-2 font-medium">
+              <Pagination
+                currentPage={page}
+                totalPages={Math.ceil(totalDatasets / PAGE_SIZE)}
+                totalItems={totalDatasets}
+                pageSize={PAGE_SIZE}
+                onPageChange={setPage}
+              />
+            </div>
+          </Card>
+        </div>
+
+        {/* ── Bottom row: CSV Preview ── */}
+        {previewData && previewKey && (
+          <Card padding="none" className="mt-6">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--b)] bg-[var(--bg1)]/10">
+              <div>
+                <h3 className="text-sm font-bold text-[var(--t)] font-display">Data Preview</h3>
+                <p className="text-xs text-[var(--t3)]">
+                  {REQUIRED_FILES[previewKey].label} — first {previewData.rows.length} rows
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                {/* Tab switcher for files */}
+                <div className="flex items-center gap-1">
+                  {(Object.keys(REQUIRED_FILES) as FileKey[]).map(k => {
+                    const showTab = previewOptions?.source === 'remote' || files[k];
+                    if (!showTab) return null;
+                    return (
+                      <button
+                        key={k}
+                        onClick={() => previewOptions?.source === 'remote' ? openRemotePreview(previewOptions.datasetId!, previewOptions.datasetPath!, k) : openPreview(k)}
+                        className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all font-sans cursor-pointer
+                          ${previewKey === k 
+                            ? 'border-[var(--t)] bg-[var(--t)] text-[var(--inv-t)]' 
+                            : 'border-[var(--b)] text-[var(--t2)] hover:border-[var(--b3)] hover:bg-[var(--bg2)]'}`}
+                      >
+                        {k.replace(/_/g, ' ').replace('nps surveys with feedback', 'nps').replace('monthly usage metrics', 'usage').replace('customer accounts', 'accounts').replace('billing data', 'billing').replace('support tickets', 'tickets')}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => { setPreviewKey(null); setPreviewData(null); }}
+                  className="text-[var(--t3)] hover:text-[var(--t)] transition-colors cursor-pointer"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/40">
+                    {previewData.headers.map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-[var(--b)]">
+                  {previewData.rows.map((row, ri) => (
+                    <tr key={ri} className="hover:bg-[var(--bg1)]/50 transition-colors">
+                      {row.map((cell, ci) => (
+                        <td key={ci} className="px-4 py-2.5 text-xs text-[var(--t2)] whitespace-nowrap max-w-xs truncate font-mono">
+                          {cell || <span className="text-[var(--t4)]">—</span>}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
-          <div className="px-4 py-2.5 border-t border-gray-100">
-            <p className="text-xs text-gray-400">
-              Showing first {previewData.rows.length} rows · {previewData.headers.length} columns
-            </p>
-          </div>
-        </Card>
-      )}
+            <div className="px-4 py-2.5 border-t border-[var(--b)] bg-[var(--bg1)]/20">
+              <p className="text-xs text-[var(--t3)] font-mono">
+                Showing first {previewData.rows.length} rows · {previewData.headers.length} columns
+              </p>
+            </div>
+          </Card>
+        )}
 
-      {/* Empty preview state */}
-      {!previewData && (
-        <Card>
-          <div className="flex flex-col items-center justify-center py-8 text-center">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round" className="mb-2">
-              <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" />
-              <line x1="9" y1="21" x2="9" y2="9" />
-            </svg>
-            <p className="text-xs font-semibold text-gray-400">Select a file above then click Preview to inspect data</p>
-          </div>
-        </Card>
-      )}
+        {/* Empty preview state */}
+        {!previewData && (
+          <Card className="mt-6">
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="mb-2 text-[var(--t3)]">
+                <rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" />
+                <line x1="9" y1="21" x2="9" y2="9" />
+              </svg>
+              <p className="text-xs font-semibold text-[var(--t3)] font-sans">Select a file above then click Preview to inspect data</p>
+            </div>
+          </Card>
+        )}
+      </div>
+
       {/* Deletion Confirmation */}
       <ActionConfirmation
         isOpen={!!datasetToDelete}
@@ -685,4 +761,4 @@ export default function DataManagementPage() {
       <DataManagementPageContent />
     </PermissionGate>
   );
-}
+}

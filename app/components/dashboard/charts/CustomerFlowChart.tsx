@@ -45,7 +45,11 @@ const CustomerFlowChart = ({ data }: { data?: any }) => {
           <p className="text-[11px] text-[var(--t3)] mt-0.5">Tracking acquisition vs churn</p>
         </div>
         <Tabs
-          tabs={[{ label: 'Month', value: 'Month' }, { label: 'Year', value: 'Year' }]}
+          tabs={[
+            { label: 'Week', value: 'Week' },
+            { label: 'Month', value: 'Month' },
+            { label: 'Year', value: 'Year' }
+          ]}
           active={period}
           onChange={setPeriod}
           variant="pill"
