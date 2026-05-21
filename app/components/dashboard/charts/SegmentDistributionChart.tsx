@@ -36,8 +36,8 @@ const SegmentDistributionChart = ({ data }: { data: any[] }) => {
         </div>
       </div>
 
-      <div className="flex-1 min-h-[200px]">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+      <div className="flex-1 min-h-[200px] overflow-hidden">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={350}>
           <BarChart 
             data={chartData} 
             layout="vertical" 

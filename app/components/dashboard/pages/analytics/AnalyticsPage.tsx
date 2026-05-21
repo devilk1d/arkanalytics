@@ -11,6 +11,7 @@ import { SendToChatModal } from './ActionModals';
 import { AnalyzeCustomerModal } from './AnalyzeCustomerModal';
 import { createClient } from '@/lib/supabase/client';
 import PermissionGate from '../../ui/PermissionGate';
+import FilterDropdown from '../../ui/FilterDropdown';
 import { normalizeSegmentLabel } from '../segmentation/SegmentationPage';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -605,7 +606,7 @@ function AnalyticsPageContent() {
         {/* Card Header */}
         <div className="flex items-center gap-3 px-5 py-3.5 border-b border-[var(--b)]">
           <div>
-            <div className="text-sm font-bold text-[var(--t)]">Customer roster</div>
+            <div className="text-sm font-bold text-[var(--t)]">Customer Data</div>
             <div className="text-[11px] text-[var(--t3)] font-mono mt-0.5">
               {tableLoading ? 'Loading...' : `${totalCount} customer${totalCount !== 1 ? 's' : ''} found`}
             </div>
@@ -622,41 +623,45 @@ function AnalyticsPageContent() {
               />
             </div>
             {/* Risk dropdown */}
-            <select
+            <FilterDropdown
+              options={[
+                { label: 'All risks', value: 'all' },
+                { label: 'High', value: 'high' },
+                { label: 'Medium', value: 'medium' },
+                { label: 'Low', value: 'low' }
+              ]}
               value={risk}
-              onChange={e => updateQueryParams({ risk: e.target.value })}
-              className="h-8 px-2.5 pr-7 text-[11px] font-medium text-[var(--t2)] bg-[var(--bg1)] border border-[var(--b)] rounded-lg appearance-none cursor-pointer hover:border-[var(--t3)] focus:outline-none focus:border-[var(--t)] transition-colors"
-              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 7px center' }}
-            >
-              <option value="all">All risks</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
+              onChange={(value) => updateQueryParams({ risk: value })}
+              placeholder="All risks"
+              size="sm"
+              showIcon={true}
+            />
             {/* Plan dropdown */}
-            <select
+            <FilterDropdown
+              options={[
+                { label: 'All plans', value: 'all' },
+                { label: 'Enterprise', value: 'enterprise' },
+                { label: 'Professional', value: 'professional' },
+                { label: 'Starter', value: 'starter' }
+              ]}
               value={plan}
-              onChange={e => updateQueryParams({ plan: e.target.value })}
-              className="h-8 px-2.5 pr-7 text-[11px] font-medium text-[var(--t2)] bg-[var(--bg1)] border border-[var(--b)] rounded-lg appearance-none cursor-pointer hover:border-[var(--t3)] focus:outline-none focus:border-[var(--t)] transition-colors"
-              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 7px center' }}
-            >
-              <option value="all">All plans</option>
-              <option value="enterprise">Enterprise</option>
-              <option value="professional">Professional</option>
-              <option value="starter">Starter</option>
-            </select>
+              onChange={(value) => updateQueryParams({ plan: value })}
+              placeholder="All plans"
+              size="sm"
+              showIcon={true}
+            />
             {/* Segment dropdown */}
-            <select
+            <FilterDropdown
+              options={[
+                { label: 'All segments', value: 'all' },
+                ...segmentOptions
+              ]}
               value={segment}
-              onChange={e => updateQueryParams({ segment: e.target.value })}
-              className="h-8 px-2.5 pr-7 text-[11px] font-medium text-[var(--t2)] bg-[var(--bg1)] border border-[var(--b)] rounded-lg appearance-none cursor-pointer hover:border-[var(--t3)] focus:outline-none focus:border-[var(--t)] transition-colors"
-              style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 7px center' }}
-            >
-              <option value="all">All segments</option>
-              {segmentOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
+              onChange={(value) => updateQueryParams({ segment: value })}
+              placeholder="All segments"
+              size="sm"
+              showIcon={true}
+            />
             {tableLoading && (
               <svg className="animate-spin text-gray-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
             )}

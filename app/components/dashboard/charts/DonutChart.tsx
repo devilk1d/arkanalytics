@@ -40,9 +40,9 @@ const DonutChart = ({ data }: { data?: any[] }) => {
         <p className="text-[11px] text-[var(--t3)] mt-0.5 font-medium">Customer split by plan type</p>
       </div>
 
-      <div className="flex items-center gap-6 flex-1">
+      <div className="flex items-center gap-6 flex-1 overflow-hidden">
         <div className="relative shrink-0 w-[170px] h-[170px]">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={350}>
             <PieChart>
               <Pie
                 data={enriched} cx="50%" cy="50%"

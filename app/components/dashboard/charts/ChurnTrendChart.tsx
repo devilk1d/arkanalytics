@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, memo, useId } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -25,6 +25,10 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 const ChurnTrendChart = ({ data }: { data?: any[] }) => {
   const [isMounted, setIsMounted] = useState(false);
+  const gradLowId = useId();
+  const gradMedId = useId();
+  const gradHighId = useId();
+  
   useEffect(() => setIsMounted(true), []);
 
   const chartData = data && data.length > 0 ? data : [];
@@ -46,19 +50,19 @@ const ChurnTrendChart = ({ data }: { data?: any[] }) => {
         </div>
       </div>
 
-      <div className="flex-1 min-h-[190px]">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+      <div className="flex-1 min-h-[190px] overflow-hidden">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={350}>
           <BarChart data={enriched} margin={{ top: 10, right: 0, bottom: 0, left: 0 }} barSize={54}>
             <defs>
-              <linearGradient id="gradLow" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={gradLowId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#10b981" stopOpacity={1}/>
                 <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
               </linearGradient>
-              <linearGradient id="gradMed" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={gradMedId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/>
                 <stop offset="100%" stopColor="#d97706" stopOpacity={0.8}/>
               </linearGradient>
-              <linearGradient id="gradHigh" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={gradHighId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#ef4444" stopOpacity={1}/>
                 <stop offset="100%" stopColor="#b91c1c" stopOpacity={0.8}/>
               </linearGradient>
@@ -80,8 +84,8 @@ const ChurnTrendChart = ({ data }: { data?: any[] }) => {
             <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--bg1)', radius: 8, opacity: 0.4 }} />
             <Bar dataKey="value" radius={[8, 8, 2, 2]}>
               {enriched.map((entry: any, index: number) => {
-                const gradId = entry.name.toLowerCase().includes('low') ? 'url(#gradLow)' : 
-                              entry.name.toLowerCase().includes('med') ? 'url(#gradMed)' : 'url(#gradHigh)';
+                const gradId = entry.name.toLowerCase().includes('low') ? `url(#${gradLowId})` : 
+                              entry.name.toLowerCase().includes('med') ? `url(#${gradMedId})` : `url(#${gradHighId})`;
                 return <Cell key={`cell-${index}`} fill={gradId} />;
               })}
             </Bar>

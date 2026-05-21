@@ -70,7 +70,7 @@ export default async function Page() {
       .select('id, total_customers, churn_rate_pct, created_at, storage_path')
       .not('total_customers', 'is', null)
       .order('created_at', { ascending: false })
-      .limit(12);
+      .limit(50);
 
     if (membership?.workspace_id) {
       datasetsHistoryQuery = datasetsHistoryQuery.eq('workspace_id', membership.workspace_id);
@@ -85,7 +85,7 @@ export default async function Page() {
         .select('id, total_customers, churn_rate_pct, created_at, storage_path')
         .not('total_customers', 'is', null)
         .order('created_at', { ascending: false })
-        .limit(12);
+        .limit(50);
       datasetsHistory = fallbackHistory;
     }
 
@@ -105,8 +105,83 @@ export default async function Page() {
         
       stats.predictedChurn = count || Math.round(stats.totalCustomers * (stats.churnRisk / 100));
 
-      // Compute sparklines (chronological: oldest to newest)
-      if (datasetsHistory) {
+      // Download and parse CSV once for reuse
+      let csvRows: Record<string, string>[] = [];
+      
+      // Compute sparklines from CSV monthly data
+      if (dataset.storage_path) {
+        try {
+          const csvPromise = supabase.storage
+            .from('files')
+            .download(`${dataset.storage_path}/customer_accounts.csv`)
+            .then(async ({ data: fileData }) => {
+              if (!fileData) return [];
+              const text = await fileData.text();
+              return parseSimpleCSV(text);
+            })
+            .catch(() => []);
+          
+          // Parse CSV in parallel with other queries
+          csvRows = await csvPromise;
+          
+          if (csvRows.length > 0) {
+            // Analyze customer records by month - single pass
+            const monthlyStats: Record<string, { 
+              total: number; 
+              active: number; 
+              churned: number;
+            }> = {};
+            
+            for (const row of csvRows) {
+              const subDate = row['subscription_date'];
+              if (!subDate) continue;
+              
+              const d = new Date(subDate);
+              if (isNaN(d.getTime())) continue;
+              
+              const month = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+              
+              if (!monthlyStats[month]) {
+                monthlyStats[month] = { total: 0, active: 0, churned: 0 };
+              }
+              
+              monthlyStats[month].total++;
+              
+              // Check if customer churned
+              const unsubDate = row['unsubscribed_date'];
+              const isChurned = unsubDate && unsubDate.trim() !== '' && unsubDate !== 'null' && unsubDate.toLowerCase() !== 'nan';
+              
+              if (isChurned) {
+                monthlyStats[month].churned++;
+              } else {
+                monthlyStats[month].active++;
+              }
+            }
+            
+            // Sort months chronologically - optimized
+            const sortedMonths = Object.entries(monthlyStats)
+              .map(([month, stats]) => ({
+                period: month,
+                timestamp: new Date(month).getTime(),
+                ...stats
+              }))
+              .sort((a, b) => a.timestamp - b.timestamp);
+            
+            // Build sparklines from monthly data
+            if (sortedMonths.length > 0) {
+              sparkTotalCustomers = sortedMonths.map(m => m.total);
+              sparkSafeCustomers = sortedMonths.map(m => m.active);
+              sparkChurnRisk = sortedMonths.map(m => m.total > 0 ? parseFloat(((m.churned / m.total) * 100).toFixed(1)) : 0);
+              sparkPredictedChurn = sortedMonths.map(m => m.churned);
+            }
+          }
+        } catch (error) {
+          // Silently fail and use fallback
+        }
+      }
+      
+      // Fallback to dataset history if CSV not available
+      if (sparkTotalCustomers.length === 0 && datasetsHistory && datasetsHistory.length > 0) {
         sparkTotalCustomers = datasetsHistory.map(d => d.total_customers || 0).reverse();
         sparkChurnRisk = datasetsHistory.map(d => d.churn_rate_pct || 0).reverse();
         sparkSafeCustomers = datasetsHistory.map(d => Math.round((d.total_customers || 0) * (1 - (d.churn_rate_pct || 0) / 100))).reverse();
@@ -170,35 +245,57 @@ export default async function Page() {
           change: `${diffPred >= 0 ? '+' : ''}${diffPred}`,
           positive: diffPred <= 0
         };
+      } else {
+        // Default arrows when there's no previous data
+        deltas.totalCustomers = { change: '-', positive: true };
+        deltas.safeCustomers = { change: '-', positive: true };
+        deltas.churnRisk = { change: '-', positive: true };
+        deltas.predictedChurn = { change: '-', positive: true };
       }
 
-      // 1. Fetch Risk Distribution (Low, Medium, High) using count queries to bypass 1000 row limit
+      // Parallelize all database queries together with CSV processing
+      const [
+        riskDistResult,
+        planDistResult,
+        segmentResult
+      ] = await Promise.all([
+        // Risk Distribution queries
+        Promise.all([
+          supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('dataset_id', dataset.id).eq('risk_level', 'Low'),
+          supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('dataset_id', dataset.id).eq('risk_level', 'Medium'),
+          supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('dataset_id', dataset.id).eq('risk_level', 'High')
+        ]),
+        // Plan Distribution queries
+        Promise.all([
+          supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('dataset_id', dataset.id).eq('plan_type', 'Starter'),
+          supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('dataset_id', dataset.id).eq('plan_type', 'Professional'),
+          supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('dataset_id', dataset.id).eq('plan_type', 'Enterprise')
+        ]),
+        // Segment query
+        supabase
+          .from('segments')
+          .select('segment_label, total_customers, avg_revenue, pct_high_risk')
+          .eq('dataset_id', dataset.id)
+          .order('avg_churn_score', { ascending: false })
+      ]);
+
       const [
         { count: lowCount },
         { count: mediumCount },
         { count: highCount }
-      ] = await Promise.all([
-        supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('dataset_id', dataset.id).eq('risk_level', 'Low'),
-        supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('dataset_id', dataset.id).eq('risk_level', 'Medium'),
-        supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('dataset_id', dataset.id).eq('risk_level', 'High')
-      ]);
+      ] = riskDistResult;
 
       riskDistributionData = [
-        { name: 'Low Risk', value: lowCount || 0, color: '#22c55e' }, // green
-        { name: 'Medium Risk', value: mediumCount || 0, color: '#eab308' }, // yellow
-        { name: 'High Risk', value: highCount || 0, color: '#ef4444' } // red
+        { name: 'Low Risk', value: lowCount || 0, color: '#22c55e' },
+        { name: 'Medium Risk', value: mediumCount || 0, color: '#eab308' },
+        { name: 'High Risk', value: highCount || 0, color: '#ef4444' }
       ];
 
-      // 1.5 Fetch Plan Distribution
       const [
         { count: starterCount },
         { count: proCount },
         { count: entCount }
-      ] = await Promise.all([
-        supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('dataset_id', dataset.id).eq('plan_type', 'Starter'),
-        supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('dataset_id', dataset.id).eq('plan_type', 'Professional'),
-        supabase.from('predictions').select('*', { count: 'exact', head: true }).eq('dataset_id', dataset.id).eq('plan_type', 'Enterprise')
-      ]);
+      ] = planDistResult;
 
       planDistributionData = [
         { name: 'Starter', value: starterCount || 0, color: '#3b82f6' },
@@ -206,12 +303,7 @@ export default async function Page() {
         { name: 'Enterprise', value: entCount || 0, color: '#8b5cf6' }
       ];
 
-      // 1.7 Fetch Segment data from the segments table (same as SegmentationPage)
-      const { data: segRows } = await supabase
-        .from('segments')
-        .select('segment_label, total_customers, avg_revenue, pct_high_risk')
-        .eq('dataset_id', dataset.id)
-        .order('avg_churn_score', { ascending: false });
+      const { data: segRows } = segmentResult;
 
       if (segRows && segRows.length > 0) {
         const totalSeg = segRows.reduce((s: number, r: any) => s + (r.total_customers || 0), 0);
@@ -224,15 +316,25 @@ export default async function Page() {
         }));
       }
 
-      // 2. Fetch Customer Flow from Raw CSV
-      if (dataset.storage_path) {
-        const { data: fileData } = await supabase.storage
-          .from('files')
-          .download(`${dataset.storage_path}/customer_accounts.csv`);
+      // 2. Process Customer Flow from CSV (reuse csvRows if available)
+      if (csvRows.length > 0 || dataset.storage_path) {
+        // Use already-parsed CSV rows if available, otherwise download again
+        let rows = csvRows;
+        if (rows.length === 0 && dataset.storage_path) {
+          try {
+            const { data: fileData } = await supabase.storage
+              .from('files')
+              .download(`${dataset.storage_path}/customer_accounts.csv`);
+            if (fileData) {
+              const text = await fileData.text();
+              rows = parseSimpleCSV(text);
+            }
+          } catch (error) {
+            console.error('Error downloading CSV for customer flow:', error);
+          }
+        }
         
-        if (fileData) {
-          const text = await fileData.text();
-          const rows = parseSimpleCSV(text);
+        if (rows.length > 0) {
           
           const weeklyFlow: Record<string, { new: number, churned: number }> = {};
           const monthlyFlow: Record<string, { new: number, churned: number }> = {};
@@ -247,7 +349,8 @@ export default async function Page() {
             return `W${weekNum} ${date.getFullYear()}`;
           };
           
-          rows.forEach(row => {
+          // Optimized loop - single pass
+          for (const row of rows) {
             const subDate = row['subscription_date'];
             const unsubDate = row['unsubscribed_date'];
             
@@ -284,7 +387,7 @@ export default async function Page() {
                 yearlyFlow[year].churned++;
               }
             }
-          });
+          }
 
           // Sort weekly chronologically
           const weeklyData = Object.keys(weeklyFlow)

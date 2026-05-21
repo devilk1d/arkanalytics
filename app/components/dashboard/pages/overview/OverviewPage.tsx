@@ -5,6 +5,7 @@ import DashboardLayout from '../../layout/DashboardLayout';
 import Link from 'next/link';
 import CustomerFlowChart from '../../charts/CustomerFlowChart';
 import DonutChart from '../../charts/DonutChart';
+import SparklineChart from '../../charts/SparklineChart';
 import { getFallbackPalette, normalizeSegmentLabel } from '../segmentation/SegmentationPage';
 import { useDashboardContext } from '../../context/DashboardContext';
 
@@ -23,24 +24,28 @@ function KpiCard({
   change,
   changeSuffix,
   changePositive,
+  sparklineData,
+  sparklineColor,
 }: {
   label: string;
   value: string;
   change?: string;
   changeSuffix?: string;
   changePositive?: boolean;
+  sparklineData?: number[];
+  sparklineColor?: string;
 }) {
   return (
-    <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[140px] transition-all duration-300 hover:shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1">{label}</p>
-          <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">{value}</p>
-        </div>
+    <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[160px] transition-all duration-300 hover:shadow-sm">
+      <div>
+        <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-2">{label}</p>
+        <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">{value}</p>
       </div>
+      
+      {/* Description with Arrow - Above Sparkline */}
       {(change || changeSuffix) && (
-        <div className="flex items-center gap-1.5 pt-3 border-t border-[var(--b)] mt-4">
-          {change && (
+        <div className="flex items-center gap-2 mt-2 mb-2">
+          {change && change.trim() && (
             <span
               className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md"
               style={{
@@ -54,6 +59,18 @@ function KpiCard({
           {changeSuffix && (
             <span className="text-[10px] font-medium text-[var(--t3)]">{changeSuffix}</span>
           )}
+        </div>
+      )}
+      
+      {/* Sparkline Chart */}
+      {sparklineData && sparklineData.length > 0 && (
+        <div className="mt-auto overflow-hidden">
+          <SparklineChart
+            data={sparklineData}
+            color={sparklineColor || '#22c55e'}
+            height={32}
+            strokeWidth={2}
+          />
         </div>
       )}
     </div>
@@ -219,6 +236,8 @@ const OverviewPage = ({
             change={deltas?.totalCustomers.change}
             changeSuffix="vs. previous run"
             changePositive={deltas?.totalCustomers.positive}
+            sparklineData={sparklines?.totalCustomers}
+            sparklineColor="#22c55e"
           />
           <KpiCard
             label="Safe Customers"
@@ -226,6 +245,8 @@ const OverviewPage = ({
             change={deltas?.safeCustomers.change}
             changeSuffix={`${safeRate}% retention`}
             changePositive={deltas?.safeCustomers.positive}
+            sparklineData={sparklines?.safeCustomers}
+            sparklineColor="#22c55e"
           />
           <KpiCard
             label="Churn Risk Rate"
@@ -233,6 +254,8 @@ const OverviewPage = ({
             change={deltas?.churnRisk.change}
             changeSuffix="below 10% limit"
             changePositive={deltas?.churnRisk.positive}
+            sparklineData={sparklines?.churnRisk}
+            sparklineColor="#ef4444"
           />
           <KpiCard
             label="Predicted Churn"
@@ -240,6 +263,8 @@ const OverviewPage = ({
             change={deltas?.predictedChurn.change}
             changeSuffix="customers flagged"
             changePositive={deltas?.predictedChurn.positive}
+            sparklineData={sparklines?.predictedChurn}
+            sparklineColor="#f59e0b"
           />
         </div>
 
@@ -252,7 +277,7 @@ const OverviewPage = ({
 
 
             {/* Customer flow */}
-            <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5">
+            <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 min-h-[340px]">
               <CustomerFlowChart data={flowData} />
             </div>
 
@@ -374,7 +399,7 @@ const OverviewPage = ({
           <div className="col-span-12 xl:col-span-4 flex flex-col gap-4">
             
             {/* Risk Distribution Donut */}
-            <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5">
+            <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 h-64">
               <DonutChart data={riskData} />
             </div>
 
@@ -385,9 +410,6 @@ const OverviewPage = ({
                   <h3 className="text-[13px] font-bold text-[var(--t)]">Signals & alerts</h3>
                   <p className="text-[11px] text-[var(--t3)] mt-0.5">Last 24 hours</p>
                 </div>
-                <button className="text-[11px] font-bold text-[var(--t2)] hover:bg-[var(--bg2)] hover:text-[var(--t)] px-2.5 py-1.5 rounded-lg transition-colors">
-                  All
-                </button>
               </div>
               
               <div className="flex flex-col">

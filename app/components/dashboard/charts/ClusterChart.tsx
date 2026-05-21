@@ -141,8 +141,8 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
           </div>
         </div>
       ) : (
-        <div className="flex-1 min-h-[220px]">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+        <div className="flex-1 min-h-[220px] overflow-hidden">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={350}>
             <ScatterChart margin={{ top: 20, right: 30, bottom: 20, left: 20 }}>
               <CartesianGrid strokeDasharray="0" stroke="var(--b)" vertical={false} opacity={0.5} />
               <XAxis 

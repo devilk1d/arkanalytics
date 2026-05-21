@@ -8,7 +8,7 @@ import PermissionGate from '../../ui/PermissionGate';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { createClient } from '@/lib/supabase/client';
 import ClusterChart from '../../charts/ClusterChart';
-import AuthDropdown from '@/app/components/auth/AuthDropdown';
+import FilterDropdown from '../../ui/FilterDropdown';
 
 
 export const PALETTE = [
@@ -21,39 +21,11 @@ export const PALETTE = [
 ];
 
 /**
- * Maps raw ML-generated segment labels from the database
- * to the business-facing display names used in the UI.
- */
-export const SEGMENT_LABEL_MAP: Record<string, string> = {
-  // Exact matches (case-insensitive lookup applied via normalizeSegmentLabel)
-  'critical':           'Unhappy Users',
-  'champions':          'Enterprise Anchors',
-  'loyalists':          'Satisfied Mid-Tier',
-  'potentials':         'Billing Intensive',
-  // Also handle common ML variants
-  'at-risk':            'Unhappy Users',
-  'at risk':            'Unhappy Users',
-  'churn risk':         'Unhappy Users',
-  'high risk':          'Unhappy Users',
-  'loyal':              'Satisfied Mid-Tier',
-  'loyal customers':    'Satisfied Mid-Tier',
-  'potential':          'Billing Intensive',
-  'champion':           'Enterprise Anchors',
-};
-
-/**
  * Returns the display label for a raw segment_label from the DB.
- * Falls back to the original label if no mapping is found.
  */
 export function normalizeSegmentLabel(rawLabel: string): string {
-  const lower = rawLabel.toLowerCase().trim();
-  // Exact match first
-  if (SEGMENT_LABEL_MAP[lower]) return SEGMENT_LABEL_MAP[lower];
-  // Partial match fallback
-  for (const [key, mapped] of Object.entries(SEGMENT_LABEL_MAP)) {
-    if (lower.includes(key)) return mapped;
-  }
-  return rawLabel;
+  if (!rawLabel) return '';
+  return rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1);
 }
 
 export function getSegmentIcon(label: string, colorClass: string) {
@@ -69,7 +41,7 @@ export function getSegmentIcon(label: string, colorClass: string) {
     );
   }
 
-  if (lower.includes('loyal') || lower.includes('champion') || lower.includes('satisfied') || lower.includes('best')) {
+  if (lower.includes('loyal') || lower.includes('satisfied') || lower.includes('best')) {
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={colorClass}>
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
@@ -86,7 +58,7 @@ export function getSegmentIcon(label: string, colorClass: string) {
     );
   }
 
-  if (lower.includes('value') || lower.includes('high') || lower.includes('premium') || lower.includes('whale') || lower.includes('tier')) {
+  if (lower.includes('champion') || lower.includes('value') || lower.includes('high') || lower.includes('premium') || lower.includes('whale') || lower.includes('tier')) {
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={colorClass}>
         <circle cx="12" cy="12" r="10" />
@@ -96,7 +68,7 @@ export function getSegmentIcon(label: string, colorClass: string) {
     );
   }
 
-  if (lower.includes('bill') || lower.includes('price') || lower.includes('cost') || lower.includes('usage') || lower.includes('intensive')) {
+  if (lower.includes('potential') || lower.includes('bill') || lower.includes('price') || lower.includes('cost') || lower.includes('usage') || lower.includes('intensive')) {
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className={colorClass}>
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
@@ -120,10 +92,10 @@ export function getSegmentColorway(label: string) {
   if (lower.includes('risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('leave') || lower.includes('unhappy') || lower.includes('dissatisfied') || lower.includes('poor') || lower.includes('bad') || lower.includes('low') || lower.includes('critical') || lower.includes('warning') || lower.includes('at-risk') || lower.includes('lost') || lower.includes('attrition')) {
     return PALETTE[0]; // Red
   }
-  if (lower.includes('champion') || lower.includes('satisfied') || lower.includes('best') || lower.includes('active')) {
+  if (lower.includes('satisfied') || lower.includes('best') || lower.includes('active')) {
     return PALETTE[3]; // Emerald
   }
-  if (lower.includes('enterprise') || lower.includes('anchor') || lower.includes('flagship') || lower.includes('key account')) {
+  if (lower.includes('champion') || lower.includes('enterprise') || lower.includes('anchor') || lower.includes('flagship') || lower.includes('key account')) {
     return PALETTE[2]; // Purple — premium/enterprise tier
   }
   if (lower.includes('new') || lower.includes('adopter') || lower.includes('recent') || lower.includes('starter')) {
@@ -132,10 +104,10 @@ export function getSegmentColorway(label: string) {
   if (lower.includes('value') || lower.includes('high') || lower.includes('premium') || lower.includes('whale') || lower.includes('tier') || lower.includes('big') || lower.includes('loyal')) {
     return PALETTE[3]; // Emerald
   }
-  if (lower.includes('bill') || lower.includes('price') || lower.includes('cost') || lower.includes('usage') || lower.includes('intensive') || lower.includes('budget')) {
+  if (lower.includes('potential') || lower.includes('bill') || lower.includes('price') || lower.includes('cost') || lower.includes('usage') || lower.includes('intensive') || lower.includes('budget')) {
     return PALETTE[4]; // Amber
   }
-  if (lower.includes('potential') || lower.includes('interest') || lower.includes('lead') || lower.includes('promising')) {
+  if (lower.includes('interest') || lower.includes('lead') || lower.includes('promising')) {
     return PALETTE[5]; // Cyan
   }
 
@@ -156,16 +128,16 @@ export function getSegmentDescriptionAndTraits(label: string, avgChurn: number, 
   if (lower.includes('unhappy') || lower.includes('dissatisfied') || lower.includes('critical') || lower.includes('at-risk') || lower.includes('churn risk')) {
     desc = `High-priority cohort showing critical signals of customer dissatisfaction. These users have low engagement, poor sentiment scores, and elevated churn risk. Immediate intervention via outreach campaigns or pricing adjustments is strongly recommended.`;
     traits = ['High Churn Score', 'Low Engagement', 'Negative Sentiment', 'Support Escalations'];
-  } else if (lower.includes('enterprise') || lower.includes('anchor')) {
+  } else if (lower.includes('champion') || lower.includes('enterprise') || lower.includes('anchor')) {
     desc = `Top-tier enterprise customers serving as anchor accounts. These accounts drive disproportionate revenue, have deep product adoption across multiple seats, and show strong expansion potential. Prioritize for Executive Business Reviews and premium support.`;
     traits = ['High MRR', 'Multi-seat', 'Deep Adoption', 'Expansion Ready'];
-  } else if (lower.includes('satisfied') && (lower.includes('mid') || lower.includes('tier'))) {
+  } else if (lower.includes('loyal') || lower.includes('satisfied')) {
     desc = `Healthy and consistent mid-market segment showing stable usage and positive satisfaction signals. These users are broadly content with the product and have solid retention profiles, making them ideal candidates for upsell campaigns.`;
     traits = ['Stable Usage', 'Positive NPS', 'Consistent Billing', 'Upsell Ready'];
-  } else if (lower.includes('billing') || lower.includes('intensive')) {
+  } else if (lower.includes('potential') || lower.includes('billing') || lower.includes('intensive')) {
     desc = `Usage-heavy segment characterized by high billing volumes relative to their plan tier. These customers extract significant value but may be approaching pricing thresholds. Monitor for plan upgrade opportunities and usage-limit friction points.`;
     traits = ['High Usage', 'Billing Sensitive', 'Feature-Heavy', 'Plan Upgrade Target'];
-  } else if (lower.includes('power') || lower.includes('champion') || lower.includes('loyal') || lower.includes('best') || lower.includes('high value')) {
+  } else if (lower.includes('power') || lower.includes('best') || lower.includes('high value')) {
     desc = `Premium tier customer cohort driving high consistent revenue. Characterized by excellent engagement and high product adoption across multiple features.`;
     traits = ['High MRR', 'Strong NPS', 'Active Daily', 'Multi-seat'];
   } else if (lower.includes('at-risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('warning') || lower.includes('risk')) {
@@ -479,11 +451,12 @@ const SegmentationPageContent = memo(() => {
                     <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">Engagement (x) × Monthly Revenue (y) · Projection</p>
                   </div>
                   <div className="flex-shrink-0 z-10 w-44">
-                    <AuthDropdown
+                    <FilterDropdown
                       value={activeSegLabel || 'all'}
                       onChange={(val) => setActiveSegLabel(val === 'all' ? '' : val)}
                       placeholder="Filter Segment"
-                      variant="compact"
+                      size="sm"
+                      showIcon={true}
                       options={[
                         { label: 'All Segments', value: 'all' },
                         ...segmentStats.map(s => ({ label: s.label, value: s.label }))

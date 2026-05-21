@@ -93,14 +93,19 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { myPermissions, unreadChatCount } = useDashboardContext();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('arkanalytics-sidebar-collapsed') === 'true';
+    }
+    return false;
+  });
+  const [isMounted, setIsMounted] = useState(false);
 
   // Sync collapsed state with localStorage on client mount
   useEffect(() => {
-    const val = localStorage.getItem('arkanalytics-sidebar-collapsed');
-    if (val === 'true') {
-      setIsCollapsed(true);
-    }
+    // Delay transition to avoid jumping animation on page load
+    const timer = setTimeout(() => setIsMounted(true), 100);
+    return () => clearTimeout(timer);
   }, []);
 
   const toggleSidebar = () => {
@@ -127,35 +132,26 @@ export default function Sidebar() {
 
   return (
     <aside
-      className={`${isCollapsed ? 'w-[72px]' : 'w-[240px]'
-        } bg-[var(--surf)] border-r border-[var(--b)] flex flex-col py-4 shrink-0 h-screen sticky top-0 z-30 transition-all duration-300`}
+      className={`bg-[var(--surf)] border-r border-[var(--b)] flex flex-col py-4 shrink-0 h-screen sticky top-0 z-30 overflow-hidden ${
+        isCollapsed ? 'w-[72px]' : 'w-[240px]'
+      } ${isMounted ? 'transition-all duration-300 ease-in-out' : ''}`}
     >
       {/* Logo Section */}
-      <div className={`flex items-center mb-6 px-4 ${isCollapsed ? 'justify-center px-0' : 'justify-between'}`}>
-        {!isCollapsed ? (
-          <>
-            <Link
-              href="/dashboard/overview"
-              className="flex items-center gap-2.5 group hover:opacity-80 transition-opacity"
-            >
-              <div className="w-8 h-8 rounded-xl bg-[var(--bg2)] border border-[var(--b)] flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:rotate-6">
-                <img className="logo-theme-sensitive w-5 h-5 object-contain" alt="Arka" />
-              </div>
-              <span className="text-[14px] font-bold text-[var(--t)] tracking-[-0.02em] whitespace-nowrap animate-in fade-in duration-200">
-                Arkanalytics
-              </span>
-            </Link>
-            <button
-              onClick={toggleSidebar}
-              title="Collapse Sidebar"
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] transition-all duration-200"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-            </button>
-          </>
-        ) : (
+      <div className="flex items-center h-10 mb-6 px-4 relative">
+        {/* Full Logo (Visible when expanded) */}
+        <div className={`flex items-center gap-2.5 group hover:opacity-80 transition-opacity duration-300 absolute left-4 w-48 ${isCollapsed ? 'opacity-0 invisible' : 'opacity-100 visible'}`}>
+          <Link href="/dashboard/overview" className="flex items-center gap-2.5 w-full">
+            <div className="w-8 h-8 rounded-xl bg-[var(--bg2)] border border-[var(--b)] flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:rotate-6">
+              <img className="logo-theme-sensitive w-5 h-5 object-contain" alt="Arka" />
+            </div>
+            <span className="text-[14px] font-bold text-[var(--t)] tracking-[-0.02em] whitespace-nowrap">
+              Arkanalytics
+            </span>
+          </Link>
+        </div>
+
+        {/* Small Icon (Visible when collapsed) */}
+        <div className={`absolute left-0 w-[72px] flex justify-center transition-opacity duration-300 ${isCollapsed ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
           <button
             onClick={toggleSidebar}
             title="Expand Sidebar"
@@ -172,24 +168,30 @@ export default function Sidebar() {
               </div>
             </div>
           </button>
-        )}
+        </div>
+
+        {/* Collapse Button (Visible when expanded) */}
+        <button
+          onClick={toggleSidebar}
+          title="Collapse Sidebar"
+          className={`absolute right-4 w-7 h-7 rounded-lg flex items-center justify-center text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] transition-all duration-300 ${isCollapsed ? 'opacity-0 invisible' : 'opacity-100 visible'}`}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
       </div>
 
       {/* Navigation Groups */}
-      <div className="flex-1 flex flex-col gap-4 overflow-y-auto px-2">
+      <div className="flex-1 flex flex-col gap-4 overflow-y-auto overflow-x-hidden px-2">
 
         {/* GROUP 1: INSIGHT */}
         {visibleInsightItems.length > 0 && (
           <div>
-            {!isCollapsed ? (
-              <div className="px-3 mb-1.5">
-                <span className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em]">Insight</span>
-              </div>
-            ) : (
-              <div className="px-2 mb-2 flex justify-center">
-                <div className="w-5 h-px bg-[var(--b)]" />
-              </div>
-            )}
+            <div className={`mb-2 h-4 flex items-center transition-all duration-300 mx-2 ${isCollapsed ? 'justify-center px-0' : 'px-3'}`}>
+              <span className={`text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}>Insight</span>
+              <div className={`h-px bg-[var(--b)] transition-all duration-300 ${isCollapsed ? 'w-5 opacity-100' : 'w-0 opacity-0'}`} />
+            </div>
 
             <nav className="flex flex-col gap-0.5">
               {visibleInsightItems.map((item) => {
@@ -199,20 +201,21 @@ export default function Sidebar() {
                     key={item.href}
                     href={item.href}
                     title={isCollapsed ? item.label : undefined}
-                    className={`relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-200 group ${isCollapsed ? 'justify-center px-0 py-2.5 h-10 w-10 mx-auto' : 'gap-3 px-3 py-2.5'
-                      } ${isActive
+                    className={`relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-300 group py-2.5 mx-2 ${
+                      isCollapsed ? 'px-2.5 gap-0' : 'px-3 gap-3'
+                    } ${
+                      isActive
                         ? 'bg-[var(--t)] text-[var(--inv-t)]'
                         : 'text-[var(--t2)] hover:text-[var(--t)] hover:bg-[var(--bg2)]'
-                      }`}
+                    }`}
                   >
                     {isActive && (
-                      <span
-                        className={`absolute w-0.5 rounded-r-full bg-[var(--inv-t)] opacity-50 ${isCollapsed ? 'left-1 top-1/2 -translate-y-1/2 h-4' : 'left-0 top-1/2 -translate-y-1/2 h-5'
-                          }`}
-                      />
+                      <span className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-r-full bg-[var(--inv-t)] opacity-50`} />
                     )}
-                    <span className="shrink-0">{item.icon}</span>
-                    {!isCollapsed && <span className="flex-1 truncate">{item.label}</span>}
+                    <span className="shrink-0 flex items-center justify-center w-5">{item.icon}</span>
+                    <span className={`truncate whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100 flex-1'}`}>
+                      {item.label}
+                    </span>
                   </Link>
                 );
               })}
@@ -223,15 +226,10 @@ export default function Sidebar() {
         {/* GROUP 2: WORKSPACE */}
         {visibleWorkspaceItems.length > 0 && (
           <div>
-            {!isCollapsed ? (
-              <div className="px-3 mb-1.5">
-                <span className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em]">Workspace</span>
-              </div>
-            ) : (
-              <div className="px-2 mb-2 flex justify-center">
-                <div className="w-5 h-px bg-[var(--b)]" />
-              </div>
-            )}
+            <div className={`mt-2 mb-2 h-4 flex items-center transition-all duration-300 mx-2 ${isCollapsed ? 'justify-center px-0' : 'px-3'}`}>
+              <span className={`text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100 w-auto'}`}>Workspace</span>
+              <div className={`h-px bg-[var(--b)] transition-all duration-300 ${isCollapsed ? 'w-5 opacity-100' : 'w-0 opacity-0'}`} />
+            </div>
 
             <nav className="flex flex-col gap-0.5">
               {visibleWorkspaceItems.map((item) => {
@@ -243,30 +241,29 @@ export default function Sidebar() {
                     key={item.href}
                     href={item.href}
                     title={isCollapsed ? item.label : undefined}
-                    className={`relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-200 group ${isCollapsed ? 'justify-center px-0 py-2.5 h-10 w-10 mx-auto' : 'gap-3 px-3 py-2.5'
-                      } ${isActive
+                    className={`relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-300 group py-2.5 mx-2 ${
+                      isCollapsed ? 'px-2.5 gap-0' : 'px-3 gap-3'
+                    } ${
+                      isActive
                         ? 'bg-[var(--t)] text-[var(--inv-t)]'
                         : 'text-[var(--t2)] hover:text-[var(--t)] hover:bg-[var(--bg2)]'
-                      }`}
+                    }`}
                   >
                     {isActive && (
-                      <span
-                        className={`absolute w-0.5 rounded-r-full bg-[var(--inv-t)] opacity-50 ${isCollapsed ? 'left-1 top-1/2 -translate-y-1/2 h-4' : 'left-0 top-1/2 -translate-y-1/2 h-5'
-                          }`}
-                      />
+                      <span className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-r-full bg-[var(--inv-t)] opacity-50`} />
                     )}
-                    <span className="shrink-0">{item.icon}</span>
-                    {!isCollapsed && <span className="flex-1 truncate">{item.label}</span>}
+                    <span className="shrink-0 flex items-center justify-center w-5">{item.icon}</span>
+                    <span className={`truncate whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100 flex-1'}`}>
+                      {item.label}
+                    </span>
                     {badgeCount > 0 && (
-                      isCollapsed ? (
-                        <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 text-white text-[8px] font-black rounded-full flex items-center justify-center animate-in zoom-in-50 duration-300">
-                          {badgeCount > 9 ? '!' : badgeCount}
-                        </span>
-                      ) : (
-                        <span className="w-4 h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center animate-in zoom-in-50 duration-300 shrink-0">
-                          {badgeCount > 9 ? '9+' : badgeCount}
-                        </span>
-                      )
+                      <span className={`absolute text-white font-black flex items-center justify-center rounded-full transition-all duration-300 ${
+                        isCollapsed
+                          ? 'top-2 right-2 w-2 h-2 bg-red-500 text-[0px]'
+                          : 'top-1/2 -translate-y-1/2 right-3 w-4 h-4 bg-red-500 text-[9px]'
+                      }`}>
+                        {!isCollapsed && (badgeCount > 9 ? '9+' : badgeCount)}
+                      </span>
                     )}
                   </Link>
                 );
@@ -285,32 +282,43 @@ export default function Sidebar() {
         <Link
           href="/dashboard/settings"
           title={isCollapsed ? 'Settings' : undefined}
-          className={`flex items-center rounded-xl text-[13px] font-medium transition-all duration-200 ${isCollapsed ? 'justify-center px-0 py-2.5 h-10 w-10 mx-auto' : 'gap-3 px-3 py-2.5'
-            } ${pathname?.startsWith('/dashboard/settings')
+          className={`relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-300 group py-2.5 mx-2 ${
+            isCollapsed ? 'px-2.5 gap-0' : 'px-3 gap-3'
+          } ${
+            pathname?.startsWith('/dashboard/settings')
               ? 'bg-[var(--t)] text-[var(--inv-t)]'
               : 'text-[var(--t2)] hover:text-[var(--t)] hover:bg-[var(--bg2)]'
-            }`}
+          }`}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-          {!isCollapsed && <span>Settings</span>}
+          <span className="shrink-0 flex items-center justify-center w-5">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </span>
+          <span className={`truncate whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100 flex-1'}`}>
+            Settings
+          </span>
         </Link>
 
         {/* Log Out */}
         <button
           onClick={() => { void handleLogout(); }}
           title={isCollapsed ? 'Log Out' : undefined}
-          className={`flex items-center rounded-xl text-[13px] font-medium text-[var(--t2)] hover:text-red-500 hover:bg-red-50/50 transition-all duration-200 ${isCollapsed ? 'justify-center px-0 py-2.5 h-10 w-10 mx-auto' : 'gap-3 px-3 py-2.5 w-full text-left'
-            }`}
+          className={`relative flex items-center rounded-xl text-[13px] font-medium text-[var(--t2)] hover:text-red-500 hover:bg-red-50/50 transition-all duration-300 group py-2.5 mx-2 text-left ${
+            isCollapsed ? 'px-2.5 gap-0' : 'px-3 gap-3'
+          }`}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
-          {!isCollapsed && <span>Log Out</span>}
+          <span className="shrink-0 flex items-center justify-center w-5">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </span>
+          <span className={`truncate whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'opacity-0 w-0' : 'opacity-100 flex-1'}`}>
+            Log Out
+          </span>
         </button>
       </div>
 

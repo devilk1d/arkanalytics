@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, memo, useId } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -27,6 +27,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 const CustomerFlowChart = ({ data }: { data?: any }) => {
   const [isMounted, setIsMounted] = useState(false);
+  const gradientNewId = useId();
+  const gradientLostId = useId();
+  
   useEffect(() => setIsMounted(true), []);
 
   const [period, setPeriod] = useState('Month');
@@ -60,15 +63,15 @@ const CustomerFlowChart = ({ data }: { data?: any }) => {
         </div>
       </div>
 
-      <div className="flex-1 min-h-[220px]">
-        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+      <div className="flex-1 min-h-[220px] overflow-hidden">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={350}>
           <AreaChart data={chartData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
             <defs>
-              <linearGradient id="colorNew" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={gradientNewId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
                 <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
               </linearGradient>
-              <linearGradient id="colorLost" x1="0" y1="0" x2="0" y2="1">
+              <linearGradient id={gradientLostId} x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#1e40af" stopOpacity={0.2}/>
                 <stop offset="95%" stopColor="#1e40af" stopOpacity={0}/>
               </linearGradient>
@@ -79,6 +82,7 @@ const CustomerFlowChart = ({ data }: { data?: any }) => {
               tick={{ fontSize: 10, fill: 'var(--t3)', fontWeight: 500 }} 
               axisLine={false} 
               tickLine={false}
+              minTickGap={30}
               dy={10}
             />
             <YAxis 
@@ -96,7 +100,7 @@ const CustomerFlowChart = ({ data }: { data?: any }) => {
               stroke="#3b82f6" 
               strokeWidth={2} 
               fillOpacity={1} 
-              fill="url(#colorNew)" 
+              fill={`url(#${gradientNewId})`}
               activeDot={{ r: 4, strokeWidth: 0, fill: '#3b82f6' }}
             />
             <Area 
@@ -107,7 +111,7 @@ const CustomerFlowChart = ({ data }: { data?: any }) => {
               strokeWidth={1.5} 
               strokeDasharray="4 2"
               fillOpacity={1} 
-              fill="url(#colorLost)" 
+              fill={`url(#${gradientLostId})`}
               activeDot={{ r: 4, strokeWidth: 0, fill: '#60a5fa' }}
             />
           </AreaChart>
