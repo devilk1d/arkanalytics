@@ -20,6 +20,42 @@ export const PALETTE = [
   { hex: 'var(--c-cyan)', textClass: 'text-[var(--c-cyan)]', iconBgClass: 'bg-[var(--c-cyan-bg)]', badgeClass: 'bg-[var(--c-cyan-bg)] text-[var(--c-cyan)] border border-[var(--c-cyan-b)]' }
 ];
 
+/**
+ * Maps raw ML-generated segment labels from the database
+ * to the business-facing display names used in the UI.
+ */
+export const SEGMENT_LABEL_MAP: Record<string, string> = {
+  // Exact matches (case-insensitive lookup applied via normalizeSegmentLabel)
+  'critical':           'Unhappy Users',
+  'champions':          'Enterprise Anchors',
+  'loyalists':          'Satisfied Mid-Tier',
+  'potentials':         'Billing Intensive',
+  // Also handle common ML variants
+  'at-risk':            'Unhappy Users',
+  'at risk':            'Unhappy Users',
+  'churn risk':         'Unhappy Users',
+  'high risk':          'Unhappy Users',
+  'loyal':              'Satisfied Mid-Tier',
+  'loyal customers':    'Satisfied Mid-Tier',
+  'potential':          'Billing Intensive',
+  'champion':           'Enterprise Anchors',
+};
+
+/**
+ * Returns the display label for a raw segment_label from the DB.
+ * Falls back to the original label if no mapping is found.
+ */
+export function normalizeSegmentLabel(rawLabel: string): string {
+  const lower = rawLabel.toLowerCase().trim();
+  // Exact match first
+  if (SEGMENT_LABEL_MAP[lower]) return SEGMENT_LABEL_MAP[lower];
+  // Partial match fallback
+  for (const [key, mapped] of Object.entries(SEGMENT_LABEL_MAP)) {
+    if (lower.includes(key)) return mapped;
+  }
+  return rawLabel;
+}
+
 export function getSegmentIcon(label: string, colorClass: string) {
   const lower = label.toLowerCase();
 
@@ -87,11 +123,14 @@ export function getSegmentColorway(label: string) {
   if (lower.includes('champion') || lower.includes('satisfied') || lower.includes('best') || lower.includes('active')) {
     return PALETTE[3]; // Emerald
   }
+  if (lower.includes('enterprise') || lower.includes('anchor') || lower.includes('flagship') || lower.includes('key account')) {
+    return PALETTE[2]; // Purple — premium/enterprise tier
+  }
   if (lower.includes('new') || lower.includes('adopter') || lower.includes('recent') || lower.includes('starter')) {
     return PALETTE[1]; // Blue
   }
   if (lower.includes('value') || lower.includes('high') || lower.includes('premium') || lower.includes('whale') || lower.includes('tier') || lower.includes('big') || lower.includes('loyal')) {
-    return PALETTE[2]; // Purple
+    return PALETTE[3]; // Emerald
   }
   if (lower.includes('bill') || lower.includes('price') || lower.includes('cost') || lower.includes('usage') || lower.includes('intensive') || lower.includes('budget')) {
     return PALETTE[4]; // Amber
@@ -114,7 +153,19 @@ export function getSegmentDescriptionAndTraits(label: string, avgChurn: number, 
   let desc = '';
   let traits: string[] = [];
 
-  if (lower.includes('power') || lower.includes('champion') || lower.includes('loyal') || lower.includes('best') || lower.includes('high value')) {
+  if (lower.includes('unhappy') || lower.includes('dissatisfied') || lower.includes('critical') || lower.includes('at-risk') || lower.includes('churn risk')) {
+    desc = `High-priority cohort showing critical signals of customer dissatisfaction. These users have low engagement, poor sentiment scores, and elevated churn risk. Immediate intervention via outreach campaigns or pricing adjustments is strongly recommended.`;
+    traits = ['High Churn Score', 'Low Engagement', 'Negative Sentiment', 'Support Escalations'];
+  } else if (lower.includes('enterprise') || lower.includes('anchor')) {
+    desc = `Top-tier enterprise customers serving as anchor accounts. These accounts drive disproportionate revenue, have deep product adoption across multiple seats, and show strong expansion potential. Prioritize for Executive Business Reviews and premium support.`;
+    traits = ['High MRR', 'Multi-seat', 'Deep Adoption', 'Expansion Ready'];
+  } else if (lower.includes('satisfied') && (lower.includes('mid') || lower.includes('tier'))) {
+    desc = `Healthy and consistent mid-market segment showing stable usage and positive satisfaction signals. These users are broadly content with the product and have solid retention profiles, making them ideal candidates for upsell campaigns.`;
+    traits = ['Stable Usage', 'Positive NPS', 'Consistent Billing', 'Upsell Ready'];
+  } else if (lower.includes('billing') || lower.includes('intensive')) {
+    desc = `Usage-heavy segment characterized by high billing volumes relative to their plan tier. These customers extract significant value but may be approaching pricing thresholds. Monitor for plan upgrade opportunities and usage-limit friction points.`;
+    traits = ['High Usage', 'Billing Sensitive', 'Feature-Heavy', 'Plan Upgrade Target'];
+  } else if (lower.includes('power') || lower.includes('champion') || lower.includes('loyal') || lower.includes('best') || lower.includes('high value')) {
     desc = `Premium tier customer cohort driving high consistent revenue. Characterized by excellent engagement and high product adoption across multiple features.`;
     traits = ['High MRR', 'Strong NPS', 'Active Daily', 'Multi-seat'];
   } else if (lower.includes('at-risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('warning') || lower.includes('risk')) {
@@ -239,17 +290,19 @@ const SegmentationPageContent = memo(() => {
       const totalCustomersAll = segData.reduce((acc: number, curr: any) => acc + curr.total_customers, 0);
 
       const stats = segData.map((s: any) => {
-        const colorSet = getSegmentColorway(s.segment_label);
+        const displayLabel = normalizeSegmentLabel(s.segment_label);
+        const colorSet = getSegmentColorway(displayLabel);
         const share = totalCustomersAll > 0 ? parseFloat(((s.total_customers / totalCustomersAll) * 100).toFixed(1)) : 0;
         const { desc, traits } = getSegmentDescriptionAndTraits(
-          s.segment_label,
+          displayLabel,
           s.avg_churn_score,
           s.avg_nps,
           s.avg_revenue
         );
 
         return {
-          label: s.segment_label,
+          label: displayLabel,
+          rawLabel: s.segment_label,
           count: s.total_customers,
           value: s.total_customers.toLocaleString('en-US'),
           share,
@@ -375,52 +428,42 @@ const SegmentationPageContent = memo(() => {
               Behavior-based customer cohorts derived from usage, billing, and engagement features using dynamic clustering models.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--t2)] border border-[var(--b2)] rounded-lg px-3 py-1.5 hover:bg-[var(--bg2)] hover:text-[var(--t)] transition-all">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[var(--t3)] group-hover:text-[var(--t)]">
-                <polygon points="12 2 2 7 12 12 22 7 12 2" />
-                <polyline points="2 17 12 22 22 17" />
-                <polyline points="2 12 12 17 22 12" />
-              </svg>
-              Recompute clusters
-            </button>
-            <button className="inline-flex items-center gap-1.5 text-[11px] font-bold bg-[var(--t)] text-[var(--inv-t)] rounded-lg px-3 py-1.5 hover:opacity-90 transition-opacity">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              New segment
-            </button>
-          </div>
         </div>
 
-        {/* ── Top KPIs ── */}
+        {/* ── Cohort Selector Cards (replaces static KPI row) ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[120px] transition-all hover:shadow-sm">
-            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1">Active Segments</p>
-            <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">{segmentStats.length}</p>
-            <p className="text-[10px] font-semibold text-[var(--t3)] font-mono mt-3">Auto-computed cohorts</p>
-          </div>
+          {segmentStats.map((s, idx) => {
+            const isActive = s.label === activeSegLabel;
+            return (
+              <button
+                key={`top-card-${idx}`}
+                onClick={() => setActiveSegLabel(s.label)}
+                className={`text-left p-4 rounded-2xl border flex flex-col justify-between min-h-[130px] transition-all cursor-pointer ${
+                  isActive
+                    ? 'border-[var(--b3)] bg-[var(--bg2)] shadow-sm'
+                    : 'border-[var(--b)] bg-[var(--surf)] hover:border-[var(--b2)] hover:bg-[var(--bg1)]'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.accentColor }} />
+                  <span className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.08em] truncate">{s.label}</span>
+                </div>
 
-          <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[120px] transition-all hover:shadow-sm">
-            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1">Coverage</p>
-            <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">100%</p>
-            <p className="text-[10px] font-semibold text-[var(--t3)] font-mono mt-3">{totalCustomersAll.toLocaleString('en-US')} of {totalCustomersAll.toLocaleString('en-US')}</p>
-          </div>
-
-          <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[120px] transition-all hover:shadow-sm">
-            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1">Silhouette Score</p>
-            <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">0.74</p>
-            <p className="text-[10px] font-semibold text-[var(--accent)] font-mono mt-3">↑ +0.04 · optimal score</p>
-          </div>
-
-          <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[120px] transition-all hover:shadow-sm">
-            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1">Last Computed</p>
-            <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">
-              {dataset ? getRelativeTime(dataset.analyzed_at || dataset.created_at) : '2h'}
-            </p>
-            <p className="text-[10px] font-semibold text-[var(--t3)] font-mono mt-3">Automated ML pipeline</p>
-          </div>
+                <div>
+                  <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight mb-1">{s.value}</p>
+                  <p className="text-[10px] font-mono text-[var(--t3)] mb-3">
+                    {s.share}% share · {s.badge} high risk
+                  </p>
+                  <div className="h-1 bg-[var(--bg3)] w-full rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${s.share}%`, backgroundColor: s.accentColor }}
+                    />
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* ── Bento Grid ── */}
@@ -527,7 +570,7 @@ const SegmentationPageContent = memo(() => {
 
                 <div className="flex gap-3 pt-4 border-t border-[var(--b)]">
                   <button
-                    onClick={() => router.push(`/dashboard/analytics?dataset_id=${datasetId}&segment=${encodeURIComponent(activeSegmentObj.label)}`)}
+                    onClick={() => router.push(`/dashboard/analytics?dataset_id=${datasetId}&segment=${encodeURIComponent(activeSegmentObj.rawLabel || activeSegmentObj.label)}`)}
                     className="flex-1 inline-flex justify-center items-center gap-1.5 text-[11px] font-bold text-[var(--t2)] border border-[var(--b2)] rounded-lg px-3 py-2 hover:bg-[var(--bg2)] hover:text-[var(--t)] transition-all"
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -551,55 +594,7 @@ const SegmentationPageContent = memo(() => {
               </div>
             ) : null}
           </div>
-        </div>
 
-        {/* ── All Cohorts Grid Selector ── */}
-        <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-4 border-b border-[var(--b)] pb-3">
-            <div>
-              <h3 className="text-[13px] font-bold text-[var(--t)]">All Behavioral Cohorts</h3>
-              <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">Click a cohort button below to inspect stats, details, and highlight in chart</p>
-            </div>
-            <span className="text-[10px] font-mono text-[var(--t3)] uppercase">Total cohorts: {segmentStats.length}</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {segmentStats.map((s, idx) => {
-              const isActive = s.label === activeSegLabel;
-              return (
-                <button
-                  key={`switcher-${idx}`}
-                  onClick={() => setActiveSegLabel(s.label)}
-                  className={`text-left p-4 rounded-xl border flex flex-col justify-between min-h-[140px] transition-all relative overflow-hidden group ${
-                    isActive 
-                      ? 'border-[var(--b3)] bg-[var(--bg2)]' 
-                      : 'border-[var(--b)] bg-transparent hover:border-[var(--b2)] hover:bg-[var(--bg1)]'
-                  }`}
-                >
-                  <div className="w-full flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.accentColor }} />
-                      <span className="text-[11px] font-bold text-[var(--t)] truncate max-w-[120px]">{s.label}</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-auto">
-                    <p className="font-mono text-2xl font-black text-[var(--t)] tracking-tight leading-none mb-1">{s.value}</p>
-                    <p className="text-[10px] font-mono text-[var(--t3)] mb-3">
-                      {s.share}% share · {s.badge} high risk
-                    </p>
-
-                    <div className="h-1 bg-[var(--bg3)] w-full rounded-full overflow-hidden">
-                      <div 
-                        className="h-full rounded-full transition-all duration-500" 
-                        style={{ width: `${s.share}%`, backgroundColor: s.accentColor }} 
-                      />
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
         </div>
 
       </div>

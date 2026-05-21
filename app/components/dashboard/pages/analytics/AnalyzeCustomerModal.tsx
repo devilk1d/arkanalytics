@@ -5,6 +5,7 @@ import Badge from '../../ui/Badge';
 import Button from '../../ui/Button';
 import { createClient } from '@/lib/supabase/client';
 import type { CustomerPrediction } from '@/types/churn';
+import { normalizeSegmentLabel } from '../segmentation/SegmentationPage';
 
 /* ─── Interfaces ─── */
 interface ChurnXai {
@@ -411,7 +412,7 @@ export function AnalyzeCustomerModal({
                   </div>
                   <p className="text-xs text-gray-400">{data.plan_type} · {data.contract_type}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
-                    Segment: <span className="font-semibold text-black">{data.segment_label}</span>
+                    Segment: <span className="font-semibold text-black">{normalizeSegmentLabel(data.segment_label)}</span>
                   </p>
                 </div>
                 <div className="border border-gray-200 rounded-2xl p-4 text-right min-w-28">

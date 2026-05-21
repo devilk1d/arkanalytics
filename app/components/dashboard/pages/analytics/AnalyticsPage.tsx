@@ -11,6 +11,7 @@ import { SendToChatModal } from './ActionModals';
 import { AnalyzeCustomerModal } from './AnalyzeCustomerModal';
 import { createClient } from '@/lib/supabase/client';
 import PermissionGate from '../../ui/PermissionGate';
+import { normalizeSegmentLabel } from '../segmentation/SegmentationPage';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface PredictionRow {
@@ -52,15 +53,43 @@ function AnalyticsPageContent() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [tableLoading, setTableLoading] = useState(true);
+  
+  // Local state for search to keep typing responsive
   const [search, setSearch] = useState('');
-  const [plan, setPlan] = useState('all');
-  const [risk, setRisk] = useState('all');
-  const [segment, setSegment] = useState(searchParams.get('segment') || 'all');
+  
+  // Read other filters directly from URL search parameters to avoid full page reload
+  const plan = searchParams.get('plan') || 'all';
+  const risk = searchParams.get('risk') || 'all';
+  const segment = searchParams.get('segment') || 'all';
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
+
   const [segmentOptions, setSegmentOptions] = useState<{label: string, value: string}[]>([]);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [csvMetrics, setCsvMetrics] = useState<Map<string, CsvMetrics>>(new Map());
   const [maxUsage, setMaxUsage] = useState(1);
+
+  // Helper to update search params and trigger table-only reload
+  const updateQueryParams = useCallback((newParams: Record<string, string | number | undefined>) => {
+    if (!datasetId) return;
+    const params = new URLSearchParams(searchParams.toString());
+    
+    Object.entries(newParams).forEach(([key, val]) => {
+      if (val === undefined || val === 'all' || val === '') {
+        params.delete(key);
+      } else {
+        params.set(key, String(val));
+      }
+    });
+    
+    // Auto reset page to 1 if we are changing filters other than page/pageSize
+    const hasFilterChange = Object.keys(newParams).some(k => k !== 'page' && k !== 'pageSize');
+    if (hasFilterChange) {
+      params.delete('page');
+    }
+    
+    router.replace(`/dashboard/analytics?${params.toString()}`);
+  }, [router, searchParams, datasetId]);
 
   const [analyzeId, setAnalyzeId] = useState<string | null>(null);
   const [shareCustomers, setShareCustomers] = useState<PredictionRow[] | null>(null);
@@ -170,7 +199,7 @@ function AnalyticsPageContent() {
 
     segData.forEach(s => {
       if (s.segment_label) {
-        options.push({ label: s.segment_label, value: s.segment_label });
+        options.push({ label: normalizeSegmentLabel(s.segment_label), value: s.segment_label });
       }
       const count = s.total_customers || 0;
       total += count;
@@ -326,7 +355,7 @@ function AnalyticsPageContent() {
   const loadPage = useCallback(async (
     currentPage: number, searchVal: string, planVal: string, riskVal: string, segmentVal: string, dsId: string, pageSizeVal: number
   ) => {
-    setLoading(true);
+    setTableLoading(true);
     const from = (currentPage - 1) * pageSizeVal;
     const to = from + pageSizeVal - 1;
 
@@ -363,6 +392,7 @@ function AnalyticsPageContent() {
       setRows(merged);
       setTotalCount(count ?? 0);
     }
+    setTableLoading(false);
     setLoading(false);
   }, [supabase, csvMetrics]);
 
@@ -370,9 +400,6 @@ function AnalyticsPageContent() {
   useEffect(() => {
     const aid = searchParams.get('analyze_id');
     if (aid) setAnalyzeId(aid);
-
-    const segParam = searchParams.get('segment');
-    if (segParam) setSegment(segParam);
 
     if (!datasetId && workspace) {
       async function findDefault() {
@@ -383,7 +410,10 @@ function AnalyticsPageContent() {
           .order('created_at', { ascending: false }).limit(1);
         if (data && data.length > 0) {
           const dsId = data[0].id;
-          router.replace(`/dashboard/analytics?dataset_id=${dsId}${aid ? `&analyze_id=${aid}` : ''}`);
+          const params = new URLSearchParams(searchParams.toString());
+          params.set('dataset_id', dsId);
+          if (aid) params.set('analyze_id', aid);
+          router.replace(`/dashboard/analytics?${params.toString()}`);
         } else {
           setLoading(false);
         }
@@ -392,9 +422,14 @@ function AnalyticsPageContent() {
     }
   }, [datasetId, workspace, router, searchParams]);
 
-  // 2. Load CSV Metrics, Summary & Charts when datasetId changes
+  // Sync search input with URL query 'q' on load or URL update
+  useEffect(() => {
+    setSearch(searchParams.get('q') || '');
+  }, [searchParams]);
+
   useEffect(() => {
     if (datasetId) {
+      setLoading(true);
       loadCsvMetrics(datasetId);
       loadSummaryStats(datasetId);
       loadChartsData(datasetId);
@@ -408,7 +443,7 @@ function AnalyticsPageContent() {
   }, [page, search, plan, risk, segment, datasetId, pageSize, loadPage]);
 
   const totalPages = Math.ceil(totalCount / pageSize);
-  const handleSearch = (v: string) => { setSearch(v); setPage(1); };
+  const handleSearch = (v: string) => { setSearch(v); updateQueryParams({ page: 1 }); };
 
   if (loading && !datasetId) {
     return (
@@ -507,16 +542,16 @@ function AnalyticsPageContent() {
           }
         />
         <StatCard
-          label="Model Precision"
-          value="0.89"
-          change="last validation"
-          changePositive={true}
-          changeSuffix=""
-          accentColor="var(--g)"
+          label="Revenue at Risk"
+          value={loading ? '...' : `$${Math.round(summaryStats.revenueAtRisk).toLocaleString('en-US')}`}
+          change="Estimated"
+          changePositive={false}
+          changeSuffix="high-risk MRR"
+          accentColor="var(--o)"
           icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-500">
-              <polyline points="22 11.08 20 12 20 20 4 20 4 4 12 4" />
-              <polyline points="22 4 12 14.01 9 11.01" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
+              <line x1="12" y1="1" x2="12" y2="23" />
+              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
             </svg>
           }
         />
@@ -572,7 +607,7 @@ function AnalyticsPageContent() {
           <div>
             <div className="text-sm font-bold text-[var(--t)]">Customer roster</div>
             <div className="text-[11px] text-[var(--t3)] font-mono mt-0.5">
-              {loading ? 'Loading...' : `${totalCount} customer${totalCount !== 1 ? 's' : ''} found`}
+              {tableLoading ? 'Loading...' : `${totalCount} customer${totalCount !== 1 ? 's' : ''} found`}
             </div>
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -589,7 +624,7 @@ function AnalyticsPageContent() {
             {/* Risk dropdown */}
             <select
               value={risk}
-              onChange={e => { setRisk(e.target.value); setPage(1); }}
+              onChange={e => updateQueryParams({ risk: e.target.value })}
               className="h-8 px-2.5 pr-7 text-[11px] font-medium text-[var(--t2)] bg-[var(--bg1)] border border-[var(--b)] rounded-lg appearance-none cursor-pointer hover:border-[var(--t3)] focus:outline-none focus:border-[var(--t)] transition-colors"
               style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 7px center' }}
             >
@@ -601,7 +636,7 @@ function AnalyticsPageContent() {
             {/* Plan dropdown */}
             <select
               value={plan}
-              onChange={e => { setPlan(e.target.value); setPage(1); }}
+              onChange={e => updateQueryParams({ plan: e.target.value })}
               className="h-8 px-2.5 pr-7 text-[11px] font-medium text-[var(--t2)] bg-[var(--bg1)] border border-[var(--b)] rounded-lg appearance-none cursor-pointer hover:border-[var(--t3)] focus:outline-none focus:border-[var(--t)] transition-colors"
               style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 7px center' }}
             >
@@ -613,7 +648,7 @@ function AnalyticsPageContent() {
             {/* Segment dropdown */}
             <select
               value={segment}
-              onChange={e => { setSegment(e.target.value); setPage(1); }}
+              onChange={e => updateQueryParams({ segment: e.target.value })}
               className="h-8 px-2.5 pr-7 text-[11px] font-medium text-[var(--t2)] bg-[var(--bg1)] border border-[var(--b)] rounded-lg appearance-none cursor-pointer hover:border-[var(--t3)] focus:outline-none focus:border-[var(--t)] transition-colors"
               style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 7px center' }}
             >
@@ -622,7 +657,7 @@ function AnalyticsPageContent() {
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
-            {loading && (
+            {tableLoading && (
               <svg className="animate-spin text-gray-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
             )}
           </div>
@@ -661,12 +696,12 @@ function AnalyticsPageContent() {
                 <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Usage hrs</th>
                 <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Score</th>
                 <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Risk</th>
-                <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Segment</th>
-                <th className="px-4 py-3 w-10"></th>
+                <th className="px-4 py-3 w-48 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Segment</th>
+                <th className="px-4 py-3 w-28 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--b)]/50">
-              {loading ? (
+              {tableLoading ? (
                 Array.from({ length: pageSize }).map((_, i) => (
                   <tr key={i}>
                     <td className="px-4 py-3"><div className="w-4 h-4 rounded bg-[var(--bg2)] animate-pulse" /></td>
@@ -744,17 +779,26 @@ function AnalyticsPageContent() {
                     </td>
                     {/* Segment */}
                     <td className="px-4 py-3">
-                      <span className="text-[11px] text-[var(--t)]">{c.segment_label}</span>
+                      <span className="text-[11px] text-[var(--t)]">{normalizeSegmentLabel(c.segment_label)}</span>
                     </td>
-                    {/* Action */}
+                    {/* Actions */}
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => setAnalyzeId(c.customer_id)}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--t2)] hover:text-[var(--t)] hover:bg-[var(--bg2)] transition-all border border-transparent hover:border-[var(--b)]"
-                        title="More actions"
-                      >
-                        <MoreIcon size={14} />
-                      </button>
+                      <div className="flex items-center justify-start gap-1.5">
+                        <button
+                          onClick={() => setAnalyzeId(c.customer_id)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--t2)] hover:text-blue-500 hover:bg-blue-500/10 dark:hover:bg-blue-500/20 transition-all border border-transparent hover:border-blue-500/20"
+                          title="Analyze Customer"
+                        >
+                          <AnalyzeIcon size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleSendToChat([c])}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--t2)] hover:text-purple-500 hover:bg-purple-500/10 dark:hover:bg-purple-500/20 transition-all border border-transparent hover:border-purple-500/20"
+                          title="Share to Chat"
+                        >
+                          <SendIcon size={12} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -771,7 +815,7 @@ function AnalyticsPageContent() {
           <div className="flex items-center gap-1">
             <button
               disabled={page === 1 || loading}
-              onClick={() => setPage(p => Math.max(1, p - 1))}
+              onClick={() => updateQueryParams({ page: Math.max(1, page - 1) })}
               className="h-7 w-7 flex items-center justify-center rounded-lg border border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
               <ChevronLeftIcon size={13} />
@@ -795,7 +839,7 @@ function AnalyticsPageContent() {
                 ) : (
                   <button
                     key={idx}
-                    onClick={() => setPage(p as number)}
+                    onClick={() => updateQueryParams({ page: p as number })}
                     className={`h-7 min-w-[28px] px-1.5 rounded-lg border text-[11px] transition-all ${
                       page === p
                         ? 'bg-[var(--t)] text-[var(--inv-t)] border-[var(--t)]'
@@ -809,7 +853,7 @@ function AnalyticsPageContent() {
             })()}
             <button
               disabled={page === totalPages || loading}
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              onClick={() => updateQueryParams({ page: Math.min(totalPages, page + 1) })}
               className="h-7 w-7 flex items-center justify-center rounded-lg border border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
               <ChevronRightIcon size={13} />
@@ -877,6 +921,25 @@ function SendIcon({ size = 16, className = "" }: { size?: number; className?: st
     >
       <line x1="22" y1="2" x2="11" y2="13" />
       <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  );
+}
+
+function AnalyzeIcon({ size = 16, className = "" }: { size?: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
