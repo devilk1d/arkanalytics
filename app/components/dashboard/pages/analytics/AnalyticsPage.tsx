@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useDashboardContext } from '../../context/DashboardContext';
-import DashboardLayout from '../../layout/DashboardLayout';
 import Card from '../../ui/Card';
 import Badge from '../../ui/Badge';
 import StatCard from '../../ui/StatCard';
@@ -448,43 +447,38 @@ function AnalyticsPageContent() {
 
   if (loading && !datasetId) {
     return (
-      <DashboardLayout page="Customer Analytics">
-        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+      <div className="flex items-center justify-center h-[calc(100vh-200px)]">
           <svg className="animate-spin text-[var(--b3)]" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="M21 12a9 9 0 1 1-6.219-8.56" />
           </svg>
         </div>
-      </DashboardLayout>
     );
   }
 
   if (!datasetId) {
     return (
-      <DashboardLayout page="Customer Analytics">
-        <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center mb-2 shadow-sm">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
-              <line x1="9" y1="15" x2="15" y2="15" />
-            </svg>
-          </div>
-          <div className="text-center">
-            <h3 className="text-sm font-bold text-black mb-1">No Dataset Selected</h3>
-            <p className="text-xs text-gray-400 max-w-[250px] mx-auto leading-relaxed">
-              Please select a dataset from the Data Management page to view customer analytics.
-            </p>
-          </div>
-          <a href="/dashboard/data-management" className="mt-2 inline-flex items-center justify-center h-9 px-4 rounded-xl bg-black text-white text-xs font-semibold hover:bg-gray-800 transition-colors shadow-sm">
-            Go to Data Management
-          </a>
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] gap-4">
+        <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center mb-2 shadow-sm">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+            <line x1="9" y1="15" x2="15" y2="15" />
+          </svg>
         </div>
-      </DashboardLayout>
+        <div className="text-center">
+          <h3 className="text-sm font-bold text-black mb-1">No Dataset Selected</h3>
+          <p className="text-xs text-gray-400 max-w-[250px] mx-auto leading-relaxed">
+            Please select a dataset from the Data Management page to view customer analytics.
+          </p>
+        </div>
+        <a href="/dashboard/data-management" className="mt-2 inline-flex items-center justify-center h-9 px-4 rounded-xl bg-black text-white text-xs font-semibold hover:bg-gray-800 transition-colors shadow-sm">
+          Go to Data Management
+        </a>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout page="Customer Analytics">
-      <div className="fade-in">
+    <div className="fade-in">
         {/* ── Page Header ── */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-[var(--b)] pb-5">
           <div>
@@ -507,13 +501,7 @@ function AnalyticsPageContent() {
           value={loading ? '...' : summaryStats.total.toLocaleString('en-US')}
           change="Total"
           changeSuffix="customer base"
-          changePositive={true}
-          accentColor="#3b82f6"
-          icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-          }
+          changeNeutral={true}
         />
         <StatCard
           label="High Risk"
@@ -521,13 +509,6 @@ function AnalyticsPageContent() {
           change={`${summaryStats.highRiskPct.toFixed(1)}%`}
           changePositive={false}
           changeSuffix="of total"
-          accentColor="var(--r)"
-          icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--r)]">
-               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-               <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-          }
         />
         <StatCard
           label="Avg Churn Score"
@@ -535,12 +516,6 @@ function AnalyticsPageContent() {
           change={`${summaryStats.avgScore > 50 ? 'Needs Attention' : 'Healthy'}`}
           changePositive={summaryStats.avgScore <= 50}
           changeSuffix="overall risk"
-          accentColor="#a855f7"
-          icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-purple-500">
-              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-            </svg>
-          }
         />
         <StatCard
           label="Revenue at Risk"
@@ -548,13 +523,6 @@ function AnalyticsPageContent() {
           change="Estimated"
           changePositive={false}
           changeSuffix="high-risk MRR"
-          accentColor="var(--o)"
-          icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500">
-              <line x1="12" y1="1" x2="12" y2="23" />
-              <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-            </svg>
-          }
         />
       </div>
 
@@ -754,9 +722,10 @@ function AnalyticsPageContent() {
                     {/* Plan */}
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
-                        <span className="inline-flex items-center self-start px-2 py-0.5 rounded text-[10px] font-semibold border border-[var(--b)] bg-[var(--bg2)] text-[var(--t)]">
-                          {c.plan_type ? c.plan_type.charAt(0).toUpperCase() + c.plan_type.slice(1).toLowerCase() : '—'}
-                        </span>
+                        <Badge
+                          label={c.plan_type ?? '—'}
+                          variant="plan"
+                        />
                         <span className="text-[10px] text-[var(--t2)] font-mono capitalize leading-none">{c.contract_type || '—'}</span>
                       </div>
                     </td>
@@ -887,8 +856,7 @@ function AnalyticsPageContent() {
           maxUsage={maxUsage}
         />
       )}
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }
 
@@ -896,13 +864,11 @@ export default function AnalyticsPage() {
   return (
     <PermissionGate permission="view_analytics">
       <Suspense fallback={
-        <DashboardLayout page="Customer Analytics">
-          <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-            <svg className="animate-spin text-[var(--b3)]" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-            </svg>
-          </div>
-        </DashboardLayout>
+        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+          <svg className="animate-spin text-[var(--b3)]" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          </svg>
+        </div>
       }>
         <AnalyticsPageContent />
       </Suspense>

@@ -30,8 +30,8 @@ html { scroll-behavior: smooth; }
   --b3:    rgba(0,0,0,.18);
   --t:     #0C0C0B;
   --t2:    #4D4D4A;
-  --t3:    #8C8C88;
-  --t4:    #C0C0BA;
+  --t3:    #6D6D68;
+  --t4:    #9A9A94;
   --inv-t: #FFFFFF;
   --dropdown-bg: #FFFFFF;
   --dropdown-border: rgba(0,0,0,.12);
@@ -109,9 +109,9 @@ html { scroll-behavior: smooth; }
   --b2:    rgba(255,255,255,.11);
   --b3:    rgba(255,255,255,.2);
   --t:     #F0EFE8;
-  --t2:    #88887E;
-  --t3:    #484844;
-  --t4:    #2A2A28;
+  --t2:    #A0A096;
+  --t3:    #7A7A72;
+  --t4:    #5A5A54;
   --inv-t: #0C0C0C;
   --dropdown-bg: #FFFFFF;
   --dropdown-border: rgba(0,0,0,.12);

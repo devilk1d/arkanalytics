@@ -1,6 +1,13 @@
 'use client';
 
-type BadgeVariant = 'low' | 'med' | 'high' | 'active' | 'invited' | 'ready' | 'pending' | 'scheduled' | 'cleaned' | 'raw' | 'default';
+type BadgeVariant =
+  | 'low' | 'med' | 'high'
+  | 'active' | 'invited'
+  | 'ready' | 'pending' | 'error'
+  | 'scheduled' | 'cleaned' | 'raw'
+  | 'pdf' | 'csv' | 'xlsx'
+  | 'plan'
+  | 'default';
 
 interface BadgeProps {
   label: string;
@@ -9,31 +16,60 @@ interface BadgeProps {
   loading?: boolean;
 }
 
-const variantStyles: Record<BadgeVariant, string> = {
-  low:       'bg-[var(--s-bg)] text-[var(--s)] border border-[var(--s-b)]',
-  med:       'bg-[var(--w-bg)] text-[var(--w)] border border-[var(--w-b)]',
-  high:      'bg-[var(--d-bg)] text-[var(--d)] border border-[var(--d-b)]',
-  active:    'bg-[var(--p-bg)] text-[var(--p)] border border-[var(--p-b)]',
-  invited:   'bg-[var(--n-bg)] text-[var(--n)] border border-[var(--n-b)]',
-  ready:     'bg-[var(--p-bg)] text-[var(--p)] border border-[var(--p-b)]',
-  pending:   'bg-[var(--n-bg)] text-[var(--n)] border border-[var(--n-b)]',
-  scheduled: 'bg-[var(--n-bg)] text-[var(--n)] border border-[var(--n-b)]',
-  cleaned:   'bg-[var(--p-bg)] text-[var(--p)] border border-[var(--p-b)]',
-  raw:       'bg-[var(--n-bg)] text-[var(--n)] border border-[var(--n-b)]',
-  default:   'bg-[var(--bg1)] text-[var(--t3)] border border-[var(--b)]',
+/* ─── Color token per variant ─── */
+const variantColor: Record<BadgeVariant, string> = {
+  low:       'var(--s)',
+  med:       'var(--o)',
+  high:      'var(--r)',
+  active:    'var(--s)',
+  invited:   'var(--n)',
+  ready:     'var(--s)',
+  pending:   'var(--o)',
+  error:     'var(--r)',
+  scheduled: 'var(--p)',
+  cleaned:   'var(--s)',
+  raw:       'var(--n)',
+  pdf:       'var(--r)',
+  csv:       'var(--s)',
+  xlsx:      'var(--p)',
+  plan:      'var(--n)',
+  default:   'var(--t3)',
 };
 
+/* variants whose dot pulses (in-progress states) */
+const pulseVariants = new Set<BadgeVariant>(['pending', 'loading' as any]);
+
 export default function Badge({ label, variant = 'default', className = '', loading = false }: BadgeProps) {
+  const color = variantColor[variant];
+  const pulse = pulseVariants.has(variant);
+
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${variantStyles[variant]} ${className}`}>
+    <span
+      className={`inline-flex w-fit items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${className}`}
+      style={{
+        background: `color-mix(in srgb, ${color} 13%, var(--bg1))`,
+        border:     `1px solid color-mix(in srgb, ${color} 28%, transparent)`,
+        color,
+      }}
+    >
       {loading ? (
-        <svg className="animate-spin -ml-0.5 mr-1.5 h-2.5 w-2.5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        /* spinner replaces dot when loading */
+        <svg
+          className="animate-spin shrink-0"
+          width="8" height="8"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+        >
+          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
         </svg>
-      ) : (variant === 'ready' || variant === 'active' || variant === 'cleaned') ? (
-        <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5" />
-      ) : null}
+      ) : (
+        <span
+          className={`w-1.5 h-1.5 rounded-full shrink-0 ${pulse ? 'animate-pulse' : ''}`}
+          style={{ background: color }}
+        />
+      )}
       {label}
     </span>
   );

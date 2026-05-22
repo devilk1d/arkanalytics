@@ -1,15 +1,14 @@
 'use client';
 
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import DashboardLayout from '../../layout/DashboardLayout';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Avatar from '../../ui/Avatar';
 import Badge from '../../ui/Badge';
 import ActionConfirmation from '../../ui/ActionConfirmation';
+import FilterDropdown from '../../ui/FilterDropdown';
 import InviteMemberModal from '../../modals/InviteMemberModal';
-import EditRoleModal from '../../modals/EditRoleModal';
 import CreateCustomRoleModal from '../../modals/CreateCustomRoleModal';
 import { toastError, toastInfo, toastSuccess, toastWarning } from '../../../ui/AppToast';
 import {
@@ -32,18 +31,37 @@ type RoleRow = {
   roleId?: string;
 };
 
-function formatLastActive(lastActiveAt: string | null) {
-  if (!lastActiveAt) return 'Offline';
-  const date = new Date(lastActiveAt);
-  return new Intl.DateTimeFormat('id-ID', {
-    timeZone: 'Asia/Jakarta',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(date) + ' WIB';
+function formatLastActive(lastActiveAt: string | null): string {
+  if (!lastActiveAt) return 'Never';
+  const diffSec = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 1000);
+  if (diffSec < 60) return 'now';
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)} min ago`;
+  if (diffSec < 86400) {
+    const h = Math.floor(diffSec / 3600);
+    return `${h} ${h === 1 ? 'hour' : 'hours'} ago`;
+  }
+  const d = Math.floor(diffSec / 86400);
+  return `${d} ${d === 1 ? 'day' : 'days'} ago`;
+}
+
+type MemberStatusVariant = 'active' | 'pending' | 'default';
+
+/**
+ * Status logic:
+ *  ONLINE  — is_online=true AND heartbeat is fresh (< 2 min)
+ *  AWAY    — tab hidden / idle (is_online=false but last_active_at < 1 hour)
+ *            OR is_online=true but heartbeat stale (browser crash / network drop)
+ *  OFFLINE — logged out (last_active_at=null) OR gone for > 1 hour
+ */
+function getMemberStatus(
+  isOnline: boolean,
+  lastActiveAt: string | null,
+): { label: string; variant: MemberStatusVariant } {
+  if (!lastActiveAt) return { label: 'OFFLINE', variant: 'default' };
+  const diffSec = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 1000);
+  if (isOnline && diffSec < 300) return { label: 'ONLINE', variant: 'active' };
+  if (diffSec > 3600) return { label: 'OFFLINE', variant: 'default' };
+  return { label: 'AWAY', variant: 'pending' };
 }
 
 const inputCls =
@@ -60,9 +78,9 @@ const VALID_TABS: TabType[] = ['profile', 'company', 'appearance', 'members'];
 
 export default function SettingsPage() {
   return (
-    <DashboardLayout page="Settings">
+    <Suspense fallback={null}>
       <SettingsContent />
-    </DashboardLayout>
+    </Suspense>
   );
 }
 
@@ -106,6 +124,7 @@ function SettingsContent() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
   const [mounted, setMounted] = useState(false);
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -122,6 +141,11 @@ function SettingsContent() {
     };
   }, []);
 
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const normalizedMyRole = (myRole ?? '').trim().toLowerCase();
   const hasAdminRole = normalizedMyRole === 'admin';
 
@@ -133,7 +157,6 @@ function SettingsContent() {
 
   // Modal states
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [editRoleModalOpen, setEditRoleModalOpen] = useState(false);
   const [createRoleModalOpen, setCreateRoleModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
@@ -144,9 +167,8 @@ function SettingsContent() {
     permissions: string[];
   } | null>(null);
 
-  // Edit role state
-  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
-  const [editingMemberRole, setEditingMemberRole] = useState('');
+  // Inline role-change loading per member
+  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
 
   // Company state
   const [companyName, setCompanyName] = useState('');
@@ -314,23 +336,18 @@ function SettingsContent() {
     setCompanyStatus('Invitation sent successfully.');
   };
 
-  const handleEditMemberRole = async (memberUserId: string, currentRole: string) => {
-    setEditingMemberId(memberUserId);
-    setEditingMemberRole(currentRole);
-    setEditRoleModalOpen(true);
-  };
-
-  const handleSubmitEditRole = async (newRole: string) => {
-    if (!editingMemberId) return;
-    const result = await updateMemberRole({ memberUserId: editingMemberId, newRole });
+  const handleInlineRoleChange = async (memberUserId: string, newRole: string) => {
+    if (updatingRoleId) return;
+    setUpdatingRoleId(memberUserId);
+    const result = await updateMemberRole({ memberUserId, newRole });
     if (result.error) {
       toastError('Failed to update member role', result.error);
       setCompanyStatus(result.error);
-      throw new Error(result.error);
+    } else {
+      toastSuccess('Role updated');
+      setCompanyStatus('Member role updated.');
     }
-    toastSuccess('Role updated');
-    setCompanyStatus('Member role updated.');
-    setEditingMemberId(null);
+    setUpdatingRoleId(null);
   };
 
   const handleDeleteMember = (memberUserId: string, memberName: string) => {
@@ -762,7 +779,9 @@ function SettingsContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--b)]">
-                  {members.map(m => (
+                  {members.map(m => {
+                    const memberStatus = getMemberStatus(m.isOnline, m.lastActiveAt);
+                    return (
                     <tr key={m.userId} className="hover:bg-[var(--bg2)]/60 transition-colors group">
                       <td className="px-5 py-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-2.5">
@@ -772,31 +791,38 @@ function SettingsContent() {
                       </td>
                       <td className="px-5 py-3.5 text-sm text-[var(--t2)]">{m.email || <span className="text-[var(--t3)] italic text-xs">Hidden</span>}</td>
                       <td className="px-5 py-3.5">
-                        <span className="inline-flex px-2 py-0.5 rounded-md bg-[var(--bg2)] text-xs font-medium text-[var(--t2)]">
-                          {formatRoleLabel(m.role)}
-                        </span>
+                        {isAdmin ? (
+                          <FilterDropdown
+                            size="sm"
+                            value={m.role}
+                            onChange={newRole => { void handleInlineRoleChange(m.userId, newRole); }}
+                            disabled={updatingRoleId === m.userId || actionLoading}
+                            options={availableRoles.map(r => ({ label: formatRoleLabel(r), value: r }))}
+                          />
+                        ) : (
+                          <Badge label={formatRoleLabel(m.role)} variant="default" />
+                        )}
                       </td>
-                      <td className="px-5 py-3.5"><Badge label="Active" variant="active" /></td>
-                      <td className="px-5 py-3.5 text-xs text-[var(--t3)] whitespace-nowrap">{formatLastActive(m.lastActiveAt)}</td>
+                      <td className="px-5 py-3.5"><Badge label={memberStatus.label} variant={memberStatus.variant} /></td>
+                      <td className="px-5 py-3.5 text-xs text-[var(--t2)] whitespace-nowrap font-medium">{formatLastActive(m.lastActiveAt)}</td>
                       {isAdmin && (
                         <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-3">
-                            <button className="text-xs font-medium text-[var(--t2)] hover:text-[var(--t)] transition-colors disabled:opacity-40"
-                              onClick={() => { void handleEditMemberRole(m.userId, m.role); }} disabled={actionLoading}>
-                              Edit role
-                            </button>
-                            <button className="text-[var(--d)] opacity-75 hover:opacity-100 transition-colors disabled:opacity-40"
-                              onClick={() => handleDeleteMember(m.userId, m.fullName)} disabled={actionLoading}>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                <polyline points="3 6 5 6 21 6" />
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                              </svg>
-                            </button>
-                          </div>
+                          <button
+                            className="text-[var(--t3)] hover:text-[var(--d)] opacity-75 hover:opacity-100 transition-colors disabled:opacity-40"
+                            onClick={() => handleDeleteMember(m.userId, m.fullName)}
+                            disabled={actionLoading}
+                            title="Remove member"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                            </svg>
+                          </button>
                         </td>
                       )}
                     </tr>
-                  ))}
+                    );
+                  })}
                   {!loading && members.length === 0 && (
                     <tr><td colSpan={isAdmin ? 6 : 5} className="px-5 py-10 text-sm text-[var(--t3)] text-center">No members found.</td></tr>
                   )}
@@ -839,13 +865,13 @@ function SettingsContent() {
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-semibold text-[var(--t)]">{r.role}</span>
-                            {r.isCustom && <span className="inline-block px-1.5 py-0.5 text-xs font-medium text-[var(--p)] bg-[var(--p)]/10 rounded">Custom</span>}
+                            {r.isCustom && <Badge label="Custom" variant="scheduled" />}
                           </div>
                         </td>
                         <td className="px-5 py-3.5 text-sm text-[var(--t2)]">{r.desc || '-'}</td>
                         <td className="px-5 py-3.5 text-sm text-[var(--t2)] max-w-xs truncate">{r.perms || '-'}</td>
                         <td className="px-5 py-3.5">
-                          <span className="text-xs font-medium text-[var(--t2)] bg-[var(--bg2)] px-2 py-0.5 rounded-md">{r.users} users</span>
+                          <Badge label={`${r.users} users`} variant="default" />
                         </td>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
@@ -897,14 +923,6 @@ function SettingsContent() {
         roles={availableRoles}
       />
 
-      <EditRoleModal
-        isOpen={editRoleModalOpen}
-        onClose={() => setEditRoleModalOpen(false)}
-        onSubmit={handleSubmitEditRole}
-        currentRole={editingMemberRole}
-        availableRoles={availableRoles}
-        isLoading={actionLoading}
-      />
 
       <CreateCustomRoleModal
         isOpen={createRoleModalOpen}

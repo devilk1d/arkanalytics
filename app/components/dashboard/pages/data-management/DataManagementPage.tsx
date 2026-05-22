@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect, Fragment } from 'react';
-import DashboardLayout from '../../layout/DashboardLayout';
 import Card from '../../ui/Card';
 import Badge from '../../ui/Badge';
 import Pagination from '../../ui/Pagination';
@@ -401,8 +400,7 @@ function DataManagementPageContent() {
   const hasError = datasets.some(ds => ds.status === 'error');
 
   return (
-    <DashboardLayout page="Data Management">
-      <div className="fade-in pb-10">
+    <div className="fade-in pb-10">
         
         {/* ── Page Header ── */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-[var(--b)] pb-5">
@@ -427,26 +425,30 @@ function DataManagementPageContent() {
           <StatCard
             label="Total Datasets"
             value={totalDatasets.toString()}
-            icon={<DatabaseIcon />}
-            accentColor="var(--p)"
+            change="Uploaded"
+            changeSuffix="workspaces"
+            changeNeutral={true}
           />
           <StatCard
             label="Active Records"
             value={latestDataset?.total_customers ? latestDataset.total_customers.toLocaleString('en-US') : '—'}
-            icon={<UsersIcon />}
-            accentColor="var(--s)"
+            change="Latest"
+            changeSuffix="dataset"
+            changeNeutral={true}
           />
           <StatCard
             label="Risk Baseline"
             value={latestDataset?.churn_rate_pct != null ? `${latestDataset.churn_rate_pct}%` : '—'}
-            icon={<AlertIcon />}
-            accentColor={latestDataset?.churn_rate_pct && latestDataset.churn_rate_pct >= 30 ? 'var(--d)' : 'var(--s)'}
+            change={latestDataset?.churn_rate_pct != null ? (latestDataset.churn_rate_pct >= 30 ? 'High' : 'Normal') : undefined}
+            changeSuffix="churn rate"
+            changePositive={latestDataset?.churn_rate_pct == null || latestDataset.churn_rate_pct < 30}
           />
           <StatCard
             label="Pipeline Status"
             value={hasError ? 'Issues' : datasets.length > 0 ? 'Healthy' : 'No Data'}
-            icon={<ActivityIcon />}
-            accentColor={hasError ? 'var(--d)' : 'var(--s)'}
+            change={hasError ? 'Requires' : 'Fully'}
+            changeSuffix={hasError ? 'attention' : 'synced'}
+            changePositive={!hasError}
           />
         </div>
 
@@ -738,7 +740,6 @@ function DataManagementPageContent() {
             </div>
           </Card>
         )}
-      </div>
 
       {/* Deletion Confirmation */}
       <ActionConfirmation
@@ -751,7 +752,7 @@ function DataManagementPageContent() {
         isLoading={isDeleting}
         onConfirm={handleDeleteDataset}
       />
-    </DashboardLayout>
+    </div>
   );
 }
 

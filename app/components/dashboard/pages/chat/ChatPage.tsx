@@ -2,7 +2,6 @@
 
 import { ChangeEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import DashboardLayout from '../../layout/DashboardLayout';
 import { createClient } from '@/lib/supabase/client';
 import { useDashboardContext, type WorkspaceMember } from '../../context/DashboardContext';
 import ChatMessages from './ChatMessages';
@@ -786,8 +785,7 @@ export default function ChatPage() {
   }, [RIGHT_MAX, RIGHT_MIN, CENTER_MIN, leftWidth]);
 
   return (
-    <DashboardLayout page="Team Chat">
-      <div className="fade-in flex flex-col h-full" style={{ margin: '-1.5rem' }}>
+    <div className="fade-in flex flex-col h-full" style={{ margin: '-1.5rem' }}>
         {/* ── Chat Container ── */}
         <div ref={anchorRef} className="flex-1 min-h-0 relative">
           <div
@@ -852,7 +850,7 @@ export default function ChatPage() {
               <>
                 <ChatResizeDivider onDrag={handleRightDrag} />
 
-                <aside className="flex shrink-0 flex-col overflow-hidden border-l border-[var(--b)] bg-[var(--bg1)] transition-all duration-200" style={{ width: rightWidth }}>
+                <aside className="flex shrink-0 flex-col overflow-hidden border-l border-[var(--b)] bg-[var(--bg1)]" style={{ width: rightWidth }}>
                   <ChatRightPanel
                     currentUserId={profile?.id}
                     activeTab={rightTab}
@@ -892,7 +890,6 @@ export default function ChatPage() {
             )}
           </div>
         </div>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

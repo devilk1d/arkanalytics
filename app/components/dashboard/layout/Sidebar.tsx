@@ -93,18 +93,17 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { myPermissions, unreadChatCount } = useDashboardContext();
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('arkanalytics-sidebar-collapsed') === 'true';
-    }
-    return false;
-  });
+  // Sidebar lives in the Next.js layout so it only mounts once — no hydration mismatch risk.
+  // Reading localStorage in the initializer is safe here.
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Sync collapsed state with localStorage on client mount
   useEffect(() => {
-    // Delay transition to avoid jumping animation on page load
-    const timer = setTimeout(() => setIsMounted(true), 100);
+    if (typeof window !== 'undefined') {
+      setIsCollapsed(localStorage.getItem('arkanalytics-sidebar-collapsed') === 'true');
+    }
+    // Delay enabling transitions so the sidebar doesn't animate on first paint.
+    const timer = setTimeout(() => setIsMounted(true), 50);
     return () => clearTimeout(timer);
   }, []);
 
@@ -125,6 +124,14 @@ export default function Sidebar() {
 
   const handleLogout = async () => {
     const supabase = createClient();
+    // Mark offline + clear last_active_at so status becomes OFFLINE immediately
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase
+        .from('users')
+        .update({ is_online: false, last_active_at: null })
+        .eq('id', user.id);
+    }
     await supabase.auth.signOut();
     router.push('/auth/signin');
     router.refresh();

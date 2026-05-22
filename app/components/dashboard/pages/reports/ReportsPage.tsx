@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import DashboardLayout from '../../layout/DashboardLayout';
 import PermissionGate from '../../ui/PermissionGate';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
+import FilterDropdown from '../../ui/FilterDropdown';
+import ActionConfirmation from '../../ui/ActionConfirmation';
+import Badge from '../../ui/Badge';
 
 type Report = {
   id: string;
@@ -120,16 +122,29 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => setIsMounted(true), []);
 
+  /* ─── ESC closes any open modal ─── */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setShowNewReportModal(false);
+      setShowScheduleModal(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   const { workspace, myRole, profile, members } = useDashboardContext();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [reportToDelete, setReportToDelete] = useState<Report | null>(null);
 
   // Scheduled Reports State
   const [schedules, setSchedules] = useState<ScheduledReport[]>([]);
   const [loadingSchedules, setLoadingSchedules] = useState(true);
   const [deletingSchedId, setDeletingSchedId] = useState<string | null>(null);
+  const [schedToDelete, setSchedToDelete] = useState<ScheduledReport | null>(null);
   const [runningScheduler, setRunningScheduler] = useState(false);
 
   // UI state
@@ -290,15 +305,16 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
     }
   };
 
-  const handleDelete = async (reportId: string) => {
-    if (!confirm('Are you sure you want to delete this report?')) return;
-
+  const handleDelete = async () => {
+    if (!reportToDelete) return;
+    const reportId = reportToDelete.id;
     setDeletingId(reportId);
     try {
       const res = await fetch(`/api/reports?id=${reportId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete report');
       toast.success('Report deleted');
       setReports(prev => prev.filter(r => r.id !== reportId));
+      setReportToDelete(null);
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -355,14 +371,16 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
     }
   };
 
-  const handleDeleteSchedule = async (id: string) => {
-    if (!confirm('Are you sure you want to remove this schedule?')) return;
+  const handleDeleteSchedule = async () => {
+    if (!schedToDelete) return;
+    const id = schedToDelete.id;
     setDeletingSchedId(id);
     try {
       const res = await fetch(`/api/reports/schedule?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete schedule');
       toast.success('Schedule removed');
       setSchedules(prev => prev.filter(s => s.id !== id));
+      setSchedToDelete(null);
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -496,17 +514,11 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
         .slice(1, 4)
     : [];
 
-  const getFormatBadgeColor = (type: 'pdf' | 'csv' | 'xlsx') => {
-    if (type === 'pdf') return 'bg-[var(--d-bg)] text-[var(--d)] border-[var(--d-b)]';
-    if (type === 'csv') return 'bg-[var(--s-bg)] text-[var(--s)] border-[var(--s-b)]';
-    return 'bg-[var(--p-bg)] text-[var(--p)] border-[var(--p-b)]';
-  };
 
   if (!isMounted) return <div className="h-screen bg-[var(--bg)] animate-pulse" />;
 
   return (
-    <DashboardLayout page="Reports">
-      <div className="fade-in pb-10">
+    <div className="fade-in pb-10">
 
         {/* ── Page Header ── */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-[var(--b)] pb-5">
@@ -534,7 +546,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                 }
                 setShowScheduleModal(true);
               }}
-              className="inline-flex items-center gap-2 text-[11px] font-bold text-[var(--t2)] border border-[var(--b2)] bg-[var(--surf)] rounded-xl px-4 py-2.5 hover:bg-[var(--bg2)] hover:text-[var(--t)] transition-all font-sans"
+              className="inline-flex items-center gap-2 text-[11px] font-bold text-[var(--t2)] border border-[var(--b2)] bg-[var(--surf)] rounded-xl px-4 py-2.5 hover:bg-[var(--bg2)] hover:text-[var(--t)] transition-all"
             >
               <CalendarIcon />
               Schedule
@@ -545,7 +557,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                 setShowNewReportModal(true);
               }}
               disabled={!datasetId}
-              className="inline-flex items-center gap-2 text-[11px] font-bold bg-[var(--t)] text-[var(--inv-t)] rounded-xl px-4 py-2.5 hover:opacity-90 disabled:opacity-50 transition-opacity font-sans"
+              className="inline-flex items-center gap-2 text-[11px] font-bold bg-[var(--t)] text-[var(--inv-t)] rounded-xl px-4 py-2.5 hover:opacity-90 disabled:opacity-50 transition-opacity"
             >
               <PlusIcon />
               New report
@@ -695,30 +707,17 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                               </span>
                             </td>
                             <td className="px-5 py-3.5">
-                              <span className={`text-[9px] font-bold uppercase border px-2 py-0.5 rounded-md ${getFormatBadgeColor(r.type)}`}>
-                                {r.type}
-                              </span>
+                              <Badge label={r.type} variant={r.type as 'pdf' | 'csv' | 'xlsx'} />
                             </td>
                             <td className="px-5 py-3.5 text-xs text-[var(--t2)] font-mono">
                               {formatSize(r.file_size)}
                             </td>
                             <td className="px-5 py-3.5">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border capitalize ${
-                                r.status === 'ready'
-                                  ? 'bg-[var(--s-bg)] border-[var(--s-b)] text-[var(--s)]'
-                                  : r.status === 'pending'
-                                    ? 'bg-[var(--w-bg)] border-[var(--w-b)] text-[var(--w)]'
-                                    : 'bg-[var(--d-bg)] border-[var(--d-b)] text-[var(--d)]'
-                              }`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${
-                                  r.status === 'ready'
-                                    ? 'bg-[var(--s)]'
-                                    : r.status === 'pending'
-                                      ? 'bg-[var(--w)] animate-pulse'
-                                      : 'bg-[var(--d)]'
-                                }`} />
-                                {r.status}
-                              </span>
+                              <Badge
+                                label={r.status}
+                                variant={r.status as 'ready' | 'pending' | 'error'}
+                                loading={r.status === 'pending'}
+                              />
                             </td>
                             <td className="px-5 py-3.5 text-right">
                               <div className="flex items-center justify-end gap-2.5">
@@ -733,7 +732,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                                 {isAdmin && (
                                   <button
                                     disabled={deletingId === r.id}
-                                    onClick={() => handleDelete(r.id)}
+                                    onClick={() => setReportToDelete(r)}
                                     className="w-7 h-7 flex items-center justify-center rounded-lg border border-[var(--b2)] text-[var(--t3)] hover:border-[var(--d)] hover:bg-[var(--d)] hover:text-white transition-all disabled:opacity-30"
                                     title="Delete Report"
                                   >
@@ -777,15 +776,11 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                             {r.type.toUpperCase()}
                           </div>
                           
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold border capitalize ${
-                            r.status === 'ready'
-                              ? 'bg-[var(--s-bg)] border-[var(--s-b)] text-[var(--s)]'
-                              : r.status === 'pending'
-                                ? 'bg-[var(--w-bg)] border-[var(--w-b)] text-[var(--w)]'
-                                : 'bg-[var(--d-bg)] border-[var(--d-b)] text-[var(--d)]'
-                          }`}>
-                            {r.status}
-                          </span>
+                          <Badge
+                            label={r.status}
+                            variant={r.status as 'ready' | 'pending' | 'error'}
+                            loading={r.status === 'pending'}
+                          />
                         </div>
 
                         {/* Title Row */}
@@ -924,7 +919,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                             {isAdmin && (
                               <button
                                 disabled={deletingSchedId === sched.id}
-                                onClick={() => handleDeleteSchedule(sched.id)}
+                                onClick={() => setSchedToDelete(sched)}
                                 className="text-[var(--t3)] hover:text-[var(--d)] p-1 rounded hover:bg-[var(--bg2)] transition-colors shrink-0"
                                 title="Remove Schedule"
                               >
@@ -954,7 +949,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                             {isAdmin && (
                               <button
                                 disabled={deletingSchedId === sched.id}
-                                onClick={() => handleDeleteSchedule(sched.id)}
+                                onClick={() => setSchedToDelete(sched)}
                                 className="text-[var(--t3)] hover:text-[var(--d)] p-1 rounded hover:bg-[var(--bg3)] transition-colors shrink-0"
                               >
                                 <TrashIcon />
@@ -974,12 +969,11 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
             </div>
           </div>
         </div>
-      </div>
 
       {/* ── MODAL: GENERATE CUSTOM REPORT ── */}
       {showNewReportModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-[var(--surf)] border border-[var(--b3)] rounded-2xl max-w-md w-full overflow-hidden shadow-2xl animate-scale-in">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={e => { if (e.target === e.currentTarget) setShowNewReportModal(false); }}>
+          <div className="bg-[var(--surf)] border border-[var(--b3)] rounded-2xl max-w-md w-full shadow-2xl animate-scale-in">
             <div className="p-5 border-b border-[var(--b)] flex items-center justify-between bg-[var(--bg1)]/50">
               <div>
                 <h3 className="text-sm font-bold text-[var(--t)]">Generate Custom Report</h3>
@@ -1007,79 +1001,53 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Report Type</label>
-                  <div className="relative flex items-center">
-                    <select
-                      value={reportType}
-                      onChange={e => setReportType(e.target.value)}
-                      className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl pl-4 pr-10 py-2.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors cursor-pointer appearance-none"
-                    >
-                      <option value="churn" className="bg-[var(--surf)]">Churn Analysis</option>
-                      <option value="segmentation" className="bg-[var(--surf)]">Customer Segmentation</option>
-                      <option value="forecast" className="bg-[var(--surf)]">Revenue Forecast</option>
-                    </select>
-                    <div className="absolute right-3.5 pointer-events-none text-[var(--t3)]">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-                    </div>
-                  </div>
-                </div>
+                <FilterDropdown
+                  label="Report Type"
+                  value={reportType}
+                  onChange={setReportType}
+                  size="md"
+                  options={[
+                    { label: 'Churn Analysis', value: 'churn' },
+                    { label: 'Customer Segmentation', value: 'segmentation' },
+                    { label: 'Revenue Forecast', value: 'forecast' },
+                  ]}
+                />
 
-                <div>
-                  <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Date Range</label>
-                  <div className="relative flex items-center">
-                    <select
-                      value={dateRange}
-                      onChange={e => setDateRange(e.target.value)}
-                      className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl pl-4 pr-10 py-2.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors cursor-pointer appearance-none"
-                    >
-                      <option value="7d" className="bg-[var(--surf)]">Last 7 days</option>
-                      <option value="30d" className="bg-[var(--surf)]">Last 30 days</option>
-                      <option value="90d" className="bg-[var(--surf)]">Last 90 days</option>
-                      <option value="all" className="bg-[var(--surf)]">Full Dataset</option>
-                    </select>
-                    <div className="absolute right-3.5 pointer-events-none text-[var(--t3)]">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-                    </div>
-                  </div>
-                </div>
+                <FilterDropdown
+                  label="Date Range"
+                  value={dateRange}
+                  onChange={setDateRange}
+                  size="md"
+                  options={[
+                    { label: 'Last 7 days', value: '7d' },
+                    { label: 'Last 30 days', value: '30d' },
+                    { label: 'Last 90 days', value: '90d' },
+                    { label: 'Full Dataset', value: 'all' },
+                  ]}
+                />
 
-                <div>
-                  <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Export Type</label>
-                  <div className="relative flex items-center">
-                    <select
-                      value={exportType}
-                      onChange={e => setExportType(e.target.value)}
-                      className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl pl-4 pr-10 py-2.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors cursor-pointer appearance-none"
-                    >
-                      <option value="pdf" className="bg-[var(--surf)]">PDF Document</option>
-                      <option value="csv" className="bg-[var(--surf)]">CSV Spreadsheet</option>
-                      <option value="xlsx" className="bg-[var(--surf)]">Excel (.xlsx)</option>
-                    </select>
-                    <div className="absolute right-3.5 pointer-events-none text-[var(--t3)]">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-                    </div>
-                  </div>
-                </div>
+                <FilterDropdown
+                  label="Export Type"
+                  value={exportType}
+                  onChange={setExportType}
+                  size="md"
+                  options={[
+                    { label: 'PDF Document', value: 'pdf' },
+                    { label: 'CSV Spreadsheet', value: 'csv' },
+                    { label: 'Excel (.xlsx)', value: 'xlsx' },
+                  ]}
+                />
 
-                <div>
-                  <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Select Segment</label>
-                  <div className="relative flex items-center">
-                    <select
-                      value={segments}
-                      onChange={e => setSegments(e.target.value)}
-                      className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl pl-4 pr-10 py-2.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors cursor-pointer appearance-none"
-                    >
-                      <option value="all" className="bg-[var(--surf)]">All Segments</option>
-                      {availableSegments.map(label => (
-                        <option key={label} value={label} className="bg-[var(--surf)]">{label}</option>
-                      ))}
-                    </select>
-                    <div className="absolute right-3.5 pointer-events-none text-[var(--t3)]">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-                    </div>
-                  </div>
-                </div>
+                <FilterDropdown
+                  label="Select Segment"
+                  value={segments}
+                  onChange={setSegments}
+                  size="md"
+                  options={[
+                    { label: 'All Segments', value: 'all' },
+                    ...availableSegments.map(seg => ({ label: seg, value: seg })),
+                  ]}
+                />
               </div>
 
               <div className="pt-3 flex gap-3">
@@ -1111,8 +1079,8 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
 
       {/* ── MODAL: SCHEDULE NEW AUTOMATED REPORT ── */}
       {showScheduleModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-[var(--surf)] border border-[var(--b3)] rounded-2xl max-w-md w-full overflow-hidden shadow-2xl animate-scale-in">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={e => { if (e.target === e.currentTarget) setShowScheduleModal(false); }}>
+          <div className="bg-[var(--surf)] border border-[var(--b3)] rounded-2xl max-w-md w-full shadow-2xl animate-scale-in overflow-y-auto max-h-[90vh]">
             <div className="p-5 border-b border-[var(--b)] flex items-center justify-between bg-[var(--bg1)]/50">
               <div>
                 <h3 className="text-sm font-bold text-[var(--t)]">New Scheduled Delivery</h3>
@@ -1131,26 +1099,17 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
               
               {/* Select recent report as template */}
               {reports.length > 0 && (
-                <div>
-                  <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Based on Recent Report</label>
-                  <div className="relative flex items-center">
-                    <select
-                      value={selectedBaseReportId}
-                      onChange={e => handlePreFillSchedule(e.target.value)}
-                      className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl pl-4 pr-10 py-2.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors cursor-pointer appearance-none"
-                    >
-                      <option value="" className="bg-[var(--surf)]">-- select base config --</option>
-                      {reports.map(r => (
-                        <option key={r.id} value={r.id} className="bg-[var(--surf)]">
-                          {r.name} ({r.type.toUpperCase()})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-3.5 pointer-events-none text-[var(--t3)]">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-                    </div>
-                  </div>
-                </div>
+                <FilterDropdown
+                  label="Based on Recent Report"
+                  value={selectedBaseReportId}
+                  onChange={handlePreFillSchedule}
+                  size="md"
+                  placeholder="-- select base config --"
+                  options={[
+                    { label: '-- select base config --', value: '' },
+                    ...reports.map(r => ({ label: `${r.name} (${r.type.toUpperCase()})`, value: r.id })),
+                  ]}
+                />
               )}
 
               <div>
@@ -1166,59 +1125,41 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
               </div>
 
               <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Format</label>
-                  <div className="relative flex items-center">
-                    <select
-                      value={schedExport}
-                      onChange={e => setSchedExport(e.target.value as any)}
-                      className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl pl-3 pr-8 py-2 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors cursor-pointer appearance-none"
-                    >
-                      <option value="pdf" className="bg-[var(--surf)]">PDF</option>
-                      <option value="csv" className="bg-[var(--surf)]">CSV</option>
-                      <option value="xlsx" className="bg-[var(--surf)]">Excel</option>
-                    </select>
-                    <div className="absolute right-2 pointer-events-none text-[var(--t3)]">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-                    </div>
-                  </div>
-                </div>
+                <FilterDropdown
+                  label="Format"
+                  value={schedExport}
+                  onChange={v => setSchedExport(v as 'pdf' | 'csv' | 'xlsx')}
+                  size="sm"
+                  options={[
+                    { label: 'PDF', value: 'pdf' },
+                    { label: 'CSV', value: 'csv' },
+                    { label: 'Excel', value: 'xlsx' },
+                  ]}
+                />
 
-                <div>
-                  <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Category</label>
-                  <div className="relative flex items-center">
-                    <select
-                      value={schedCat}
-                      onChange={e => setSchedCat(e.target.value as any)}
-                      className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl pl-3 pr-8 py-2 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors cursor-pointer appearance-none"
-                    >
-                      <option value="churn" className="bg-[var(--surf)]">Churn</option>
-                      <option value="segmentation" className="bg-[var(--surf)]">Segments</option>
-                      <option value="forecast" className="bg-[var(--surf)]">Forecast</option>
-                    </select>
-                    <div className="absolute right-2 pointer-events-none text-[var(--t3)]">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-                    </div>
-                  </div>
-                </div>
+                <FilterDropdown
+                  label="Category"
+                  value={schedCat}
+                  onChange={v => setSchedCat(v as 'churn' | 'segmentation' | 'forecast')}
+                  size="sm"
+                  options={[
+                    { label: 'Churn', value: 'churn' },
+                    { label: 'Segments', value: 'segmentation' },
+                    { label: 'Forecast', value: 'forecast' },
+                  ]}
+                />
 
-                <div>
-                  <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Frequency</label>
-                  <div className="relative flex items-center">
-                    <select
-                      value={schedFreq}
-                      onChange={e => setSchedFreq(e.target.value as any)}
-                      className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl pl-3 pr-8 py-2 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors cursor-pointer appearance-none"
-                    >
-                      <option value="daily" className="bg-[var(--surf)]">Daily</option>
-                      <option value="weekly" className="bg-[var(--surf)]">Weekly</option>
-                      <option value="monthly" className="bg-[var(--surf)]">Monthly</option>
-                    </select>
-                    <div className="absolute right-2 pointer-events-none text-[var(--t3)]">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-                    </div>
-                  </div>
-                </div>
+                <FilterDropdown
+                  label="Frequency"
+                  value={schedFreq}
+                  onChange={v => setSchedFreq(v as 'daily' | 'weekly' | 'monthly')}
+                  size="sm"
+                  options={[
+                    { label: 'Daily', value: 'daily' },
+                    { label: 'Weekly', value: 'weekly' },
+                    { label: 'Monthly', value: 'monthly' },
+                  ]}
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -1234,78 +1175,56 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                 </div>
 
                 {schedFreq === 'weekly' ? (
-                  <div>
-                    <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Day of Week</label>
-                    <div className="relative flex items-center">
-                      <select
-                        value={schedDayOfWeek}
-                        onChange={e => setSchedDayOfWeek(e.target.value)}
-                        className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl pl-3 pr-8 py-2.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors cursor-pointer appearance-none"
-                      >
-                        <option value="0" className="bg-[var(--surf)]">Sunday</option>
-                        <option value="1" className="bg-[var(--surf)]">Monday</option>
-                        <option value="2" className="bg-[var(--surf)]">Tuesday</option>
-                        <option value="3" className="bg-[var(--surf)]">Wednesday</option>
-                        <option value="4" className="bg-[var(--surf)]">Thursday</option>
-                        <option value="5" className="bg-[var(--surf)]">Friday</option>
-                        <option value="6" className="bg-[var(--surf)]">Saturday</option>
-                      </select>
-                      <div className="absolute right-2.5 pointer-events-none text-[var(--t3)]">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-                      </div>
-                    </div>
-                  </div>
+                  <FilterDropdown
+                    label="Day of Week"
+                    value={schedDayOfWeek}
+                    onChange={setSchedDayOfWeek}
+                    size="md"
+                    options={[
+                      { label: 'Sunday', value: '0' },
+                      { label: 'Monday', value: '1' },
+                      { label: 'Tuesday', value: '2' },
+                      { label: 'Wednesday', value: '3' },
+                      { label: 'Thursday', value: '4' },
+                      { label: 'Friday', value: '5' },
+                      { label: 'Saturday', value: '6' },
+                    ]}
+                  />
                 ) : schedFreq === 'monthly' ? (
-                  <div>
-                    <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Day of Month</label>
-                    <div className="relative flex items-center">
-                      <select
-                        value={schedDayOfMonth}
-                        onChange={e => setSchedDayOfMonth(e.target.value)}
-                        className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl pl-3 pr-8 py-2.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors cursor-pointer appearance-none"
-                      >
-                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
-                          <option key={d} value={String(d)} className="bg-[var(--surf)]">
-                            {d}{d === 1 ? 'st' : d === 2 ? 'nd' : d === 3 ? 'rd' : 'th'}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute right-2.5 pointer-events-none text-[var(--t3)]">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-                      </div>
-                    </div>
-                  </div>
+                  <FilterDropdown
+                    label="Day of Month"
+                    value={schedDayOfMonth}
+                    onChange={setSchedDayOfMonth}
+                    size="md"
+                    options={Array.from({ length: 31 }, (_, i) => {
+                      const d = i + 1;
+                      const suffix = d === 1 ? 'st' : d === 2 ? 'nd' : d === 3 ? 'rd' : 'th';
+                      return { label: `${d}${suffix}`, value: String(d) };
+                    })}
+                  />
                 ) : (
-                  <div>
+                  <div className="flex flex-col gap-1.5">
                     <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Day Schedule</label>
-                    <div className="w-full border border-[var(--b)] bg-[var(--bg2)] text-[var(--t3)] rounded-xl px-3 py-2.5 text-xs font-semibold select-none">
+                    <div className="w-full border border-[var(--b)] bg-[var(--bg2)] text-[var(--t3)] rounded-lg px-3 h-10 flex items-center text-[11px] font-semibold select-none">
                       Runs Every Day
                     </div>
                   </div>
                 )}
               </div>
 
-              <div>
-                <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono font-semibold">Segment Scope</label>
-                <div className="relative flex items-center">
-                  <select
-                    value={schedSegment}
-                    onChange={e => setSchedSegment(e.target.value)}
-                    className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl pl-4 pr-10 py-2.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors cursor-pointer appearance-none"
-                  >
-                    <option value="all" className="bg-[var(--surf)]">All Segments</option>
-                    {availableSegments.map(label => (
-                      <option key={label} value={label} className="bg-[var(--surf)]">{label}</option>
-                    ))}
-                  </select>
-                  <div className="absolute right-3.5 pointer-events-none text-[var(--t3)]">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-                  </div>
-                </div>
-              </div>
+              <FilterDropdown
+                label="Segment Scope"
+                value={schedSegment}
+                onChange={setSchedSegment}
+                size="md"
+                options={[
+                  { label: 'All Segments', value: 'all' },
+                  ...availableSegments.map(seg => ({ label: seg, value: seg })),
+                ]}
+              />
 
               <div>
-                <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono font-semibold">Notification Emails <span className="normal-case text-[var(--t4)] font-normal">(optional)</span></label>
+                <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Notification Emails <span className="normal-case text-[var(--t4)] font-normal">(optional)</span></label>
                 <input
                   type="text"
                   placeholder="e.g. boss@corp.com, partner@corp.com"
@@ -1345,7 +1264,39 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
           </div>
         </div>
       )}
-    </DashboardLayout>
+
+      {/* ── DELETE REPORT CONFIRMATION ── */}
+      <ActionConfirmation
+        isOpen={!!reportToDelete}
+        onClose={() => setReportToDelete(null)}
+        title="Delete Report"
+        description={
+          reportToDelete
+            ? `Are you sure you want to delete "${reportToDelete.name}"? This action cannot be undone.`
+            : ''
+        }
+        actionLabel="Delete Report"
+        isDangerous={true}
+        isLoading={!!deletingId}
+        onConfirm={handleDelete}
+      />
+
+      {/* ── DELETE SCHEDULE CONFIRMATION ── */}
+      <ActionConfirmation
+        isOpen={!!schedToDelete}
+        onClose={() => setSchedToDelete(null)}
+        title="Remove Schedule"
+        description={
+          schedToDelete
+            ? `Are you sure you want to remove the schedule "${schedToDelete.name}"? Automated deliveries will stop immediately.`
+            : ''
+        }
+        actionLabel="Remove Schedule"
+        isDangerous={true}
+        isLoading={!!deletingSchedId}
+        onConfirm={handleDeleteSchedule}
+      />
+    </div>
   );
 }
 

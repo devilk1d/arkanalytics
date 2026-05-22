@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 
 export type FilterDropdownOption = {
   label: string;
@@ -20,6 +21,55 @@ interface FilterDropdownProps {
   showIcon?: boolean;
 }
 
+/* ─── Portal list ─── */
+function DropdownPortal({
+  anchorRef,
+  children,
+}: {
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  children: React.ReactNode;
+}) {
+  const [rect, setRect] = useState<DOMRect | null>(null);
+
+  useEffect(() => {
+    if (!anchorRef.current) return;
+
+    const update = () => {
+      setRect(anchorRef.current?.getBoundingClientRect() ?? null);
+    };
+
+    update();
+
+    window.addEventListener('scroll', update, true);
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update, true);
+      window.removeEventListener('resize', update);
+    };
+  }, [anchorRef]);
+
+  if (!rect) return null;
+
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const spaceAbove = rect.top;
+  const openUp = spaceBelow < 200 && spaceAbove > spaceBelow;
+
+  const style: React.CSSProperties = {
+    position: 'fixed',
+    left: rect.left,
+    width: rect.width,
+    zIndex: 9999,
+    ...(openUp
+      ? { bottom: window.innerHeight - rect.top + 6 }
+      : { top: rect.bottom + 6 }),
+  };
+
+  return createPortal(
+    <div style={style}>{children}</div>,
+    document.body
+  );
+}
+
 export default function FilterDropdown({
   label,
   placeholder = 'Select an option',
@@ -32,118 +82,90 @@ export default function FilterDropdown({
   showIcon = true,
 }: FilterDropdownProps) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const rootRef  = useRef<HTMLDivElement>(null);
+  const btnRef   = useRef<HTMLButtonElement>(null);
 
-  const selectedOption = useMemo(() => {
-    return options.find((option) => option.value === value);
-  }, [options, value]);
+  const selectedOption = useMemo(
+    () => options.find((o) => o.value === value),
+    [options, value]
+  );
+
+  const close = useCallback(() => setOpen(false), []);
 
   useEffect(() => {
-    const onDocumentClick = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
+    if (!open) return;
+
+    const onOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      // keep open when clicking inside the root wrapper
+      if (rootRef.current?.contains(target)) return;
+      // also keep open when clicking inside the portal list
+      const portal = document.getElementById('fd-portal-list');
+      if (portal?.contains(target)) return;
+      close();
     };
 
-    const onEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false);
-      }
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
     };
 
-    if (open) {
-      document.addEventListener('mousedown', onDocumentClick);
-      document.addEventListener('keydown', onEscape);
-
-      return () => {
-        document.removeEventListener('mousedown', onDocumentClick);
-        document.removeEventListener('keydown', onEscape);
-      };
-    }
-  }, [open]);
+    document.addEventListener('mousedown', onOutside);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onOutside);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [open, close]);
 
   const selectOption = (optionValue: string) => {
     onChange?.(optionValue);
-    setOpen(false);
+    close();
   };
 
-  const getSizeStyles = () => {
+  const sizeStyles = (() => {
     switch (size) {
-      case 'xs':
-        return {
-          button: 'h-7 px-2 text-[10px]',
-          icon: 'w-3 h-3',
-          item: 'px-2.5 py-1.5 text-[10px]',
-          itemIcon: 'w-3 h-3'
-        };
-      case 'sm':
-        return {
-          button: 'h-8 px-2.5 text-[11px]',
-          icon: 'w-4 h-4',
-          item: 'px-3 py-2 text-[11px]',
-          itemIcon: 'w-4 h-4'
-        };
-      case 'md':
-        return {
-          button: 'h-10 px-3 text-sm',
-          icon: 'w-4 h-4',
-          item: 'px-4 py-2.5 text-sm',
-          itemIcon: 'w-4 h-4'
-        };
-      case 'lg':
-        return {
-          button: 'h-12 px-4 text-base',
-          icon: 'w-5 h-5',
-          item: 'px-4 py-3 text-base',
-          itemIcon: 'w-5 h-5'
-        };
-      default:
-        return {
-          button: 'h-8 px-2.5 text-[11px]',
-          icon: 'w-4 h-4',
-          item: 'px-3 py-2 text-[11px]',
-          itemIcon: 'w-4 h-4'
-        };
+      case 'xs': return { button: 'h-7 px-2 text-[10px]',    icon: 'w-3 h-3', item: 'px-2.5 py-1.5 text-[10px]' };
+      case 'sm': return { button: 'h-8 px-2.5 text-[11px]',  icon: 'w-4 h-4', item: 'px-3 py-2 text-[11px]' };
+      case 'md': return { button: 'h-10 px-3 text-sm',        icon: 'w-4 h-4', item: 'px-4 py-2.5 text-sm' };
+      case 'lg': return { button: 'h-12 px-4 text-base',      icon: 'w-5 h-5', item: 'px-4 py-3 text-base' };
+      default:   return { button: 'h-8 px-2.5 text-[11px]',  icon: 'w-4 h-4', item: 'px-3 py-2 text-[11px]' };
     }
-  };
-
-  const sizeStyles = getSizeStyles();
+  })();
 
   return (
     <div ref={rootRef} className={`flex flex-col gap-1.5 ${className}`}>
-      {label ? (
-        <label className="text-xs font-semibold tracking-widest uppercase text-[var(--t3)]">
+      {label && (
+        <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">
           {label}
         </label>
-      ) : null}
+      )}
 
       <div className="relative">
         <button
+          ref={btnRef}
           type="button"
           disabled={disabled}
-          onClick={() => setOpen((current) => !current)}
+          onClick={() => setOpen((v) => !v)}
           aria-haspopup="listbox"
           aria-expanded={open}
-          className={`
-            w-full rounded-lg border-2 border-transparent transition-all duration-200
-            flex items-center justify-between text-left
-            disabled:cursor-not-allowed disabled:opacity-60
-            hover:border-[var(--b2)]
-            ${sizeStyles.button}
-            ${open ? 'border-[var(--t)] bg-[var(--bg2)]' : 'bg-[var(--bg1)] border-[var(--b)]'}
-          `}
-          style={{
-            color: selectedOption ? 'var(--t)' : 'var(--t3)',
-          }}
+          className={[
+            'w-full rounded-lg border-2 transition-all duration-200',
+            'flex items-center justify-between text-left',
+            'disabled:cursor-not-allowed disabled:opacity-60',
+            'hover:border-[var(--b2)]',
+            sizeStyles.button,
+            open
+              ? 'border-[var(--t)] bg-[var(--bg2)]'
+              : 'bg-[var(--bg1)] border-[var(--b)]',
+          ].join(' ')}
+          style={{ color: selectedOption ? 'var(--t)' : 'var(--t3)' }}
         >
           <span className="truncate font-medium">
             {selectedOption?.label ?? placeholder}
           </span>
           {showIcon && (
             <svg
-              className={`shrink-0 text-[var(--t3)] transition-transform duration-200 ${
-                open ? 'rotate-180' : ''
-              } ${sizeStyles.icon}`}
+              className={`shrink-0 text-[var(--t3)] transition-transform duration-200 ${open ? 'rotate-180' : ''} ${sizeStyles.icon}`}
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -158,43 +180,44 @@ export default function FilterDropdown({
         </button>
 
         {open && (
-          <div
-            className={`
-              absolute left-0 right-0 top-[calc(100%+6px)] z-50
-              rounded-lg overflow-hidden
-              border border-[var(--b2)]
-              bg-[var(--surf)]
-              shadow-lg
-            `}
-            style={{
-              backdropFilter: 'blur(4px)',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.12)',
-            }}
-          >
-            <div className="max-h-72 overflow-y-auto py-1">
-              {options.map((option) => {
-                const active = option.value === value;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    disabled={option.disabled}
-                    onClick={() => selectOption(option.value)}
-                    className={`
-                      w-full text-left transition-colors duration-150
-                      ${sizeStyles.item}
-                      ${option.disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--bg2)]'}
-                      ${active ? 'bg-[var(--accent-bg)] text-[var(--accent)]' : 'text-[var(--t)]'}
-                    `}
-                    role="option"
-                    aria-selected={active}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
+          <DropdownPortal anchorRef={btnRef}>
+            <div
+              id="fd-portal-list"
+              className="rounded-lg overflow-hidden border border-[var(--b2)] bg-[var(--surf)] shadow-lg"
+              style={{
+                backdropFilter: 'blur(4px)',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.15)',
+              }}
+            >
+              <div className="max-h-64 overflow-y-auto py-1">
+                {options.map((option) => {
+                  const active = option.value === value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      disabled={option.disabled}
+                      onClick={() => selectOption(option.value)}
+                      className={[
+                        'w-full text-left transition-colors duration-150',
+                        sizeStyles.item,
+                        option.disabled
+                          ? 'opacity-40 cursor-not-allowed'
+                          : 'cursor-pointer hover:bg-[var(--bg2)]',
+                        active
+                          ? 'bg-[var(--accent-bg)] text-[var(--accent)]'
+                          : 'text-[var(--t)]',
+                      ].join(' ')}
+                      role="option"
+                      aria-selected={active}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          </DropdownPortal>
         )}
       </div>
     </div>

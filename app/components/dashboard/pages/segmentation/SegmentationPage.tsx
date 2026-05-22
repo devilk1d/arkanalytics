@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, memo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import DashboardLayout from '../../layout/DashboardLayout';
 import Card from '../../ui/Card';
 import PermissionGate from '../../ui/PermissionGate';
 import { useDashboardContext } from '../../context/DashboardContext';
@@ -295,9 +294,8 @@ const SegmentationPageContent = memo(() => {
       });
       
       setSegmentStats(stats);
-      if (stats.length > 0) {
-        setActiveSegLabel(stats[0].label);
-      }
+      // Default to empty string to show 'All Segments' in Cluster Map
+      setActiveSegLabel('');
     }
 
     setLoading(false);
@@ -350,33 +348,29 @@ const SegmentationPageContent = memo(() => {
 
   if (loading && !datasetId) {
     return (
-      <DashboardLayout page="Customer Segmentation">
-        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
-          <svg className="animate-spin text-[var(--b3)]" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-          </svg>
-        </div>
-      </DashboardLayout>
+      <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+        <svg className="animate-spin text-[var(--b3)]" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+        </svg>
+      </div>
     );
   }
 
   if (!datasetId) {
     return (
-      <DashboardLayout page="Customer Segmentation">
-        <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-[var(--bg1)] border border-[var(--b)] flex items-center justify-center mb-2 shadow-sm">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
-            </svg>
-          </div>
-          <div className="text-center">
-            <h3 className="text-sm font-bold text-[var(--t)] mb-1">No Dataset Selected</h3>
-            <p className="text-xs text-[var(--t4)] max-w-[250px] mx-auto leading-relaxed">
-              Please select a dataset from the Data Management page.
-            </p>
-          </div>
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] gap-4">
+        <div className="w-16 h-16 rounded-2xl bg-[var(--bg1)] border border-[var(--b)] flex items-center justify-center mb-2 shadow-sm">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+          </svg>
         </div>
-      </DashboardLayout>
+        <div className="text-center">
+          <h3 className="text-sm font-bold text-[var(--t)] mb-1">No Dataset Selected</h3>
+          <p className="text-xs text-[var(--t4)] max-w-[250px] mx-auto leading-relaxed">
+            Please select a dataset from the Data Management page.
+          </p>
+        </div>
+      </div>
     );
   }
 
@@ -384,8 +378,7 @@ const SegmentationPageContent = memo(() => {
   const totalCustomersAll = segmentStats.reduce((acc, s) => acc + s.count, 0);
 
   return (
-    <DashboardLayout page="Customer Segmentation">
-      <div className="fade-in pb-10">
+    <div className="fade-in pb-10">
         
         {/* ── Page Header ── */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-[var(--b)] pb-5">
@@ -570,8 +563,6 @@ const SegmentationPageContent = memo(() => {
 
         </div>
 
-      </div>
-
       {/* ── Campaign Simulation Drawer / Modal ── */}
       {campaignModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -681,7 +672,7 @@ const SegmentationPageContent = memo(() => {
           </div>
         </div>
       )}
-    </DashboardLayout>
+    </div>
   );
 });
 

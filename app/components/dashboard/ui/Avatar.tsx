@@ -21,7 +21,7 @@ const colorMap: Record<string, string> = {
 export default function Avatar({ initials, color, size = 'md', src }: AvatarProps) {
   const bg = color || colorMap[initials] || 'bg-slate-800';
   return (
-    <div className={`${sizes[size]} ${bg} rounded-full flex items-center justify-center text-white font-extrabold shrink-0 overflow-hidden ring-2 ring-white shadow-sm`}>
+    <div className={`${sizes[size]} ${bg} rounded-full flex items-center justify-center text-white font-extrabold shrink-0 overflow-hidden shadow-sm`}>
       {src ? <img src={src} alt={initials} className="w-full h-full object-cover" /> : initials}
     </div>
   );

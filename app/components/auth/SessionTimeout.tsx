@@ -20,6 +20,11 @@ export function SessionTimeout() {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session) {
+        // Mark offline before signing out
+        await supabase
+          .from('users')
+          .update({ is_online: false, last_active_at: null })
+          .eq('id', session.user.id);
         await supabase.auth.signOut();
         localStorage.removeItem(STORAGE_KEY);
         router.push('/auth/signin?error=session_timeout');

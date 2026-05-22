@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useMemo, memo } from 'react';
-import DashboardLayout from '../../layout/DashboardLayout';
 import Link from 'next/link';
 import CustomerFlowChart from '../../charts/CustomerFlowChart';
 import DonutChart from '../../charts/DonutChart';
@@ -184,26 +183,23 @@ const OverviewPage = ({
 
   if (!isMounted) {
     return (
-      <DashboardLayout page="Overview">
-        <div className="space-y-6 animate-pulse">
-          <div className="h-20 bg-[var(--bg2)] rounded-2xl" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-32 bg-[var(--bg2)] rounded-2xl" />
-            ))}
-          </div>
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-12 xl:col-span-8 h-96 bg-[var(--bg2)] rounded-2xl" />
-            <div className="col-span-12 xl:col-span-4 h-96 bg-[var(--bg2)] rounded-2xl" />
-          </div>
+      <div className="space-y-6 animate-pulse">
+        <div className="h-20 bg-[var(--bg2)] rounded-2xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-32 bg-[var(--bg2)] rounded-2xl" />
+          ))}
         </div>
-      </DashboardLayout>
+        <div className="grid grid-cols-12 gap-4">
+          <div className="col-span-12 xl:col-span-8 h-96 bg-[var(--bg2)] rounded-2xl" />
+          <div className="col-span-12 xl:col-span-4 h-96 bg-[var(--bg2)] rounded-2xl" />
+        </div>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout page="Overview">
-      <div className="fade-in">
+    <div className="fade-in">
         {/* ── Page Header ── */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-[var(--b)] pb-5">
           <div>
@@ -414,14 +410,28 @@ const OverviewPage = ({
               
               <div className="flex flex-col">
                 {alerts.map((a, i) => (
-                  <div key={i} className={`flex gap-3 py-3 ${i < alerts.length - 1 ? 'border-b border-[var(--b)]' : ''}`}>
-                    <div
-                      className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
-                      style={{
-                        backgroundColor: a.level === 'high' ? 'var(--danger)' : a.level === 'med' ? 'var(--warn)' : 'var(--accent)'
-                      }}
-                    />
-                    <div className="flex-1">
+                  <div key={i} className={`flex items-start gap-3 py-3 ${i < alerts.length - 1 ? 'border-b border-[var(--b)]' : ''}`}>
+
+                    {/* dot badge */}
+                    {a.level === 'high' && (
+                      <span className="relative flex shrink-0 mt-[3px]">
+                        <span className="absolute inline-flex h-full w-full rounded-full bg-[var(--r)] opacity-60 animate-ping" />
+                        <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-[var(--r)] ring-2 ring-[var(--r)]/25" />
+                      </span>
+                    )}
+                    {a.level === 'med' && (
+                      <span className="relative flex shrink-0 mt-[3px]">
+                        <span className="absolute inline-flex h-full w-full rounded-full bg-[var(--o)] opacity-40 animate-ping" style={{ animationDuration: '1.8s' }} />
+                        <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-[var(--o)] ring-2 ring-[var(--o)]/25" />
+                      </span>
+                    )}
+                    {a.level === 'low' && (
+                      <span className="relative flex shrink-0 mt-[3px]">
+                        <span className="relative inline-flex w-2.5 h-2.5 rounded-full bg-[var(--g)] ring-2 ring-[var(--g)]/20" />
+                      </span>
+                    )}
+
+                    <div className="flex-1 min-w-0">
                       <div className="text-[12px] text-[var(--t)] leading-normal font-medium">{a.label}</div>
                       <div className="text-[10px] text-[var(--t3)] font-mono mt-1 uppercase tracking-wider">{a.time}</div>
                     </div>
@@ -467,8 +477,7 @@ const OverviewPage = ({
           </div>
 
         </div>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 };
 
