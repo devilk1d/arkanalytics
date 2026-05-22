@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/client';
 import type { CustomerPrediction } from '@/types/churn';
 import { normalizeSegmentLabel } from '../segmentation/SegmentationPage';
 
+const ANIM_DURATION = 220; // ms
+
 /* ─── Interfaces ─── */
 interface ChurnXai {
   score_reason: string;
@@ -26,8 +28,8 @@ interface ChurnXai {
 function RedFlagBadge({ show }: { show: boolean }) {
   if (!show) return null;
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">
-      <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse shrink-0" />
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--o)] bg-[var(--o)]/10 border border-[var(--o)]/30 px-2 py-0.5 rounded-full">
+      <span className="w-1.5 h-1.5 rounded-full bg-[var(--o)] animate-pulse shrink-0" />
       Hidden Risk
     </span>
   );
@@ -36,8 +38,8 @@ function RedFlagBadge({ show }: { show: boolean }) {
 function LoyaltyRiskBadge({ show }: { show: boolean }) {
   if (!show) return null;
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
-      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[var(--p)] bg-[var(--p)]/10 border border-[var(--p)]/30 px-2 py-0.5 rounded-full">
+      <span className="w-1.5 h-1.5 rounded-full bg-[var(--p)] shrink-0" />
       Loyalty Risk
     </span>
   );
@@ -73,25 +75,25 @@ function XaiPanel({ raw, onRetry, isRetrying = false }: { raw: string | null, on
 
   if (parseError || isInvalid || xai?.error || xai?.detail) {
     return (
-      <div className="border border-red-100 bg-red-50 rounded-2xl p-4 mb-4">
+      <div className="border border-[var(--r)]/30 bg-[var(--r)]/10 rounded-2xl p-4 mb-4">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-[var(--r)]" strokeWidth="2" strokeLinecap="round">
               <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
-            <span className="text-[11px] font-semibold text-red-700 uppercase tracking-wide">AI Error</span>
+            <span className="text-[11px] font-semibold text-[var(--r)] uppercase tracking-wide">AI Error</span>
           </div>
           {onRetry && (
             <button 
               onClick={onRetry} 
               disabled={isRetrying}
-              className="text-[10px] font-bold text-red-600 hover:underline disabled:opacity-50"
+              className="text-[10px] font-bold text-[var(--r)] hover:underline disabled:opacity-50"
             >
               {isRetrying ? 'Retrying...' : 'Retry Generation'}
             </button>
           )}
         </div>
-        <p className="text-[11px] text-gray-600 leading-relaxed font-mono bg-white/50 p-2 rounded-lg border border-red-100 overflow-hidden text-ellipsis">
+        <p className="text-[11px] text-[var(--t2)] leading-relaxed font-mono bg-[var(--bg2)]/50 p-2 rounded-lg border border-[var(--r)]/20 overflow-hidden text-ellipsis">
           {xai?.error || xai?.detail || (parseError ? `Parse Error: ${raw.slice(0, 100)}...` : raw)}
         </p>
       </div>
@@ -101,53 +103,53 @@ function XaiPanel({ raw, onRetry, isRetrying = false }: { raw: string | null, on
   return (
     <div className="mb-4 flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-blue-500" strokeWidth="2" strokeLinecap="round">
           <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
-        <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide">AI Explanation</span>
+        <span className="text-[11px] font-semibold text-blue-500 uppercase tracking-wide">AI Explanation</span>
       </div>
 
-      <div className="border-l-2 border-blue-300 pl-3 py-0.5">
-        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Mengapa Score Ini?</p>
-        <p className="text-xs text-gray-700 leading-relaxed">{xai!.score_reason}</p>
+      <div className="border-l-2 border-blue-500/50 pl-3 py-0.5">
+        <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-wide mb-1">Mengapa Score Ini?</p>
+        <p className="text-xs text-[var(--t)] leading-relaxed">{xai!.score_reason}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-red-50 border border-red-100 rounded-xl p-3">
-          <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wide mb-2">Faktor Risiko Utama</p>
+        <div className="bg-[var(--r)]/10 border border-[var(--r)]/20 rounded-xl p-3">
+          <p className="text-[10px] font-semibold text-[var(--r)] uppercase tracking-wide mb-2">Faktor Risiko Utama</p>
           <div className="flex flex-col gap-1.5">
             {xai!.risk_factors?.map((f, i) => (
               <div key={i} className="flex items-start gap-1.5">
-                <span className="text-[10px] text-red-400 mt-0.5 shrink-0">▲</span>
-                <p className="text-[11px] text-gray-700 leading-relaxed">{f}</p>
+                <span className="text-[10px] text-[var(--r)] opacity-80 mt-0.5 shrink-0">▲</span>
+                <p className="text-[11px] text-[var(--t)] leading-relaxed">{f}</p>
               </div>
             ))}
           </div>
         </div>
-        <div className="bg-gray-50 border border-gray-100 rounded-xl p-3">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Sinyal Feedback</p>
-          <p className="text-[11px] text-gray-700 leading-relaxed">{xai!.feedback_signal}</p>
+        <div className="bg-[var(--bg2)] border border-[var(--b)] rounded-xl p-3">
+          <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-wide mb-2">Sinyal Feedback</p>
+          <p className="text-[11px] text-[var(--t)] leading-relaxed">{xai!.feedback_signal}</p>
         </div>
       </div>
 
       {xai!.action && (
-        <div className="border border-gray-200 rounded-xl p-3">
-          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-2">Rekomendasi Tindakan</p>
+        <div className="border border-[var(--b)] rounded-xl p-3">
+          <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-wide mb-2">Rekomendasi Tindakan</p>
           <div className="grid grid-cols-2 gap-3 mb-2">
             <div>
-              <p className="text-[10px] text-gray-400 mb-1">Retensi</p>
-              <div className="inline-block text-[11px] font-bold bg-black text-white px-4 py-2.5 rounded-xl leading-tight">
+              <p className="text-[10px] text-[var(--t3)] mb-1">Retensi</p>
+              <div className="inline-block text-[11px] font-bold bg-[var(--t)] text-[var(--bg1)] px-4 py-2.5 rounded-xl leading-tight">
                 {xai!.action.retain}
               </div>
             </div>
             <div>
-              <p className="text-[10px] text-gray-400 mb-1">Penawaran</p>
-              <div className="inline-block text-[11px] font-semibold bg-gray-100 text-gray-700 px-4 py-2.5 rounded-xl leading-tight border border-gray-200">
+              <p className="text-[10px] text-[var(--t3)] mb-1">Penawaran</p>
+              <div className="inline-block text-[11px] font-semibold bg-[var(--bg2)] text-[var(--t)] px-4 py-2.5 rounded-xl leading-tight border border-[var(--b)]">
                 {xai!.action.offer}
               </div>
             </div>
           </div>
-          <p className="text-[11px] text-gray-600 leading-relaxed border-t border-gray-100 pt-2 mt-1">
+          <p className="text-[11px] text-[var(--t2)] leading-relaxed border-t border-[var(--b)] pt-2 mt-1">
             {xai!.action.reason}
           </p>
         </div>
@@ -188,8 +190,41 @@ export function AnalyzeCustomerModal({
   const [error, setError] = useState('');
   const supabase = createClient();
 
-  // FIX DOUBLE CALL: gunakan ref sebagai guard
   const activeLoadKey = useRef<string | null>(null);
+
+  /* ─── Animation state ─── */
+  const [mounted, setMounted] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      setMounted(true);
+      // Next microtask so transition fires after mount
+      requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
+    } else {
+      setVisible(false);
+      closeTimerRef.current = setTimeout(() => setMounted(false), ANIM_DURATION);
+    }
+    return () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    if (open) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open, onClose]);
 
   useEffect(() => {
     if (!open || !customerId) return;
@@ -352,89 +387,101 @@ export function AnalyzeCustomerModal({
     return form;
   }
 
-  if (!open) return null;
+  if (!mounted) return null;
+
+  /* ─── Transition classes ─── */
+  const backdropCls = `transition-[opacity,backdrop-filter] duration-[${ANIM_DURATION}ms] ease-out ${visible ? 'opacity-100 backdrop-blur-sm' : 'opacity-0 backdrop-blur-none'}`;
+  const panelCls    = `transition-[opacity,transform] duration-[${ANIM_DURATION}ms] ease-out ${visible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-3 scale-[0.97]'}`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
-      <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center bg-black/50 ${backdropCls}`}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className={`relative bg-[var(--bg1)] rounded-2xl border border-[var(--b2)] w-full max-w-2xl max-h-[90vh] m-4 shadow-2xl flex flex-col ${panelCls}`}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--b)] shrink-0">
           <div>
-            <h2 className="text-base font-bold text-black">Customer Analysis</h2>
-            <p className="text-xs text-gray-400">Detailed analysis and insights for {customerId}</p>
+            <h2 className="text-sm font-semibold tracking-tight text-[var(--t)]" style={{ fontFamily: 'var(--app-font-display)' }}>
+              Customer Analysis
+            </h2>
+            <p className="text-[11px] text-[var(--t3)] mt-0.5">Detailed analysis and insights for {customerId}</p>
           </div>
-          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--bg3)] text-[var(--t3)] hover:text-[var(--t)] transition-colors"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto">
+        {/* Scrollable body */}
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
           {loading && (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <svg className="animate-spin text-gray-300" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+              <svg className="animate-spin text-[var(--t3)]" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
               {loadingStage === 'downloading' ? (
-                <div className="flex flex-col items-center gap-2 w-48">
-                  <p className="text-xs text-gray-500 font-medium">Downloading dataset files…</p>
-                  <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-1.5 bg-black rounded-full transition-all duration-300" style={{ width: `${downloadProgress}%` }} />
+                <div className="flex flex-col items-center gap-2 w-52">
+                  <p className="text-xs text-[var(--t2)] font-medium">Downloading dataset files…</p>
+                  <div className="w-full h-1 bg-[var(--bg3)] rounded-full overflow-hidden">
+                    <div className="h-1 bg-[var(--t)] rounded-full transition-all duration-300" style={{ width: `${downloadProgress}%` }} />
                   </div>
-                  <p className="text-[11px] text-gray-400">{downloadProgress}% — cached for next analyze</p>
+                  <p className="text-[11px] text-[var(--t3)]">{downloadProgress}% — cached for next analyze</p>
                 </div>
               ) : loadingStage === 'predicting' ? (
                 <div className="flex flex-col items-center gap-1">
-                  <p className="text-xs text-gray-500 font-medium">Running prediction model…</p>
-                  <p className="text-[11px] text-gray-400">Generating AI explanation</p>
+                  <p className="text-xs text-[var(--t2)] font-medium">Running prediction model…</p>
+                  <p className="text-[11px] text-[var(--t3)]">Generating AI explanation</p>
                 </div>
               ) : (
-                <p className="text-xs text-gray-400">Checking database…</p>
+                <p className="text-xs text-[var(--t3)]">Checking database…</p>
               )}
             </div>
           )}
 
           {error && (
-            <div className="p-4 border border-red-200 rounded-xl bg-red-50">
-              <p className="text-xs text-red-600">{error}</p>
+            <div className="p-4 border border-[var(--r)]/30 rounded-xl bg-[var(--r)]/10">
+              <p className="text-xs text-[var(--r)]">{error}</p>
             </div>
           )}
 
           {!loading && !error && data && (
             <>
               {/* Score header */}
-              <div className="flex items-start justify-between mb-5">
-                <div>
-                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <h3 className="text-xl font-bold text-black">{data.customer_id}</h3>
+              <div className="flex items-start justify-between mb-5 gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 className="text-xl font-bold text-[var(--t)] tracking-tight" style={{ fontFamily: 'var(--app-font-display)' }}>
+                      {data.customer_id}
+                    </h3>
                     <RedFlagBadge show={data.nlp_red_flag === 1} />
                     <LoyaltyRiskBadge show={(data as any).loyalty_risk_flag === 1} />
                   </div>
-                  <p className="text-xs text-gray-400">{data.plan_type} · {data.contract_type}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    Segment: <span className="font-semibold text-black">{normalizeSegmentLabel(data.segment_label)}</span>
+                  <p className="text-xs text-[var(--t3)]">{data.plan_type} · {data.contract_type}</p>
+                  <p className="text-xs text-[var(--t3)] mt-0.5">
+                    Segment: <span className="font-semibold text-[var(--t)]">{normalizeSegmentLabel(data.segment_label)}</span>
                   </p>
                 </div>
-                <div className="border border-gray-200 rounded-2xl p-4 text-right min-w-28">
-                  <p className="text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Churn Score</p>
-                  <p className={`text-3xl font-black ${data.risk_level === 'Low' ? 'text-green-500' : data.risk_level === 'High' ? 'text-red-500' : 'text-yellow-500'}`}>
+                <div className="border border-[var(--b2)] rounded-xl p-4 text-right shrink-0 bg-[var(--bg2)] min-w-[7rem]">
+                  <p className="text-[9px] font-semibold text-[var(--t3)] uppercase tracking-widest mb-1.5">Churn Score</p>
+                  <p className={`text-3xl font-black leading-none ${data.risk_level === 'Low' ? 'text-[var(--g)]' : data.risk_level === 'High' ? 'text-[var(--r)]' : 'text-[var(--o)]'}`} style={{ fontFamily: 'var(--app-font-display)' }}>
                     {data.churn_score}
                   </p>
-                  <div className="mt-1">
+                  <div className="mt-2 flex justify-end">
                     <Badge label={data.risk_level} variant={data.risk_level === 'Low' ? 'low' : data.risk_level === 'High' ? 'high' : 'med'} />
                   </div>
-                  <p className="text-[10px] text-gray-400 mt-1">
-                    ML: {(data.tabular_proba * 100).toFixed(0)}%
-                  </p>
                 </div>
               </div>
 
               {data.nlp_red_flag === 1 && (
-                <div className="flex items-start gap-2.5 bg-orange-50 border border-orange-200 rounded-xl p-3 mb-4">
-                  <span className="text-orange-500 mt-0.5 shrink-0">⚠</span>
+                <div className="flex items-start gap-2.5 bg-[var(--o)]/8 border border-[var(--o)]/25 rounded-xl p-3 mb-4">
+                  <span className="text-[var(--o)] mt-0.5 shrink-0 text-sm">⚠</span>
                   <div>
-                    <p className="text-[11px] font-semibold text-orange-700 mb-0.5">Hidden Risk Detected</p>
-                    <p className="text-[11px] text-orange-600 leading-relaxed">
+                    <p className="text-[11px] font-semibold text-[var(--o)] mb-0.5">Hidden Risk Detected</p>
+                    <p className="text-[11px] text-[var(--o)] opacity-90 leading-relaxed">
                       Churn score tergolong aman, namun feedback customer menunjukkan sentimen negatif kuat
                       dan kata-kata churn intent. Perlu perhatian ekstra.
                     </p>
@@ -443,11 +490,11 @@ export function AnalyzeCustomerModal({
               )}
 
               {(data as any).loyalty_risk_flag === 1 && (
-                <div className="flex items-start gap-2.5 bg-purple-50 border border-purple-200 rounded-xl p-3 mb-4">
-                  <span className="text-purple-500 mt-0.5 shrink-0">⚑</span>
+                <div className="flex items-start gap-2.5 bg-[var(--p)]/8 border border-[var(--p)]/25 rounded-xl p-3 mb-4">
+                  <span className="text-[var(--p)] mt-0.5 shrink-0 text-sm">⚑</span>
                   <div>
-                    <p className="text-[11px] font-semibold text-purple-700 mb-0.5">Loyalty Risk — Silent At-Risk</p>
-                    <p className="text-[11px] text-purple-600 leading-relaxed">
+                    <p className="text-[11px] font-semibold text-[var(--p)] mb-0.5">Loyalty Risk — Silent At-Risk</p>
+                    <p className="text-[11px] text-[var(--p)] opacity-90 leading-relaxed">
                       Customer ini loyal (churn score rendah) namun termasuk segmen Unhappy Users dengan tenure panjang.
                       Kemungkinan tetap bertahan karena sudah terbiasa menggunakan layanan, bukan karena tingkat kepuasan yang tinggi. Intervensi proaktif direkomendasikan sebelum churn score meningkat.
                     </p>
@@ -456,27 +503,29 @@ export function AnalyzeCustomerModal({
               )}
 
               {xaiGenerating ? (
-                <div className="border border-blue-100 bg-blue-50 rounded-2xl p-4 mb-4">
+                <div className="border border-[var(--b2)] bg-[var(--bg2)] rounded-xl p-4 mb-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                    <span className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide">Generating AI Explanation…</span>
+                    <svg className="animate-spin text-[var(--t3)]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                    <span className="text-[11px] font-semibold text-[var(--t2)] uppercase tracking-wide">Generating AI Explanation…</span>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <div className="h-2.5 bg-blue-100 rounded-full animate-pulse w-full" />
-                    <div className="h-2.5 bg-blue-100 rounded-full animate-pulse w-4/5" />
-                    <div className="h-2.5 bg-blue-100 rounded-full animate-pulse w-3/5" />
+                    <div className="h-2 bg-[var(--bg3)] rounded-full animate-pulse w-full" />
+                    <div className="h-2 bg-[var(--bg3)] rounded-full animate-pulse w-4/5" />
+                    <div className="h-2 bg-[var(--bg3)] rounded-full animate-pulse w-3/5" />
                   </div>
                 </div>
               ) : (
-                <XaiPanel 
-                  raw={data.xai_churn_explanation ?? null} 
+                <XaiPanel
+                  raw={data.xai_churn_explanation ?? null}
                   onRetry={handleManualXaiRetry}
                   isRetrying={xaiGenerating}
                 />
               )}
 
+              {/* Section divider */}
+              <div className="border-t border-[var(--b)] my-5" />
 
-              <p className="text-sm font-bold text-black mb-3">Top Churn Factors (SHAP)</p>
+              <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-widest mb-3">Top Churn Factors (SHAP)</p>
               <div className="flex flex-col gap-2 mb-5">
                 {data.shap_top5?.map((factor: any, i: number) => {
                   const isIncrease = factor.direction === 'increases_churn';
@@ -484,13 +533,16 @@ export function AnalyzeCustomerModal({
                   const pct = (factor.importance / maxVal) * 100;
                   return (
                     <div key={i} className="flex items-center gap-3">
-                      <span className="text-[10px] text-gray-400 w-4 text-right">{i + 1}</span>
-                      <span className="text-xs text-gray-700 w-40 shrink-0">{factor.feature_label}</span>
-                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className={`h-1.5 rounded-full transition-all duration-500 ${isIncrease ? 'bg-red-400' : 'bg-green-400'}`} style={{ width: `${pct}%` }} />
+                      <span className="text-[10px] text-[var(--t4)] w-4 text-right tabular-nums">{i + 1}</span>
+                      <span className="text-xs text-[var(--t2)] w-40 shrink-0 truncate">{factor.feature_label}</span>
+                      <div className="flex-1 h-1 bg-[var(--bg3)] rounded-full overflow-hidden">
+                        <div
+                          className={`h-1 rounded-full transition-all duration-500 ${isIncrease ? 'bg-[var(--r)]' : 'bg-[var(--g)]'}`}
+                          style={{ width: `${pct}%` }}
+                        />
                       </div>
-                      <span className={`text-[10px] font-semibold w-14 text-right shrink-0 ${isIncrease ? 'text-red-500' : 'text-green-500'}`}>
-                        {isIncrease ? '▲' : '▼'} {factor.shap_value > 0 ? '+' : ''}{factor.shap_value.toFixed(3)}
+                      <span className={`text-[10px] font-semibold w-14 text-right shrink-0 tabular-nums ${isIncrease ? 'text-[var(--r)]' : 'text-[var(--g)]'}`}>
+                        {isIncrease ? '+' : ''}{factor.shap_value.toFixed(3)}
                       </span>
                     </div>
                   );
@@ -499,52 +551,53 @@ export function AnalyzeCustomerModal({
 
               {data.sentiment && (
                 <>
-                  <p className="text-sm font-bold text-black mb-3">Sentiment Analysis</p>
+                  <div className="border-t border-[var(--b)] my-5" />
+                  <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-widest mb-3">Sentiment Analysis</p>
                   {!(data as any).has_nps_data ? (
-                    <div className="border border-gray-100 rounded-xl p-4 bg-gray-50 mb-4">
+                    <div className="border border-[var(--b)] rounded-xl p-4 bg-[var(--bg2)] mb-4">
                       <div className="flex items-center gap-2 mb-1">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-[var(--t3)]" strokeWidth="2" strokeLinecap="round">
                           <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
                         </svg>
-                        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">No Feedback Available</p>
+                        <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-wide">No Feedback Available</p>
                       </div>
-                      <p className="text-xs text-gray-500 leading-relaxed">
+                      <p className="text-xs text-[var(--t2)] leading-relaxed">
                         Customer ini belum pernah mengisi NPS survey. Rekomendasi AI tetap tersedia berdasarkan data tabular (SHAP, RFM, billing).
                       </p>
                     </div>
                   ) : (
                     <>
                       <div className="grid grid-cols-3 gap-3 mb-4">
-                        <div className="border border-gray-200 rounded-xl p-3">
-                          <p className="text-[10px] text-gray-400 mb-1">Overall Sentiment</p>
-                          <p className={`text-sm font-bold capitalize ${data.sentiment.label === 'negative' ? 'text-red-500'
-                            : data.sentiment.label === 'positive' ? 'text-green-500'
-                              : 'text-yellow-500'
-                            }`}>
+                        <div className="border border-[var(--b)] rounded-xl p-3 bg-[var(--bg2)]">
+                          <p className="text-[10px] text-[var(--t3)] mb-1.5">Overall Sentiment</p>
+                          <p className={`text-sm font-bold capitalize ${data.sentiment.label === 'negative' ? 'text-[var(--r)]'
+                            : data.sentiment.label === 'positive' ? 'text-[var(--g)]'
+                              : 'text-[var(--o)]'
+                            }`} style={{ fontFamily: 'var(--app-font-display)' }}>
                             {data.sentiment.label}
                           </p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">VADER: {data.sentiment.vader_compound.toFixed(3)}</p>
+                          <p className="text-[10px] text-[var(--t4)] mt-0.5 tabular-nums">VADER: {data.sentiment.vader_compound.toFixed(3)}</p>
                         </div>
-                        <div className="border border-gray-200 rounded-xl p-3">
-                          <p className="text-[10px] text-gray-400 mb-1">Urgency Level</p>
-                          <p className={`text-sm font-bold capitalize ${data.sentiment.urgency_level === 'high' ? 'text-red-500'
-                            : data.sentiment.urgency_level === 'medium' ? 'text-yellow-500'
-                              : 'text-green-500'
-                            }`}>
+                        <div className="border border-[var(--b)] rounded-xl p-3 bg-[var(--bg2)]">
+                          <p className="text-[10px] text-[var(--t3)] mb-1.5">Urgency Level</p>
+                          <p className={`text-sm font-bold capitalize ${data.sentiment.urgency_level === 'high' ? 'text-[var(--r)]'
+                            : data.sentiment.urgency_level === 'medium' ? 'text-[var(--o)]'
+                              : 'text-[var(--g)]'
+                            }`} style={{ fontFamily: 'var(--app-font-display)' }}>
                             {data.sentiment.urgency_level}
                           </p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">Score: {data.sentiment.urgency_score}</p>
+                          <p className="text-[10px] text-[var(--t4)] mt-0.5 tabular-nums">Score: {data.sentiment.urgency_score}</p>
                         </div>
-                        <div className="border border-gray-200 rounded-xl p-3">
-                          <p className="text-[10px] text-gray-400 mb-1">Main Topic</p>
-                          <p className="text-xs font-bold text-black leading-tight">{data.sentiment.dominant_topic}</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">{(data.sentiment.pct_negative_sent).toFixed(0)}% neg sentences</p>
+                        <div className="border border-[var(--b)] rounded-xl p-3 bg-[var(--bg2)]">
+                          <p className="text-[10px] text-[var(--t3)] mb-1.5">Main Topic</p>
+                          <p className="text-xs font-bold text-[var(--t)] leading-tight" style={{ fontFamily: 'var(--app-font-display)' }}>{data.sentiment.dominant_topic}</p>
+                          <p className="text-[10px] text-[var(--t4)] mt-0.5 tabular-nums">{(data.sentiment.pct_negative_sent).toFixed(0)}% neg sentences</p>
                         </div>
                       </div>
                       {data.sentiment.feedback_preview && data.sentiment.feedback_preview.trim() !== '' && data.sentiment.feedback_preview !== '0' && (
-                        <div className="border border-gray-100 rounded-xl p-3 bg-gray-50">
-                          <p className="text-[10px] text-gray-400 mb-1">Customer Feedback</p>
-                          <p className="text-xs text-gray-600 leading-relaxed italic">
+                        <div className="border border-[var(--b)] rounded-xl p-3 bg-[var(--bg2)]">
+                          <p className="text-[10px] text-[var(--t3)] mb-1.5">Customer Feedback</p>
+                          <p className="text-xs text-[var(--t2)] leading-relaxed italic">
                             &ldquo;{data.sentiment.feedback_preview}&rdquo;
                           </p>
                         </div>
