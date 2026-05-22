@@ -32,6 +32,7 @@ interface ChatSidebarProps {
   onCreateGroup: () => void;
   onCreateDirect: (peerId: string) => void;
   availableMembers: WorkspaceMember[];
+  currentUserId: string;
   collapsed?: boolean;
 }
 
@@ -110,6 +111,7 @@ export default function ChatSidebar({
   onCreateGroup,
   onCreateDirect,
   availableMembers,
+  currentUserId,
   collapsed = false,
 }: ChatSidebarProps) {
 
@@ -246,7 +248,7 @@ export default function ChatSidebar({
                       key={member.userId}
                       className="flex cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-[var(--bg3)] transition-colors"
                     >
-                      <Avatar initials={getInitials(member.fullName)} size="sm" />
+                      <Avatar initials={getInitials(member.fullName)} src={member.avatarUrl || undefined} size="sm" />
                       <span className="flex-1 truncate text-xs font-bold text-[var(--t2)]">{member.fullName}</span>
                       <input
                         type="checkbox"
@@ -277,7 +279,7 @@ export default function ChatSidebar({
                   onClick={() => onCreateDirect(member.userId)}
                   className="flex items-center gap-2.5 rounded-xl px-2 py-2 text-left hover:bg-[var(--bg2)] transition-colors cursor-pointer w-full shrink-0"
                 >
-                  <Avatar initials={getInitials(member.fullName)} size="sm" />
+                  <Avatar initials={getInitials(member.fullName)} src={member.avatarUrl || undefined} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-bold text-[var(--t)]">{member.fullName}</p>
                     <p className="text-[10px] text-[var(--t3)] font-semibold font-mono">Member</p>
@@ -375,7 +377,11 @@ export default function ChatSidebar({
                     >
                       <div className="relative shrink-0">
                         <Avatar initials={getInitials(c.name)} size="sm" src={c.avatarUrl || undefined} />
-                        <div className="absolute right-0 bottom-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-[var(--bg1)]" />
+                        {(() => {
+                          const peer = c.members.find(m => m.id !== currentUserId);
+                          if (!peer?.isOnline) return null;
+                          return <div className="absolute right-0 bottom-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-[var(--bg1)]" />;
+                        })()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">

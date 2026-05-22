@@ -402,6 +402,10 @@ export default function InvitePage() {
       return data.error || 'Failed to accept invitation.';
     }
 
+    await supabase.from('users')
+      .update({ is_online: true, last_active_at: new Date().toISOString() })
+      .eq('id', user.id);
+
     router.push('/dashboard/overview');
     router.refresh();
     return null;

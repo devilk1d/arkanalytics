@@ -32,7 +32,7 @@ type RoleRow = {
 };
 
 function formatLastActive(lastActiveAt: string | null): string {
-  if (!lastActiveAt) return 'Never';
+  if (!lastActiveAt) return '—';
   const diffSec = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 1000);
   if (diffSec < 60) return 'now';
   if (diffSec < 3600) return `${Math.floor(diffSec / 60)} min ago`;
@@ -48,20 +48,33 @@ type MemberStatusVariant = 'active' | 'pending' | 'default';
 
 /**
  * Status logic:
- *  ONLINE  — is_online=true AND heartbeat is fresh (< 2 min)
- *  AWAY    — tab hidden / idle (is_online=false but last_active_at < 1 hour)
- *            OR is_online=true but heartbeat stale (browser crash / network drop)
- *  OFFLINE — logged out (last_active_at=null) OR gone for > 1 hour
+ *  ONLINE  — is_online=true AND heartbeat fresh (< 2 min)
+ *  AWAY    — is_online=true AND heartbeat stale (2 min – 1 hr): tab is hidden
+ *  OFFLINE — is_online=false (explicit logout) OR heartbeat dead > 1 hr (browser crash)
+ *            OR no activity record
+ *
+ * Tab-hide does NOT set is_online=false — only logout does. This lets us use
+ * is_online as a reliable OFFLINE signal while heartbeat staleness drives AWAY.
  */
 function getMemberStatus(
   isOnline: boolean,
   lastActiveAt: string | null,
 ): { label: string; variant: MemberStatusVariant } {
   if (!lastActiveAt) return { label: 'OFFLINE', variant: 'default' };
+
+  // Explicit logout → OFFLINE immediately
+  if (!isOnline) return { label: 'OFFLINE', variant: 'default' };
+
   const diffSec = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 1000);
-  if (isOnline && diffSec < 300) return { label: 'ONLINE', variant: 'active' };
-  if (diffSec > 3600) return { label: 'OFFLINE', variant: 'default' };
-  return { label: 'AWAY', variant: 'pending' };
+
+  // Heartbeat fresh → ONLINE
+  if (diffSec < 120) return { label: 'ONLINE', variant: 'active' };
+
+  // Heartbeat stale but within 1 hr → AWAY (tab hidden)
+  if (diffSec < 3600) return { label: 'AWAY', variant: 'pending' };
+
+  // is_online=true but dead for 1+ hr → browser crash / killed; treat as OFFLINE
+  return { label: 'OFFLINE', variant: 'default' };
 }
 
 const inputCls =
@@ -763,71 +776,73 @@ function SettingsContent() {
                   </Button>
                 )}
               </div>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/60">
-                    {['Member', 'Email', 'Role', 'Status', 'Last Active'].map((h, i) => (
-                      <th key={i} className="px-5 py-3 text-left text-[11px] font-medium text-[var(--t3)] uppercase tracking-wider whitespace-nowrap">
-                        {h}
-                      </th>
-                    ))}
-                    {isAdmin && (
-                      <th className="px-5 py-3 text-left text-[11px] font-medium text-[var(--t3)] uppercase tracking-wider whitespace-nowrap">
-                        Actions
-                      </th>
-                    )}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--b)]">
-                  {members.map(m => {
-                    const memberStatus = getMemberStatus(m.isOnline, m.lastActiveAt);
-                    return (
-                    <tr key={m.userId} className="hover:bg-[var(--bg2)]/60 transition-colors group">
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-2.5">
-                          <Avatar initials={getInitials(m.fullName)} src={m.avatarUrl || undefined} size="sm" />
-                          <span className="text-sm font-medium text-[var(--t)]">{m.fullName}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-[var(--t2)]">{m.email || <span className="text-[var(--t3)] italic text-xs">Hidden</span>}</td>
-                      <td className="px-5 py-3.5">
-                        {isAdmin ? (
-                          <FilterDropdown
-                            size="sm"
-                            value={m.role}
-                            onChange={newRole => { void handleInlineRoleChange(m.userId, newRole); }}
-                            disabled={updatingRoleId === m.userId || actionLoading}
-                            options={availableRoles.map(r => ({ label: formatRoleLabel(r), value: r }))}
-                          />
-                        ) : (
-                          <Badge label={formatRoleLabel(m.role)} variant="default" />
-                        )}
-                      </td>
-                      <td className="px-5 py-3.5"><Badge label={memberStatus.label} variant={memberStatus.variant} /></td>
-                      <td className="px-5 py-3.5 text-xs text-[var(--t2)] whitespace-nowrap font-medium">{formatLastActive(m.lastActiveAt)}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px]">
+                  <thead>
+                    <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/60">
+                      {['Member', 'Email', 'Role', 'Status', 'Last Active'].map((h, i) => (
+                        <th key={i} className="px-5 py-3 text-left text-[11px] font-medium text-[var(--t3)] uppercase tracking-wider whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
                       {isAdmin && (
-                        <td className="px-5 py-3.5">
-                          <button
-                            className="text-[var(--t3)] hover:text-[var(--d)] opacity-75 hover:opacity-100 transition-colors disabled:opacity-40"
-                            onClick={() => handleDeleteMember(m.userId, m.fullName)}
-                            disabled={actionLoading}
-                            title="Remove member"
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                            </svg>
-                          </button>
-                        </td>
+                        <th className="px-5 py-3 text-left text-[11px] font-medium text-[var(--t3)] uppercase tracking-wider whitespace-nowrap">
+                          Actions
+                        </th>
                       )}
                     </tr>
-                    );
-                  })}
-                  {!loading && members.length === 0 && (
-                    <tr><td colSpan={isAdmin ? 6 : 5} className="px-5 py-10 text-sm text-[var(--t3)] text-center">No members found.</td></tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--b)]">
+                    {members.map(m => {
+                      const memberStatus = getMemberStatus(m.isOnline, m.lastActiveAt);
+                      return (
+                      <tr key={m.userId} className="hover:bg-[var(--bg2)]/60 transition-colors group">
+                        <td className="px-5 py-3.5 whitespace-nowrap">
+                          <div className="flex items-center gap-2.5">
+                            <Avatar initials={getInitials(m.fullName)} src={m.avatarUrl || undefined} size="sm" />
+                            <span className="text-sm font-medium text-[var(--t)]">{m.fullName}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5 text-sm text-[var(--t2)] whitespace-nowrap">{m.email || <span className="text-[var(--t3)] italic text-xs">Hidden</span>}</td>
+                        <td className="px-5 py-3.5 whitespace-nowrap">
+                          {isAdmin ? (
+                            <FilterDropdown
+                              size="sm"
+                              value={m.role}
+                              onChange={newRole => { void handleInlineRoleChange(m.userId, newRole); }}
+                              disabled={updatingRoleId === m.userId || actionLoading}
+                              options={availableRoles.map(r => ({ label: formatRoleLabel(r), value: r }))}
+                            />
+                          ) : (
+                            <Badge label={formatRoleLabel(m.role)} variant="default" />
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 whitespace-nowrap"><Badge label={memberStatus.label} variant={memberStatus.variant} /></td>
+                        <td className="px-5 py-3.5 text-xs text-[var(--t2)] whitespace-nowrap font-medium">{formatLastActive(m.lastActiveAt)}</td>
+                        {isAdmin && (
+                          <td className="px-5 py-3.5 whitespace-nowrap">
+                            <button
+                              className="text-[var(--t3)] hover:text-[var(--d)] opacity-75 hover:opacity-100 transition-colors disabled:opacity-40"
+                              onClick={() => handleDeleteMember(m.userId, m.fullName)}
+                              disabled={actionLoading}
+                              title="Remove member"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                              </svg>
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                      );
+                    })}
+                    {!loading && members.length === 0 && (
+                      <tr><td colSpan={isAdmin ? 6 : 5} className="px-5 py-10 text-sm text-[var(--t3)] text-center">No members found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* Roles & Permissions */}
@@ -851,62 +866,66 @@ function SettingsContent() {
                     Create Role
                   </Button>
                 </div>
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/60">
-                      {['Role', 'Description', 'Permissions', 'Members', 'Actions'].map((h, i) => (
-                        <th key={i} className="px-5 py-3 text-left text-[11px] font-medium text-[var(--t3)] uppercase tracking-wider whitespace-nowrap">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--b)]">
-                    {roleRows.map(r => (
-                      <tr key={r.role} className="hover:bg-[var(--bg2)]/60 transition-colors group">
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-[var(--t)]">{r.role}</span>
-                            {r.isCustom && <Badge label="Custom" variant="scheduled" />}
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5 text-sm text-[var(--t2)]">{r.desc || '-'}</td>
-                        <td className="px-5 py-3.5 text-sm text-[var(--t2)] max-w-xs truncate">{r.perms || '-'}</td>
-                        <td className="px-5 py-3.5">
-                          <Badge label={`${r.users} users`} variant="default" />
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-3">
-                            {!r.isCustom ? (
-                              <button disabled className="text-xs font-medium text-[var(--t4)] cursor-not-allowed">Edit</button>
-                            ) : (
-                              <button
-                                className="text-xs font-medium text-[var(--t2)] hover:text-[var(--t)] transition-colors disabled:opacity-40"
-                                onClick={() => r.roleId && handleEditCustomRole(r.roleId)}
-                                disabled={actionLoading}
-                              >
-                                Edit
-                              </button>
-                            )}
-                            {r.isCustom && (
-                              <button
-                                className="text-[var(--d)] opacity-75 hover:opacity-100 transition-colors disabled:opacity-40"
-                                onClick={() => r.roleId && handleDeleteRole(r.roleId, r.role, r.users)}
-                                disabled={actionLoading}
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                  <polyline points="3 6 5 6 21 6" />
-                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                                </svg>
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[560px]">
+                    <thead>
+                      <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/60">
+                        {['Role', 'Description', 'Permissions', 'Members', 'Actions'].map((h, i) => (
+                          <th key={i} className="px-5 py-3 text-left text-[11px] font-medium text-[var(--t3)] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        ))}
                       </tr>
-                    ))}
-                    {!loading && roleRows.length === 0 && (
-                      <tr><td colSpan={5} className="px-5 py-10 text-sm text-[var(--t3)] text-center">No roles available.</td></tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--b)]">
+                      {roleRows.map(r => (
+                        <tr key={r.role} className="hover:bg-[var(--bg2)]/60 transition-colors group">
+                          <td className="px-5 py-3.5 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-[var(--t)]">{r.role}</span>
+                              {r.isCustom && <Badge label="Custom" variant="scheduled" />}
+                            </div>
+                          </td>
+                          <td className="px-5 py-3.5 text-sm text-[var(--t2)] whitespace-nowrap">{r.desc || '-'}</td>
+                          <td className="px-5 py-3.5 text-sm text-[var(--t2)]">
+                            <span className="block max-w-[200px] truncate" title={r.perms}>{r.perms || '-'}</span>
+                          </td>
+                          <td className="px-5 py-3.5 whitespace-nowrap">
+                            <Badge label={`${r.users} users`} variant="default" />
+                          </td>
+                          <td className="px-5 py-3.5 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              {!r.isCustom ? (
+                                <button disabled className="text-xs font-medium text-[var(--t4)] cursor-not-allowed">Edit</button>
+                              ) : (
+                                <button
+                                  className="text-xs font-medium text-[var(--t2)] hover:text-[var(--t)] transition-colors disabled:opacity-40"
+                                  onClick={() => r.roleId && handleEditCustomRole(r.roleId)}
+                                  disabled={actionLoading}
+                                >
+                                  Edit
+                                </button>
+                              )}
+                              {r.isCustom && (
+                                <button
+                                  className="text-[var(--d)] opacity-75 hover:opacity-100 transition-colors disabled:opacity-40"
+                                  onClick={() => r.roleId && handleDeleteRole(r.roleId, r.role, r.users)}
+                                  disabled={actionLoading}
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                    <polyline points="3 6 5 6 21 6" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {!loading && roleRows.length === 0 && (
+                        <tr><td colSpan={5} className="px-5 py-10 text-sm text-[var(--t3)] text-center">No roles available.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </>

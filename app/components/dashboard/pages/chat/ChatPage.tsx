@@ -237,6 +237,7 @@ export default function ChatPage() {
           id: m.user_id,
           name: mInfo?.fullName || memberNameById[m.user_id] || 'User',
           avatarUrl: mInfo?.avatarUrl || memberAvatarById[m.user_id] || null,
+          isOnline: mInfo?.isOnline ?? false,
         };
       });
       const latest = latestByConversation.get(row.id);
@@ -814,6 +815,7 @@ export default function ChatPage() {
                 onCreateGroup={() => { void createGroupConversation(); }}
                 onCreateDirect={(peerId) => { void createDirectConversation(peerId); }}
                 availableMembers={availableMembers}
+                currentUserId={profile?.id ?? ''}
                 collapsed={leftWidth <= LEFT_COLLAPSE_THRESHOLD}
               />
             </aside>

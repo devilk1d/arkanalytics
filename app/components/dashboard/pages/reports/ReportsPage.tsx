@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import PermissionGate from '../../ui/PermissionGate';
 import { useDashboardContext } from '../../context/DashboardContext';
 import { createClient } from '@/lib/supabase/client';
-import toast from 'react-hot-toast';
+import { toastSuccess, toastError, toastWarning, toastLoading } from '../../../ui/AppToast';
 import FilterDropdown from '../../ui/FilterDropdown';
 import ActionConfirmation from '../../ui/ActionConfirmation';
 import Badge from '../../ui/Badge';
@@ -250,12 +250,12 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
   // Generators & Helpers
   const handleGenerate = async () => {
     if (!workspace?.id || !datasetId) {
-      toast.error('Data source not ready');
+      toastError('Data source not ready');
       return;
     }
 
     setGenerating(true);
-    const toastId = toast.loading('Initiating report generation...');
+    const toastId = toastLoading('Initiating report generation...');
     try {
       const res = await fetch('/api/reports', {
         method: 'POST',
@@ -276,12 +276,12 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
         throw new Error(err.error || 'Failed to generate report');
       }
 
-      toast.success('Generation started successfully', { id: toastId });
+      toastSuccess('Generation started successfully', undefined, { id: toastId });
       setShowNewReportModal(false);
       setReportName('');
       fetchReports();
     } catch (err: any) {
-      toast.error(err.message, { id: toastId });
+      toastError(err.message, undefined, { id: toastId });
     } finally {
       setGenerating(false);
     }
@@ -301,7 +301,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
         window.open(data.signedUrl, '_blank');
       }
     } catch (err: any) {
-      toast.error('Failed to get download link');
+      toastError('Failed to get download link');
     }
   };
 
@@ -312,11 +312,11 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
     try {
       const res = await fetch(`/api/reports?id=${reportId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete report');
-      toast.success('Report deleted');
+      toastSuccess('Report deleted');
       setReports(prev => prev.filter(r => r.id !== reportId));
       setReportToDelete(null);
     } catch (err: any) {
-      toast.error(err.message);
+      toastError(err.message);
     } finally {
       setDeletingId(null);
     }
@@ -326,7 +326,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
     e.preventDefault();
     if (!workspace?.id) return;
     if (!schedName.trim()) {
-      toast.error('Schedule name is required');
+      toastError('Schedule name is required');
       return;
     }
 
@@ -359,13 +359,13 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
         throw new Error(err.error || 'Failed to create schedule');
       }
 
-      toast.success('Schedule activated successfully');
+      toastSuccess('Schedule activated successfully');
       setShowScheduleModal(false);
       setSchedName('');
       setSchedRecipients('');
       fetchSchedules();
     } catch (err: any) {
-      toast.error(err.message);
+      toastError(err.message);
     } finally {
       setCreatingSched(false);
     }
@@ -378,11 +378,11 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
     try {
       const res = await fetch(`/api/reports/schedule?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete schedule');
-      toast.success('Schedule removed');
+      toastSuccess('Schedule removed');
       setSchedules(prev => prev.filter(s => s.id !== id));
       setSchedToDelete(null);
     } catch (err: any) {
-      toast.error(err.message);
+      toastError(err.message);
     } finally {
       setDeletingSchedId(null);
     }
@@ -390,17 +390,17 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
 
   const handleTriggerScheduler = async () => {
     setRunningScheduler(true);
-    const toastId = toast.loading('Executing due schedules...');
+    const toastId = toastLoading('Executing due schedules...');
     try {
       const res = await fetch('/api/reports/scheduler', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Scheduler failed');
 
-      toast.success(`Executed ${data.executed_count || 0} scheduled reports`, { id: toastId });
+      toastSuccess(`Executed ${data.executed_count || 0} scheduled reports`, undefined, { id: toastId });
       fetchReports();
       fetchSchedules();
     } catch (err: any) {
-      toast.error(err.message, { id: toastId });
+      toastError(err.message, undefined, { id: toastId });
     } finally {
       setRunningScheduler(false);
     }

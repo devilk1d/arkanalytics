@@ -264,7 +264,10 @@ function InfoPanel({
                   <p className="text-xs font-bold text-[var(--t)] truncate">{m.name}</p>
                   <p className="text-[10px] text-[var(--t3)] font-semibold font-mono">Member</p>
                 </div>
-                <div className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" title="Online" />
+                <div
+                  className={`h-2 w-2 rounded-full shrink-0 ${m.isOnline ? 'bg-emerald-500' : 'bg-[var(--b2)]'}`}
+                  title={m.isOnline ? 'Online' : 'Offline'}
+                />
               </div>
             )) : (
               <div className="px-4 py-6 text-center text-xs text-[var(--t3)] italic">
@@ -385,6 +388,19 @@ function ActionsPanel({
 
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editNoteData, setEditNoteData] = useState({ title: '', content: '' });
+  const [viewingNote, setViewingNote] = useState<NoteItem | null>(null);
+
+  // Reactive dark-mode detection — re-renders when data-theme attribute changes
+  const [isDark, setIsDark] = useState(
+    typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark'
+  );
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.getAttribute('data-theme') === 'dark');
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
 
   const resetModal = () => {
     setModalData({ title: '', priority: 'normal', dueAt: '', details: '' });
@@ -394,26 +410,24 @@ function ActionsPanel({
   const activeTasks = tasks.filter(t => t.taskStatus !== 'done' && t.taskStatus !== 'archived');
   const completedTasks = tasks.filter(t => t.taskStatus === 'done' || t.taskStatus === 'archived');
 
+  // All colors as plain hex values — no Tailwind dynamic classes
   const STICKY_COLORS = [
-    { bg: 'bg-[#FEF08A]', border: 'border-[#FDE047]', text: 'text-[#713F12]', title: 'text-[#78350F]', darkBg: '#854D0E20', darkBorder: '#854D0E50', darkText: '#FDE68A', darkTitle: '#FEF3C7' },
-    { bg: 'bg-[#BFDBFE]', border: 'border-[#93C5FD]', text: 'text-[#1E3A8A]', title: 'text-[#1E40AF]', darkBg: '#1E3A8A20', darkBorder: '#1E3A8A50', darkText: '#BFDBFE', darkTitle: '#DBEAFE' },
-    { bg: 'bg-[#FBCFE8]', border: 'border-[#F9A8D4]', text: 'text-[#831843]', title: 'text-[#9D174D]', darkBg: '#83184320', darkBorder: '#83184350', darkText: '#FBCFE8', darkTitle: '#FCE7F3' },
-    { bg: 'bg-[#BBF7D0]', border: 'border-[#86EFAC]', text: 'text-[#064E3B]', title: 'text-[#065F46]', darkBg: '#064E3B20', darkBorder: '#064E3B50', darkText: '#A7F3D0', darkTitle: '#D1FAE5' },
-    { bg: 'bg-[#E9D5FF]', border: 'border-[#D8B4FE]', text: 'text-[#581C87]', title: 'text-[#6B21A8]', darkBg: '#581C8720', darkBorder: '#581C8750', darkText: '#E9D5FF', darkTitle: '#F3E8FF' },
+    { lightBg: '#FEF08A', lightBorder: '#FDE047', lightText: '#713F12', lightTitle: '#78350F', darkBg: 'rgba(133,77,14,0.13)', darkBorder: 'rgba(133,77,14,0.32)', darkText: '#FDE68A', darkTitle: '#FEF3C7' },
+    { lightBg: '#BFDBFE', lightBorder: '#93C5FD', lightText: '#1E3A8A', lightTitle: '#1E40AF', darkBg: 'rgba(30,58,138,0.13)', darkBorder: 'rgba(30,58,138,0.32)', darkText: '#BFDBFE', darkTitle: '#DBEAFE' },
+    { lightBg: '#FBCFE8', lightBorder: '#F9A8D4', lightText: '#831843', lightTitle: '#9D174D', darkBg: 'rgba(131,24,67,0.13)', darkBorder: 'rgba(131,24,67,0.32)', darkText: '#FBCFE8', darkTitle: '#FCE7F3' },
+    { lightBg: '#BBF7D0', lightBorder: '#86EFAC', lightText: '#064E3B', lightTitle: '#065F46', darkBg: 'rgba(6,78,59,0.13)', darkBorder: 'rgba(6,78,59,0.32)', darkText: '#A7F3D0', darkTitle: '#D1FAE5' },
+    { lightBg: '#E9D5FF', lightBorder: '#D8B4FE', lightText: '#581C87', lightTitle: '#6B21A8', darkBg: 'rgba(88,28,135,0.13)', darkBorder: 'rgba(88,28,135,0.32)', darkText: '#E9D5FF', darkTitle: '#F3E8FF' },
   ];
 
   const getStickyStyle = (id: string) => {
     let hash = 0;
     for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
     const c = STICKY_COLORS[Math.abs(hash) % STICKY_COLORS.length];
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     return {
-      bg: isDark ? `bg-[${c.darkBg}]` : c.bg,
-      border: isDark ? `border-[${c.darkBorder}]` : c.border,
-      text: isDark ? '' : c.text,
-      title: isDark ? '' : c.title,
-      textStyle: isDark ? { color: c.darkText } : {},
-      titleStyle: isDark ? { color: c.darkTitle } : {},
+      bg: isDark ? c.darkBg : c.lightBg,
+      border: isDark ? c.darkBorder : c.lightBorder,
+      text: isDark ? c.darkText : c.lightText,
+      title: isDark ? c.darkTitle : c.lightTitle,
     };
   };
 
@@ -595,20 +609,33 @@ function ActionsPanel({
               }
 
               return (
-                <div key={note.id} className={`relative p-4 rounded-xl border ${color.bg} ${color.border} shadow-sm group hover:-translate-y-0.5 hover:shadow-md transition-all`}>
-                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                    <button 
+                <div
+                  key={note.id}
+                  className="relative p-4 rounded-xl border shadow-sm group hover:-translate-y-0.5 hover:shadow-md transition-all"
+                  style={{ backgroundColor: color.bg, borderColor: color.border }}
+                >
+                  {/* Action buttons — appear on hover */}
+                  <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                    <button
+                      onClick={() => setViewingNote(note)}
+                      className="p-1.5 rounded-md hover:bg-black/10 transition-colors cursor-pointer"
+                      style={{ color: color.title }}
+                      title="View Note"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                    <button
                       onClick={() => {
                         setEditNoteData({ title: note.title, content: note.content });
                         setEditingNoteId(note.id);
                       }}
                       className="p-1.5 rounded-md hover:bg-black/10 transition-colors cursor-pointer"
-                      style={color.titleStyle}
+                      style={{ color: color.title }}
                       title="Edit Note"
                     >
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                     </button>
-                    <button 
+                    <button
                       onClick={() => {
                         if (confirm('Delete this note?') && onDeleteNote) {
                           onDeleteNote(note.id);
@@ -617,19 +644,98 @@ function ActionsPanel({
                       className="p-1.5 rounded-md hover:bg-black/10 transition-colors cursor-pointer text-red-500"
                       title="Delete Note"
                     >
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                     </button>
                   </div>
-                  
-                  <div className="absolute top-0 right-0 w-4 h-4 rounded-bl-xl bg-black/5 border-l border-b border-black/5"></div>
 
-                  <p className={`text-xs font-bold mb-1.5 pr-12 truncate leading-tight ${color.title}`} style={color.titleStyle}>{note.title || 'Untitled Note'}</p>
-                  <p className={`text-[11px] whitespace-pre-wrap leading-relaxed font-semibold ${color.text}`} style={color.textStyle}>{note.content}</p>
+                  {/* Dog-ear corner */}
+                  <div className="absolute top-0 right-0 w-4 h-4 rounded-bl-xl bg-black/5 border-l border-b border-black/5" />
+
+                  <p className="text-xs font-bold mb-1 pr-14 truncate leading-tight" style={{ color: color.title }}>
+                    {note.title || 'Untitled Note'}
+                  </p>
+                  <p className="text-[11px] leading-relaxed font-semibold line-clamp-3" style={{ color: color.text, whiteSpace: 'pre-wrap' }}>
+                    {note.content}
+                  </p>
+
+                  {/* View button at bottom */}
+                  <button
+                    onClick={() => setViewingNote(note)}
+                    className="mt-3 flex items-center gap-1 text-[10px] font-bold opacity-70 hover:opacity-100 transition-opacity cursor-pointer"
+                    style={{ color: color.title }}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    View
+                  </button>
                 </div>
               );
             })}          </div>
         )}
       </Card>
+
+      {/* View Note Modal */}
+      {viewingNote && (() => {
+        const color = getStickyStyle(viewingNote.id);
+        return (
+          <div
+            className="fixed inset-0 z-[1001] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+            onClick={() => setViewingNote(null)}
+          >
+            <div
+              className="w-full max-w-sm rounded-3xl shadow-2xl border animate-in zoom-in-95 duration-300 overflow-hidden"
+              style={{ backgroundColor: color.bg, borderColor: color.border }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b" style={{ borderColor: color.border }}>
+                <div className="min-w-0 flex-1 pr-3">
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-1 font-mono opacity-60" style={{ color: color.title }}>Note</p>
+                  <h3 className="text-sm font-bold leading-snug" style={{ color: color.title }}>
+                    {viewingNote.title || 'Untitled Note'}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setViewingNote(null)}
+                  className="p-1.5 rounded-lg hover:bg-black/10 transition-colors cursor-pointer shrink-0"
+                  style={{ color: color.title }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="px-6 py-5 max-h-[60vh] overflow-y-auto">
+                <p className="text-xs leading-relaxed font-semibold whitespace-pre-wrap" style={{ color: color.text }}>
+                  {viewingNote.content}
+                </p>
+              </div>
+
+              {/* Footer actions */}
+              <div className="px-6 pb-6 pt-2 flex gap-2">
+                <button
+                  onClick={() => {
+                    setEditNoteData({ title: viewingNote.title, content: viewingNote.content });
+                    setEditingNoteId(viewingNote.id);
+                    setViewingNote(null);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-bold border hover:bg-black/10 transition-colors cursor-pointer"
+                  style={{ color: color.title, borderColor: color.border }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                  Edit
+                </button>
+                <button
+                  onClick={() => setViewingNote(null)}
+                  className="flex-1 px-4 py-2 rounded-xl text-[11px] font-bold border hover:bg-black/10 transition-colors cursor-pointer"
+                  style={{ color: color.title, borderColor: color.border }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Task Modal */}
       {isModalOpen && (

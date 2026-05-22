@@ -79,6 +79,12 @@ export default function SignInPage() {
       }
     }
 
+    if (signedInUserId) {
+      await supabase.from('users')
+        .update({ is_online: true, last_active_at: new Date().toISOString() })
+        .eq('id', signedInUserId);
+    }
+
     setLoading(false);
 
     router.push(safeRedirectTo || '/dashboard/overview');

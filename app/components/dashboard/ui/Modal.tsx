@@ -15,7 +15,6 @@ interface ModalProps {
 const widthMap = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl' };
 
 export default function Modal({ open, onClose, title, subtitle, children, width = 'md', padding = 'default' }: ModalProps) {
-  // Close on Escape key
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
@@ -34,21 +33,25 @@ export default function Modal({ open, onClose, title, subtitle, children, width 
         onClick={onClose}
       />
 
-      {/* Panel — slides in from right like design */}
+      {/* Panel */}
       <div
-        className={`relative h-full ${widthMap[width]} w-full bg-white shadow-2xl flex flex-col overflow-hidden transition-transform duration-300 ${
+        className={`relative h-full ${widthMap[width]} w-full shadow-2xl flex flex-col overflow-hidden transition-transform duration-300 ${
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
+        style={{ background: 'var(--surf)' }}
       >
         {/* Header */}
-        <div className="flex items-start justify-between p-6 border-b border-gray-100">
+        <div className="flex items-start justify-between p-6" style={{ borderBottom: '1px solid var(--b)' }}>
           <div>
-            <h2 className="text-xl font-bold text-black">{title}</h2>
-            {subtitle && <p className="text-sm text-gray-400 mt-0.5">{subtitle}</p>}
+            <h2 className="text-xl font-bold" style={{ color: 'var(--t)' }}>{title}</h2>
+            {subtitle && <p className="text-sm mt-0.5" style={{ color: 'var(--t3)' }}>{subtitle}</p>}
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-500 hover:text-black"
+            className="w-8 h-8 flex items-center justify-center rounded-full transition-colors"
+            style={{ color: 'var(--t3)' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg2)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="M18 6L6 18M6 6l12 12" />

@@ -33,57 +33,79 @@ interface ChatMessagesProps {
   onToggleRightPanel?: () => void;
 }
 
-function RenderCustomerProfile({ data, isMine }: { data: string; isMine: boolean }) {
+function RenderCustomerProfile({ data }: { data: string; isMine: boolean }) {
   let profile: any = null;
   try {
     profile = JSON.parse(data.replace('[CUSTOMER_PROFILE]:', ''));
   } catch (e) {
-    return <p>{data}</p>;
+    return <p className="text-xs">{data}</p>;
   }
 
   const customers = profile.customers || [];
   if (customers.length === 0) return null;
 
   return (
-    <div className={`flex flex-col gap-3 min-w-[240px] max-w-[280px] p-1 ${isMine ? 'text-[var(--inv)]' : 'text-[var(--t)]'}`}>
-      <div className="flex items-center justify-between">
-        <p className={`text-[10px] font-bold uppercase tracking-widest ${isMine ? 'text-[var(--inv)] opacity-70' : 'text-[var(--t3)]'}`}>
+    <div className="min-w-[260px] max-w-[300px] rounded-2xl overflow-hidden border border-[var(--b2)] bg-[var(--surf)] shadow-md">
+      {/* Header */}
+      <div className="flex items-center gap-2.5 px-4 py-3 bg-[var(--bg1)] border-b border-[var(--b)]">
+        <div className="w-7 h-7 rounded-lg bg-blue-600/10 flex items-center justify-center shrink-0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+          </svg>
+        </div>
+        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--t3)]">
           {customers.length > 1 ? `Shared ${customers.length} Customers` : 'Shared Customer Profile'}
         </p>
       </div>
 
-      <div className="flex flex-col gap-2">
-        {customers.map((c: any, i: number) => (
-          <div key={c.id}>
-            {i > 0 && <div className={`h-px w-full my-3 ${isMine ? 'bg-white/10' : 'bg-[var(--b)]'}`} />}
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className={`text-[8px] font-bold uppercase ${isMine ? 'text-white/70' : 'text-[var(--t3)]'}`}>Customer ID</p>
-                  <p className="text-xs font-bold font-mono">{c.id}</p>
-                </div>
-                <div className="text-right">
-                  <p className={`text-[8px] font-bold uppercase ${isMine ? 'text-white/70' : 'text-[var(--t3)]'}`}>Score</p>
-                  <p className="text-xs font-black font-mono">{c.score}</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className={`text-[9px] px-2 py-0.5 rounded-full capitalize ${isMine ? 'bg-white/10 text-white' : 'bg-[var(--bg3)] text-[var(--t2)]'}`}>{c.plan}</span>
-                <span className={`text-[9px] font-bold ${c.risk === 'High' ? 'text-red-400' : 'text-emerald-500'}`}>{c.risk} Risk</span>
-              </div>
-              <button
-                onClick={() => {
-                  const url = `/dashboard/analytics?dataset_id=${profile.datasetId || ''}&analyze_id=${c.id}`;
-                  window.location.href = url;
-                }}
-                className={`mt-1 w-full py-2 rounded-lg text-[10px] font-bold transition-all shadow-sm active:scale-95 cursor-pointer ${isMine ? 'bg-[var(--bg1)] text-[var(--accent)] hover:opacity-90' : 'bg-[var(--accent)] text-[var(--inv)] hover:opacity-90'}`}
-              >
-                Analyze {customers.length > 1 ? c.id : ''}
-              </button>
+      {/* Customer rows */}
+      {customers.map((c: any, i: number) => (
+        <div key={c.id} className="px-4 py-3">
+          {i > 0 && <div className="h-px bg-[var(--b)] -mx-4 mb-3" />}
+
+          {/* ID + Score */}
+          <div className="flex items-start justify-between mb-2.5">
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--t4)] mb-0.5">Customer</p>
+              <p className="text-sm font-black font-mono text-[var(--t)]">{c.id}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--t4)] mb-0.5">Churn Score</p>
+              <p className={`text-2xl font-black font-mono leading-none ${Number(c.score) >= 70 ? 'text-red-500' : Number(c.score) >= 40 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                {c.score}
+              </p>
             </div>
           </div>
-        ))}
-      </div>
+
+          {/* Plan + Risk badges */}
+          <div className="flex items-center gap-2 mb-3">
+            {c.plan && (
+              <span className="text-[9px] px-2 py-0.5 rounded-full font-bold capitalize bg-[var(--bg2)] text-[var(--t2)] border border-[var(--b)]">
+                {c.plan}
+              </span>
+            )}
+            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border ${
+              c.risk === 'High'
+                ? 'bg-red-500/10 text-red-500 border-red-500/20'
+                : c.risk === 'Medium'
+                  ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                  : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+            }`}>
+              {c.risk} Risk
+            </span>
+          </div>
+
+          {/* Analyze button */}
+          <button
+            onClick={() => {
+              window.location.href = `/dashboard/analytics?dataset_id=${profile.datasetId || ''}&analyze_id=${c.id}`;
+            }}
+            className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-[11px] font-black tracking-wide transition-all shadow-sm cursor-pointer"
+          >
+            Analyze {customers.length > 1 ? c.id : ''}
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -386,8 +408,8 @@ export default function ChatMessages({
                     )}
 
                     {m.messageType === 'attachment' && m.metadata?.file_url ? (
-                      <div 
-                        className={`overflow-hidden rounded-2xl border border-[var(--b)] shadow-sm cursor-pointer hover:opacity-95 transition-opacity ${isMe ? 'bg-[var(--accent)] text-[var(--inv)]' : 'bg-[var(--bg2)] text-[var(--t)]'}`}
+                      <div
+                        className={`overflow-hidden rounded-2xl border border-[var(--b)] shadow-sm cursor-pointer hover:opacity-95 transition-opacity ${isMe ? 'bg-blue-600 text-white' : 'bg-[var(--bg2)] text-[var(--t)]'}`}
                         onClick={() => {
                           const kind = m.metadata?.media_kind;
                           if (kind === 'image' || kind === 'video') {
@@ -403,7 +425,7 @@ export default function ChatMessages({
                           <video src={m.metadata.file_url} className="max-w-full max-h-64 h-auto" />
                         ) : (
                           <div className="flex items-center gap-3 px-4 py-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isMe ? 'bg-white/10 text-white' : 'bg-[var(--accent-bg)] text-[var(--accent)]'}`}>
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isMe ? 'bg-white/20 text-white' : 'bg-blue-600/10 text-blue-600'}`}>
                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                             </div>
                             <div className="flex-1 min-w-0">
@@ -413,13 +435,22 @@ export default function ChatMessages({
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <div className={`px-4 py-2.5 rounded-2xl text-xs shadow-sm relative ${isMe ? 'bg-[var(--accent)] text-[var(--inv)] rounded-tr-sm' : 'bg-[var(--bg2)] border border-[var(--b)] text-[var(--t)] rounded-tl-sm'}`}>
-                        <div className="leading-relaxed whitespace-pre-wrap break-all font-medium">
-                          <RenderMessageBody text={m.body} isMine={isMe} />
+                    ) : (() => {
+                      const isCustomerProfile = m.body.startsWith('[CUSTOMER_PROFILE]:');
+                      return (
+                        <div className={`text-xs relative ${
+                          isCustomerProfile
+                            ? 'shadow-none'
+                            : isMe
+                              ? 'px-4 py-2.5 rounded-2xl rounded-tr-sm bg-blue-600 text-white shadow-sm'
+                              : 'px-4 py-2.5 rounded-2xl rounded-tl-sm bg-[var(--bg2)] border border-[var(--b)] text-[var(--t)] shadow-sm'
+                        }`}>
+                          <div className="leading-relaxed whitespace-pre-wrap break-all font-medium">
+                            <RenderMessageBody text={m.body} isMine={isMe} />
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     <div className="flex items-center gap-2.5 mt-0.5 px-1 font-mono">
                       <p className="text-[9px] font-bold text-[var(--t3)] uppercase">

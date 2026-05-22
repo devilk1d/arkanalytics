@@ -4,6 +4,7 @@ export type MemberLite = {
   id: string;
   name: string;
   avatarUrl: string | null;
+  isOnline?: boolean;
 };
 
 export type ConversationItem = {

@@ -434,6 +434,21 @@ export function DashboardProvider({ children, initialState }: { children: React.
     return () => document.removeEventListener('visibilitychange', handler);
   }, []);
 
+  // ── Rolling last-active timestamp for current user ────────────────────────
+  // The `now` inside a useMemo freezes at memo evaluation time. If realtime
+  // doesn't deliver the heartbeat DB change, the memo never re-runs and `now`
+  // becomes stale (> 5 min) → status flips to AWAY.
+  // Keeping a dedicated state that ticks every 30 s guarantees the memo always
+  // has a fresh timestamp regardless of realtime delivery.
+  const [myLastActiveAt, setMyLastActiveAt] = useState(() => new Date().toISOString());
+
+  useEffect(() => {
+    if (!isTabVisible) return;
+    setMyLastActiveAt(new Date().toISOString());
+    const interval = setInterval(() => setMyLastActiveAt(new Date().toISOString()), 30_000);
+    return () => clearInterval(interval);
+  }, [isTabVisible]);
+
   // ── Realtime: sync presence changes from other members ───────────────────
   // Keep a ref of current member IDs so the subscription callback always has
   // the latest list without needing to re-subscribe on every members change.
@@ -890,18 +905,19 @@ export function DashboardProvider({ children, initialState }: { children: React.
   // For other members: use DB data updated via realtime subscription.
   const membersWithPresence = useMemo<WorkspaceMember[]>(() => {
     if (!profile?.id) return members;
-    const now = new Date().toISOString();
     return members.map((m) =>
       m.userId === profile.id
         ? {
             ...m,
             isOnline: isTabVisible,
-            // While on the page, lastActiveAt is always "now" so formatLastActive shows "now"
-            lastActiveAt: isTabVisible ? now : m.lastActiveAt,
+            // Always use local tracking — myLastActiveAt holds the last time the tab
+            // was visible, so even when the tab is hidden the timestamp stays meaningful
+            // instead of falling back to a potentially-null DB value.
+            lastActiveAt: myLastActiveAt,
           }
         : m,
     );
-  }, [members, profile?.id, isTabVisible]);
+  }, [members, profile?.id, isTabVisible, myLastActiveAt]);
 
   const roleSummary = useMemo<RoleSummary[]>(() => {
     const grouped = members.reduce<Record<string, number>>((acc, member) => {
