@@ -129,7 +129,7 @@ export default function SignInPage() {
                     Password
                   </label>
                   <Link
-                    href="#"
+                    href="/auth/forgot-password"
                     className="font-display text-xs font-semibold tracking-widest uppercase text-gray-400 hover:text-black transition-colors duration-200"
                   >
                     Forgot ?
