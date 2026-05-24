@@ -208,7 +208,7 @@ export default function HeroSection() {
               style={{ top: '45%', right: '-2%', animationDelay: '0.8s, 0.8s' }}
             />
             <MetricChip
-              label="Model Accuracy" value="98.4%" delta="Verified production" deltaColor="var(--g)"
+              label="Model Accuracy" value="90%" delta="Verified production" deltaColor="var(--g)"
               style={{ bottom: '12%', right: '10%', animationDelay: '1.1s, 1.1s' }}
             />
 

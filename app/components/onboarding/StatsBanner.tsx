@@ -4,7 +4,7 @@ const stats = [
   { value: '32%',   label: 'Churn Reduction',    sub: 'Average improvement', ghost: '32'  },
   { value: '1.2B+', label: 'Data Signals',        sub: 'Signals processed',   ghost: '1.2' },
   { value: '$4.5M', label: 'Revenue Saved',        sub: 'Total client ARR',    ghost: '4.5' },
-  { value: '98.4%', label: 'Prediction Accuracy', sub: 'Verified models',     ghost: '98'  },
+  { value: '90%', label: 'Prediction Accuracy', sub: 'Verified models',     ghost: '98'  },
 ];
 
 export default function StatsBanner() {

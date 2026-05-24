@@ -172,7 +172,7 @@ function AccViz() {
   return (
     <div className="mt-5 grid grid-cols-2 gap-2">
       {[
-        { val: '98.4%', lbl: 'Accuracy' },
+        { val: '90%', lbl: 'Accuracy' },
         { val: '+32%', lbl: 'Uplift' },
         { val: '1.2B', lbl: 'Signals/day' },
         { val: '$4.5M', lbl: 'ARR Saved' },
