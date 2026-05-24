@@ -145,8 +145,8 @@ export default function Sidebar() {
     >
       {/* Logo Section */}
       <div className="flex items-center h-10 mb-6 px-4 relative">
-        {/* Full Logo (Visible when expanded) */}
-        <div className={`flex items-center gap-2.5 group hover:opacity-80 transition-opacity duration-300 absolute left-4 w-48 ${isCollapsed ? 'opacity-0 invisible' : 'opacity-100 visible'}`}>
+        {/* Full Logo (Visible when expanded) — opacity-only transition, no visibility toggle */}
+        <div className={`flex items-center gap-2.5 group hover:opacity-80 transition-opacity duration-300 absolute left-4 w-48 ${isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <Link href="/dashboard/overview" className="flex items-center gap-2.5 w-full">
             <div className="w-8 h-8 rounded-xl bg-[var(--bg2)] border border-[var(--b)] flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:rotate-6">
               <img className="logo-theme-sensitive w-5 h-5 object-contain" alt="Arka" />
@@ -157,18 +157,18 @@ export default function Sidebar() {
           </Link>
         </div>
 
-        {/* Small Icon (Visible when collapsed) */}
-        <div className={`absolute left-0 w-[72px] flex justify-center transition-opacity duration-300 ${isCollapsed ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
+        {/* Small Icon (Visible when collapsed) — same w-5 h-5 as expanded logo */}
+        <div className={`absolute left-0 w-[72px] flex justify-center transition-opacity duration-300 ${isCollapsed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
           <button
             onClick={toggleSidebar}
             title="Expand Sidebar"
             className="w-10 h-10 rounded-xl flex items-center justify-center bg-[var(--bg2)] border border-[var(--b)] text-[var(--t2)] hover:text-[var(--t)] hover:opacity-80 transition-all duration-200 group"
           >
             <div className="relative w-5 h-5 flex items-center justify-center">
-              <div className="block group-hover:hidden transition-all">
-                <img className="logo-theme-sensitive w-4 h-4 object-contain" alt="Arka" />
+              <div className="block group-hover:hidden">
+                <img className="logo-theme-sensitive w-5 h-5 object-contain" alt="Arka" />
               </div>
-              <div className="hidden group-hover:block transition-all text-[var(--t)]">
+              <div className="hidden group-hover:block text-[var(--t)]">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="9 18 15 12 9 6" />
                 </svg>
@@ -181,7 +181,7 @@ export default function Sidebar() {
         <button
           onClick={toggleSidebar}
           title="Collapse Sidebar"
-          className={`absolute right-4 w-7 h-7 rounded-lg flex items-center justify-center text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] transition-all duration-300 ${isCollapsed ? 'opacity-0 invisible' : 'opacity-100 visible'}`}
+          className={`absolute right-4 w-7 h-7 rounded-lg flex items-center justify-center text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] transition-all duration-300 ${isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
@@ -312,7 +312,7 @@ export default function Sidebar() {
         <button
           onClick={() => { void handleLogout(); }}
           title={isCollapsed ? 'Log Out' : undefined}
-          className={`relative flex items-center rounded-xl text-[13px] font-medium text-[var(--t2)] hover:text-red-500 hover:bg-red-50/50 transition-all duration-300 group py-2.5 mx-2 text-left ${
+          className={`relative flex items-center rounded-xl text-[13px] font-medium text-[var(--t2)] hover:text-red-500 transition-all duration-300 group py-2.5 mx-2 text-left ${
             isCollapsed ? 'px-2.5 gap-0' : 'px-3 gap-3'
           }`}
         >

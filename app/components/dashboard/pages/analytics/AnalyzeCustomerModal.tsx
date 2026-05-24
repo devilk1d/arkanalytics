@@ -1,29 +1,22 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Badge from '../../ui/Badge';
 import Button from '../../ui/Button';
 import { createClient } from '@/lib/supabase/client';
 import type { CustomerPrediction } from '@/types/churn';
 import { normalizeSegmentLabel } from '../segmentation/SegmentationPage';
 
-const ANIM_DURATION = 220; // ms
+const ANIM_DURATION = 220;
 
-/* ─── Interfaces ─── */
 interface ChurnXai {
   score_reason: string;
   risk_factors: string[];
   feedback_signal: string;
-  action: {
-    retain: string;
-    offer: string;
-    reason: string;
-  };
+  action: { retain: string; offer: string; reason: string; };
   error?: string;
   detail?: string;
 }
-
-/* ─── Sub-components ─── */
 
 function RedFlagBadge({ show }: { show: boolean }) {
   if (!show) return null;
@@ -45,18 +38,16 @@ function LoyaltyRiskBadge({ show }: { show: boolean }) {
   );
 }
 
-function XaiPanel({ raw, onRetry, isRetrying = false }: { raw: string | null, onRetry?: () => void, isRetrying?: boolean }) {
+function XaiPanel({ raw, onRetry, isRetrying = false }: { raw: string | null; onRetry?: () => void; isRetrying?: boolean }) {
   if (!raw) return null;
 
   let xai: ChurnXai | null = null;
   let parseError = false;
 
   try {
-    // Standard cleaning
     const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
     xai = JSON.parse(cleaned);
   } catch {
-    // Fallback: extract anything between { and }
     try {
       const start = raw.indexOf('{');
       const end = raw.lastIndexOf('}');
@@ -70,7 +61,6 @@ function XaiPanel({ raw, onRetry, isRetrying = false }: { raw: string | null, on
     }
   }
 
-  // Basic validation of expected fields
   const isInvalid = !xai || (!xai.score_reason && !xai.error && !xai.detail);
 
   if (parseError || isInvalid || xai?.error || xai?.detail) {
@@ -84,11 +74,8 @@ function XaiPanel({ raw, onRetry, isRetrying = false }: { raw: string | null, on
             <span className="text-[11px] font-semibold text-[var(--r)] uppercase tracking-wide">AI Error</span>
           </div>
           {onRetry && (
-            <button 
-              onClick={onRetry} 
-              disabled={isRetrying}
-              className="text-[10px] font-bold text-[var(--r)] hover:underline disabled:opacity-50"
-            >
+            <button onClick={onRetry} disabled={isRetrying}
+              className="text-[10px] font-bold text-[var(--r)] hover:underline disabled:opacity-50">
               {isRetrying ? 'Retrying...' : 'Retry Generation'}
             </button>
           )}
@@ -158,17 +145,45 @@ function XaiPanel({ raw, onRetry, isRetrying = false }: { raw: string | null, on
   );
 }
 
-/* ─── Cache & Constants ─── */
 const datasetFileCache = new Map<string, Map<string, Blob>>();
 const FILE_KEYS = [
-  'customer_accounts',
-  'monthly_usage_metrics',
-  'billing_data',
-  'support_tickets',
-  'nps_surveys_with_feedback',
+  'customer_accounts', 'monthly_usage_metrics', 'billing_data',
+  'support_tickets', 'nps_surveys_with_feedback',
 ] as const;
 
-/* ─── Main Component ─── */
+async function buildFormData(
+  dsId: string,
+  setStage: (s: 'db' | 'downloading' | 'predicting') => void,
+  setProgress: (p: number) => void,
+  supabaseClient: ReturnType<typeof createClient>
+): Promise<FormData | null> {
+  const form = new FormData();
+  const cached = datasetFileCache.get(dsId);
+  if (cached && cached.size === FILE_KEYS.length) {
+    for (const key of FILE_KEYS) {
+      form.append(key, new File([cached.get(key)!], `${key}.csv`, { type: 'text/csv' }));
+    }
+    return form;
+  }
+
+  setStage('downloading');
+  const { data: ds } = await supabaseClient.from('datasets').select('storage_path').eq('id', dsId).single();
+  if (!ds) return null;
+
+  const fileBlobs = new Map<string, Blob>();
+  for (let i = 0; i < FILE_KEYS.length; i++) {
+    const key = FILE_KEYS[i];
+    const { data: blob, error: dlErr } = await supabaseClient.storage.from('files')
+      .download(`${ds.storage_path}/${key}.csv`);
+    if (dlErr || !blob) return null;
+    fileBlobs.set(key, blob);
+    form.append(key, new File([blob], `${key}.csv`, { type: 'text/csv' }));
+    setProgress(Math.round(((i + 1) / FILE_KEYS.length) * 100));
+  }
+  datasetFileCache.set(dsId, fileBlobs);
+  return form;
+}
+
 interface AnalyzeCustomerModalProps {
   customerId: string;
   datasetId: string;
@@ -176,23 +191,21 @@ interface AnalyzeCustomerModalProps {
   onClose: () => void;
 }
 
-export function AnalyzeCustomerModal({
-  customerId,
-  datasetId,
-  open,
-  onClose,
-}: AnalyzeCustomerModalProps) {
+export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: AnalyzeCustomerModalProps) {
   const [data, setData] = useState<CustomerPrediction | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState<'db' | 'downloading' | 'predicting'>('db');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [xaiGenerating, setXaiGenerating] = useState(false);
   const [error, setError] = useState('');
+
   const supabase = createClient();
 
-  const activeLoadKey = useRef<string | null>(null);
+  // Use abort controller to cancel in-flight loads when modal closes or customer changes
+  const abortRef = useRef<AbortController | null>(null);
+  const loadedKeyRef = useRef<string>('');
 
-  /* ─── Animation state ─── */
+  /* ─── Animation ─── */
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -201,195 +214,161 @@ export function AnalyzeCustomerModal({
     if (open) {
       if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
       setMounted(true);
-      // Next microtask so transition fires after mount
       requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
     } else {
       setVisible(false);
       closeTimerRef.current = setTimeout(() => setMounted(false), ANIM_DURATION);
     }
-    return () => {
-      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-    };
+    return () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current); };
   }, [open]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    if (open) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [open, onClose]);
 
+  /* ─── Load data ─── */
   useEffect(() => {
-    if (!open || !customerId) return;
+    if (!open || !customerId || !datasetId) return;
 
     const loadKey = `${datasetId}:${customerId}`;
-    if (activeLoadKey.current === loadKey) return;
-    activeLoadKey.current = loadKey;
 
+    // Skip if already loaded for this exact customer+dataset
+    if (loadedKeyRef.current === loadKey && data !== null) return;
+
+    // Cancel any previous in-flight request
+    if (abortRef.current) abortRef.current.abort();
+    const abort = new AbortController();
+    abortRef.current = abort;
+
+    // Reset state for new load
     setLoading(true);
     setError('');
     setData(null);
     setLoadingStage('db');
     setDownloadProgress(0);
-
-    let cancelled = false;
+    setXaiGenerating(false);
 
     async function load() {
-      const { data: existing } = await supabase
-        .from('predictions')
-        .select('*')
-        .eq('dataset_id', datasetId)
-        .eq('customer_id', customerId)
-        .maybeSingle();
+      try {
+        // 1. Check DB first
+        const { data: existing } = await supabase
+          .from('predictions').select('*')
+          .eq('dataset_id', datasetId).eq('customer_id', customerId)
+          .maybeSingle();
 
-      if (cancelled) return;
+        if (abort.signal.aborted) return;
 
-      if (existing && existing.xai_churn_explanation) {
-        setData(existing as unknown as CustomerPrediction);
-        setLoading(false);
-        activeLoadKey.current = null;
-        return;
-      }
+        if (existing) {
+          // Always set data first so UI renders immediately
+          // Normalize: ensure sentiment object is never undefined
+          const normalized = {
+            ...existing,
+            sentiment: existing.sentiment ?? {
+              label: 'neutral', vader_compound: 0, vader_neg: 0,
+              pct_negative_sent: 0, urgency_level: 'low', urgency_score: 0,
+              dominant_topic: 'Unknown', topic_strength: 0, feedback_preview: '',
+            },
+          } as unknown as CustomerPrediction;
 
-      if (existing && existing.churn_score != null) {
-        setData(existing as unknown as CustomerPrediction);
-        setLoading(false);
-        setXaiGenerating(true);
+          setData(normalized);
+          setLoading(false);
+          loadedKeyRef.current = loadKey;
+
+          // If XAI missing, generate it in background
+          if (!existing.xai_churn_explanation) {
+            setXaiGenerating(true);
+            const form = await buildFormData(datasetId, setLoadingStage, setDownloadProgress, supabase);
+            if (abort.signal.aborted || !form) { setXaiGenerating(false); return; }
+
+            setLoadingStage('predicting');
+            const xaiRes = await window.fetch(
+              `/api/predict-single?customer_id=${encodeURIComponent(customerId)}&dataset_id=${datasetId}`,
+              { method: 'POST', body: form, signal: abort.signal }
+            );
+            if (!abort.signal.aborted && xaiRes.ok) {
+              const updated = await xaiRes.json();
+              setData(updated as CustomerPrediction);
+            }
+            setXaiGenerating(false);
+          }
+          return;
+        }
+
+        // 2. No DB record — full prediction
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setError('Not authenticated'); setLoading(false); return; }
 
         const form = await buildFormData(datasetId, setLoadingStage, setDownloadProgress, supabase);
-        if (!form || cancelled) {
-          setXaiGenerating(false);
-          activeLoadKey.current = null;
+        if (abort.signal.aborted || !form) {
+          setError('Failed to load dataset files');
+          setLoading(false);
           return;
         }
 
         setLoadingStage('predicting');
-        const xaiRes = await window.fetch(
+        const res = await window.fetch(
           `/api/predict-single?customer_id=${encodeURIComponent(customerId)}&dataset_id=${datasetId}`,
-          { method: 'POST', body: form }
+          { method: 'POST', body: form, signal: abort.signal }
         );
-        if (!cancelled && xaiRes.ok) {
-          const updated = await xaiRes.json();
-          setData(updated as CustomerPrediction);
+
+        if (abort.signal.aborted) return;
+
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          setError(errBody?.error ?? 'Prediction failed');
+          setLoading(false);
+          return;
         }
-        setXaiGenerating(false);
-        activeLoadKey.current = null;
-        return;
-      }
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setError('Not authenticated');
+        const result = await res.json();
+        setData(result as CustomerPrediction);
         setLoading(false);
-        activeLoadKey.current = null;
-        return;
-      }
+        loadedKeyRef.current = loadKey;
 
-      const form = await buildFormData(datasetId, setLoadingStage, setDownloadProgress, supabase);
-      if (!form || cancelled) {
-        setError('Failed to load dataset files');
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return; // Expected — modal closed
+        setError('Unexpected error occurred');
         setLoading(false);
-        activeLoadKey.current = null;
-        return;
       }
-
-      setLoadingStage('predicting');
-      const res = await window.fetch(
-        `/api/predict-single?customer_id=${encodeURIComponent(customerId)}&dataset_id=${datasetId}`,
-        { method: 'POST', body: form }
-      );
-
-      if (cancelled) return;
-
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
-        setError(errBody?.error ?? 'Prediction failed');
-        setLoading(false);
-        activeLoadKey.current = null;
-        return;
-      }
-
-      setData(await res.json());
-      setLoading(false);
-      activeLoadKey.current = null;
     }
 
     load();
 
-    return () => {
-      cancelled = true;
-      if (activeLoadKey.current === loadKey) {
-        activeLoadKey.current = null;
-      }
-    };
-  }, [open, customerId, datasetId, supabase]);
+    return () => { abort.abort(); };
+  }, [open, customerId, datasetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleManualXaiRetry = async () => {
+  // Reset loadedKeyRef when modal closes so next open always re-fetches
+  useEffect(() => {
+    if (!open) {
+      loadedKeyRef.current = '';
+      if (abortRef.current) abortRef.current.abort();
+    }
+  }, [open]);
+
+  const handleManualXaiRetry = useCallback(async () => {
     if (!data || xaiGenerating) return;
     setXaiGenerating(true);
     try {
       const form = await buildFormData(datasetId, setLoadingStage, setDownloadProgress, supabase);
       if (!form) return;
-
+      setLoadingStage('predicting');
       const xaiRes = await window.fetch(
         `/api/predict-single?customer_id=${encodeURIComponent(customerId)}&dataset_id=${datasetId}`,
         { method: 'POST', body: form }
       );
-      if (xaiRes.ok) {
-        const updated = await xaiRes.json();
-        setData(updated as CustomerPrediction);
-      }
+      if (xaiRes.ok) setData(await xaiRes.json() as CustomerPrediction);
     } catch (err) {
       console.error('XAI Retry Error:', err);
     } finally {
       setXaiGenerating(false);
     }
-  };
-
-  async function buildFormData(
-    dsId: string,
-    setStage: (s: 'db' | 'downloading' | 'predicting') => void,
-    setProgress: (p: number) => void,
-    supabaseClient: any
-  ): Promise<FormData | null> {
-    const form = new FormData();
-    const cached = datasetFileCache.get(dsId);
-    if (cached && cached.size === FILE_KEYS.length) {
-      for (const key of FILE_KEYS) {
-        form.append(key, new File([cached.get(key)!], `${key}.csv`, { type: 'text/csv' }));
-      }
-      return form;
-    }
-
-    setStage('downloading');
-    const { data: ds } = await supabaseClient.from('datasets').select('storage_path')
-      .eq('id', dsId).single();
-    if (!ds) return null;
-
-    const fileBlobs = new Map<string, Blob>();
-    for (let i = 0; i < FILE_KEYS.length; i++) {
-      const key = FILE_KEYS[i];
-      const { data: blob, error: dlErr } = await supabaseClient.storage.from('files')
-        .download(`${ds.storage_path}/${key}.csv`);
-      if (dlErr || !blob) return null;
-      fileBlobs.set(key, blob);
-      form.append(key, new File([blob], `${key}.csv`, { type: 'text/csv' }));
-      setProgress(Math.round(((i + 1) / FILE_KEYS.length) * 100));
-    }
-    datasetFileCache.set(dsId, fileBlobs);
-    return form;
-  }
+  }, [data, xaiGenerating, datasetId, customerId, supabase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!mounted) return null;
 
-  /* ─── Transition classes ─── */
   const backdropCls = `transition-[opacity,backdrop-filter] duration-[${ANIM_DURATION}ms] ease-out ${visible ? 'opacity-100 backdrop-blur-sm' : 'opacity-0 backdrop-blur-none'}`;
   const panelCls    = `transition-[opacity,transform] duration-[${ANIM_DURATION}ms] ease-out ${visible ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-3 scale-[0.97]'}`;
 
@@ -408,10 +387,8 @@ export function AnalyzeCustomerModal({
             </h2>
             <p className="text-[11px] text-[var(--t3)] mt-0.5">Detailed analysis and insights for {customerId}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--bg3)] text-[var(--t3)] hover:text-[var(--t)] transition-colors"
-          >
+          <button onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[var(--bg3)] text-[var(--t3)] hover:text-[var(--t)] transition-colors">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -422,7 +399,9 @@ export function AnalyzeCustomerModal({
         <div className="p-6 overflow-y-auto flex-1 min-h-0">
           {loading && (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <svg className="animate-spin text-[var(--t3)]" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+              <svg className="animate-spin text-[var(--t3)]" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
               {loadingStage === 'downloading' ? (
                 <div className="flex flex-col items-center gap-2 w-52">
                   <p className="text-xs text-[var(--t2)] font-medium">Downloading dataset files…</p>
@@ -467,7 +446,8 @@ export function AnalyzeCustomerModal({
                 </div>
                 <div className="border border-[var(--b2)] rounded-xl p-4 text-right shrink-0 bg-[var(--bg2)] min-w-[7rem]">
                   <p className="text-[9px] font-semibold text-[var(--t3)] uppercase tracking-widest mb-1.5">Churn Score</p>
-                  <p className={`text-3xl font-black leading-none ${data.risk_level === 'Low' ? 'text-[var(--g)]' : data.risk_level === 'High' ? 'text-[var(--r)]' : 'text-[var(--o)]'}`} style={{ fontFamily: 'var(--app-font-display)' }}>
+                  <p className={`text-3xl font-black leading-none ${data.risk_level === 'Low' ? 'text-[var(--g)]' : data.risk_level === 'High' ? 'text-[var(--r)]' : 'text-[var(--o)]'}`}
+                    style={{ fontFamily: 'var(--app-font-display)' }}>
                     {data.churn_score}
                   </p>
                   <div className="mt-2 flex justify-end">
@@ -476,36 +456,37 @@ export function AnalyzeCustomerModal({
                 </div>
               </div>
 
+              {/* Flags */}
               {data.nlp_red_flag === 1 && (
                 <div className="flex items-start gap-2.5 bg-[var(--o)]/8 border border-[var(--o)]/25 rounded-xl p-3 mb-4">
                   <span className="text-[var(--o)] mt-0.5 shrink-0 text-sm">⚠</span>
                   <div>
                     <p className="text-[11px] font-semibold text-[var(--o)] mb-0.5">Hidden Risk Detected</p>
                     <p className="text-[11px] text-[var(--o)] opacity-90 leading-relaxed">
-                      Churn score tergolong aman, namun feedback customer menunjukkan sentimen negatif kuat
-                      dan kata-kata churn intent. Perlu perhatian ekstra.
+                      Customer perlu perhatian ekstra.
                     </p>
                   </div>
                 </div>
               )}
-
               {(data as any).loyalty_risk_flag === 1 && (
                 <div className="flex items-start gap-2.5 bg-[var(--p)]/8 border border-[var(--p)]/25 rounded-xl p-3 mb-4">
                   <span className="text-[var(--p)] mt-0.5 shrink-0 text-sm">⚑</span>
                   <div>
                     <p className="text-[11px] font-semibold text-[var(--p)] mb-0.5">Loyalty Risk — Silent At-Risk</p>
                     <p className="text-[11px] text-[var(--p)] opacity-90 leading-relaxed">
-                      Customer ini loyal (churn score rendah) namun termasuk segmen Unhappy Users dengan tenure panjang.
-                      Kemungkinan tetap bertahan karena sudah terbiasa menggunakan layanan, bukan karena tingkat kepuasan yang tinggi. Intervensi proaktif direkomendasikan sebelum churn score meningkat.
+                      Customer ini loyal (churn score rendah) namun termasuk segmen Critical Users dengan tenure panjang. Kemungkinan tetap bertahan karena sudah terbiasa menggunakan layanan, bukan karena kepuasan tinggi. Intervensi proaktif direkomendasikan.
                     </p>
                   </div>
                 </div>
               )}
 
+              {/* XAI Panel */}
               {xaiGenerating ? (
                 <div className="border border-[var(--b2)] bg-[var(--bg2)] rounded-xl p-4 mb-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <svg className="animate-spin text-[var(--t3)]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                    <svg className="animate-spin text-[var(--t3)]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
                     <span className="text-[11px] font-semibold text-[var(--t2)] uppercase tracking-wide">Generating AI Explanation…</span>
                   </div>
                   <div className="flex flex-col gap-2">
@@ -515,31 +496,25 @@ export function AnalyzeCustomerModal({
                   </div>
                 </div>
               ) : (
-                <XaiPanel
-                  raw={data.xai_churn_explanation ?? null}
-                  onRetry={handleManualXaiRetry}
-                  isRetrying={xaiGenerating}
-                />
+                <XaiPanel raw={data.xai_churn_explanation ?? null} onRetry={handleManualXaiRetry} isRetrying={xaiGenerating} />
               )}
 
-              {/* Section divider */}
               <div className="border-t border-[var(--b)] my-5" />
 
+              {/* SHAP */}
               <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-widest mb-3">Top Churn Factors (SHAP)</p>
               <div className="flex flex-col gap-2 mb-5">
                 {data.shap_top5?.map((factor: any, i: number) => {
                   const isIncrease = factor.direction === 'increases_churn';
                   const maxVal = Math.max(...data.shap_top5.map((f: any) => f.importance));
-                  const pct = (factor.importance / maxVal) * 100;
+                  const pct = maxVal > 0 ? (factor.importance / maxVal) * 100 : 0;
                   return (
                     <div key={i} className="flex items-center gap-3">
                       <span className="text-[10px] text-[var(--t4)] w-4 text-right tabular-nums">{i + 1}</span>
                       <span className="text-xs text-[var(--t2)] w-40 shrink-0 truncate">{factor.feature_label}</span>
                       <div className="flex-1 h-1 bg-[var(--bg3)] rounded-full overflow-hidden">
-                        <div
-                          className={`h-1 rounded-full transition-all duration-500 ${isIncrease ? 'bg-[var(--r)]' : 'bg-[var(--g)]'}`}
-                          style={{ width: `${pct}%` }}
-                        />
+                        <div className={`h-1 rounded-full transition-all duration-500 ${isIncrease ? 'bg-[var(--r)]' : 'bg-[var(--g)]'}`}
+                          style={{ width: `${pct}%` }} />
                       </div>
                       <span className={`text-[10px] font-semibold w-14 text-right shrink-0 tabular-nums ${isIncrease ? 'text-[var(--r)]' : 'text-[var(--g)]'}`}>
                         {isIncrease ? '+' : ''}{factor.shap_value.toFixed(3)}
@@ -549,6 +524,7 @@ export function AnalyzeCustomerModal({
                 })}
               </div>
 
+              {/* Sentiment */}
               {data.sentiment && (
                 <>
                   <div className="border-t border-[var(--b)] my-5" />
@@ -568,40 +544,47 @@ export function AnalyzeCustomerModal({
                   ) : (
                     <>
                       <div className="grid grid-cols-3 gap-3 mb-4">
-                        <div className="border border-[var(--b)] rounded-xl p-3 bg-[var(--bg2)]">
-                          <p className="text-[10px] text-[var(--t3)] mb-1.5">Overall Sentiment</p>
-                          <p className={`text-sm font-bold capitalize ${data.sentiment.label === 'negative' ? 'text-[var(--r)]'
-                            : data.sentiment.label === 'positive' ? 'text-[var(--g)]'
-                              : 'text-[var(--o)]'
-                            }`} style={{ fontFamily: 'var(--app-font-display)' }}>
-                            {data.sentiment.label}
-                          </p>
-                          <p className="text-[10px] text-[var(--t4)] mt-0.5 tabular-nums">VADER: {data.sentiment.vader_compound.toFixed(3)}</p>
-                        </div>
-                        <div className="border border-[var(--b)] rounded-xl p-3 bg-[var(--bg2)]">
-                          <p className="text-[10px] text-[var(--t3)] mb-1.5">Urgency Level</p>
-                          <p className={`text-sm font-bold capitalize ${data.sentiment.urgency_level === 'high' ? 'text-[var(--r)]'
-                            : data.sentiment.urgency_level === 'medium' ? 'text-[var(--o)]'
-                              : 'text-[var(--g)]'
-                            }`} style={{ fontFamily: 'var(--app-font-display)' }}>
-                            {data.sentiment.urgency_level}
-                          </p>
-                          <p className="text-[10px] text-[var(--t4)] mt-0.5 tabular-nums">Score: {data.sentiment.urgency_score}</p>
-                        </div>
-                        <div className="border border-[var(--b)] rounded-xl p-3 bg-[var(--bg2)]">
-                          <p className="text-[10px] text-[var(--t3)] mb-1.5">Main Topic</p>
-                          <p className="text-xs font-bold text-[var(--t)] leading-tight" style={{ fontFamily: 'var(--app-font-display)' }}>{data.sentiment.dominant_topic}</p>
-                          <p className="text-[10px] text-[var(--t4)] mt-0.5 tabular-nums">{(data.sentiment.pct_negative_sent).toFixed(0)}% neg sentences</p>
-                        </div>
+                        {[
+                          {
+                            label: 'Overall Sentiment',
+                            value: data.sentiment.label,
+                            sub: `VADER: ${data.sentiment.vader_compound.toFixed(3)}`,
+                            color: data.sentiment.label === 'negative' ? 'text-[var(--r)]' : data.sentiment.label === 'positive' ? 'text-[var(--g)]' : 'text-[var(--o)]',
+                          },
+                          {
+                            label: 'Urgency Level',
+                            value: data.sentiment.urgency_level,
+                            sub: `Score: ${data.sentiment.urgency_score}`,
+                            color: data.sentiment.urgency_level === 'high' ? 'text-[var(--r)]' : data.sentiment.urgency_level === 'medium' ? 'text-[var(--o)]' : 'text-[var(--g)]',
+                          },
+                          {
+                            label: 'Main Topic',
+                            value: data.sentiment.dominant_topic,
+                            sub: `${(data.sentiment.pct_negative_sent).toFixed(0)}% neg sentences`,
+                            color: 'text-[var(--t)]',
+                          },
+                        ].map((item) => (
+                          <div key={item.label} className="border border-[var(--b)] rounded-xl p-3 bg-[var(--bg2)]">
+                            <p className="text-[10px] text-[var(--t3)] mb-1.5">{item.label}</p>
+                            <p className={`text-sm font-bold capitalize leading-tight ${item.color}`} style={{ fontFamily: 'var(--app-font-display)' }}>
+                              {item.value}
+                            </p>
+                            <p className="text-[10px] text-[var(--t4)] mt-0.5 tabular-nums">{item.sub}</p>
+                          </div>
+                        ))}
                       </div>
-                      {data.sentiment.feedback_preview && data.sentiment.feedback_preview.trim() !== '' && data.sentiment.feedback_preview !== '0' && (
-                        <div className="border border-[var(--b)] rounded-xl p-3 bg-[var(--bg2)]">
-                          <p className="text-[10px] text-[var(--t3)] mb-1.5">Customer Feedback</p>
-                          <p className="text-xs text-[var(--t2)] leading-relaxed italic">
-                            &ldquo;{data.sentiment.feedback_preview}&rdquo;
-                          </p>
-                        </div>
-                      )}
+
+                      {/* Feedback preview — always render if feedback_preview is a non-empty string */}
+                      {typeof data.sentiment.feedback_preview === 'string' &&
+                        data.sentiment.feedback_preview.trim() !== '' &&
+                        data.sentiment.feedback_preview !== '0' && (
+                          <div className="border border-[var(--b)] rounded-xl p-3 bg-[var(--bg2)]">
+                            <p className="text-[10px] text-[var(--t3)] mb-1.5">Customer Feedback</p>
+                            <p className="text-xs text-[var(--t2)] leading-relaxed italic">
+                              &ldquo;{data.sentiment.feedback_preview}&rdquo;
+                            </p>
+                          </div>
+                        )}
                     </>
                   )}
                 </>

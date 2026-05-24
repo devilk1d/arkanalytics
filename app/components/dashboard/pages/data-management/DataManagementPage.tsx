@@ -3,7 +3,6 @@
 import { useState, useRef, useCallback, useEffect, Fragment } from 'react';
 import Card from '../../ui/Card';
 import Badge from '../../ui/Badge';
-import Pagination from '../../ui/Pagination';
 import StatCard from '../../ui/StatCard';
 import { createClient } from '@/lib/supabase/client';
 import { useDashboardContext } from '../../context/DashboardContext';
@@ -456,7 +455,7 @@ function DataManagementPageContent() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
 
           {/* Left Column: Upload datasets */}
-          <Card>
+          <Card className="flex flex-col">
             <h3 className="text-sm font-bold text-[var(--t)] mb-0.5 font-display">Upload Datasets</h3>
             <p className="text-xs text-[var(--t3)] mb-4">Upload all 5 required CSV files to begin analysis</p>
 
@@ -465,7 +464,7 @@ function DataManagementPageContent() {
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDropMulti}
               onClick={() => fileInputRef.current?.click()}
-              className={`flex flex-col items-center justify-center py-10 px-6 border-2 border-dashed rounded-xl transition-all duration-300 cursor-pointer mb-4
+              className={`flex-1 flex flex-col items-center justify-center px-6 border-2 border-dashed rounded-xl transition-all duration-300 cursor-pointer mb-4 min-h-[120px]
                 ${dragOver ? 'border-[var(--t)] bg-[var(--bg2)]' : 'border-[var(--b2)] hover:border-[var(--t2)] bg-[var(--surf)]'}`}
             >
               <input
@@ -485,7 +484,7 @@ function DataManagementPageContent() {
 
             {/* List selected files */}
             {Object.keys(files).length > 0 && (
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 shrink-0">
                 {Object.entries(files).map(([k, file]) => {
                   const key = k as FileKey;
                   const progress = uploadProgress[key];
@@ -520,7 +519,7 @@ function DataManagementPageContent() {
             )}
 
             {/* Upload button */}
-            <div className="flex items-center justify-between mt-4 pt-3 border-t border-[var(--b)]">
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-[var(--b)] shrink-0">
               <p className="text-xs text-[var(--t3)] font-mono">
                 {Object.keys(files).length} of {Object.keys(REQUIRED_FILES).length} files selected
               </p>
@@ -534,80 +533,107 @@ function DataManagementPageContent() {
             </div>
           </Card>
 
-          {/* Right Column: Dataset history */}
-          <Card>
-            <h3 className="text-sm font-bold text-[var(--t)] mb-0.5 font-display">Uploaded Datasets</h3>
-            <p className="text-xs text-[var(--t3)] mb-4">Your uploaded datasets and analysis status</p>
+          {/* Right Column: Dataset history — analytics-style table */}
+          <Card padding="none">
+            {/* Card Header */}
+            <div className="flex items-center gap-3 px-5 py-3.5 border-b border-[var(--b)]">
+              <div>
+                <div className="text-sm font-bold text-[var(--t)]">Uploaded Datasets</div>
+                <div className="text-[11px] text-[var(--t3)] font-mono mt-0.5">
+                  {loadingDatasets ? 'Loading...' : `${totalDatasets} dataset${totalDatasets !== 1 ? 's' : ''} found`}
+                </div>
+              </div>
+              {loadingDatasets && (
+                <div className="ml-auto">
+                  <svg className="animate-spin text-gray-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+                </div>
+              )}
+            </div>
 
-            {loadingDatasets ? (
-              <div className="flex items-center justify-center py-10">
-                <svg className="animate-spin text-[var(--t3)]" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-              </div>
-            ) : datasets.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="mb-2 text-[var(--t3)]">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
-                </svg>
-                <p className="text-xs text-[var(--t3)] font-sans">No datasets uploaded yet</p>
-              </div>
-            ) : (
-              <div className="flex-1 min-h-[140px] overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/40">
-                      {['Dataset ID', 'Uploaded', 'Status', 'Customers', 'High Risk %', 'Actions'].map(h => (
-                        <th key={h} className="px-4 py-3 text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono pr-2">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--b)]">
-                    {datasets.map(ds => (
-                      <Fragment key={ds.id}>
-                        <tr className="hover:bg-[var(--bg1)]/50 transition-colors">
-                          <td className="px-4 py-3">
-                            <span className="text-xs font-mono text-[var(--t2)]">{ds.id.slice(0, 8)}…</span>
+            {/* Table */}
+            <div className="overflow-x-auto" style={{ minHeight: `${PAGE_SIZE * 57 + 44}px` }}>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-[var(--b)]">
+                    <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Dataset ID</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Uploaded</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Status</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Customers</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">High Risk %</th>
+                    <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--b)]/50">
+                  {loadingDatasets ? (
+                    Array.from({ length: PAGE_SIZE }).map((_, i) => (
+                      <tr key={i} style={{ height: 57 }}>
+                        {Array.from({ length: 6 }).map((_, j) => (
+                          <td key={j} className="px-4 py-3">
+                            <div className="h-3 bg-[var(--bg3)] rounded animate-pulse" style={{ width: `${60 + ((i * 6 + j) % 4) * 10}%` }} />
                           </td>
-                          <td className="px-4 py-3 text-xs text-[var(--t2)] font-mono whitespace-nowrap">
+                        ))}
+                      </tr>
+                    ))
+                  ) : datasets.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-12 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-[var(--t3)]">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+                          </svg>
+                          <span className="text-xs text-[var(--t3)]">No datasets uploaded yet</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    datasets.map(ds => (
+                      <Fragment key={ds.id}>
+                        <tr className="cursor-pointer transition-colors hover:bg-[var(--bg1)]">
+                          <td className="px-4 py-3">
+                            <span className="font-mono text-[12px] text-[var(--t)]">{ds.id.slice(0, 8)}…</span>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-xs text-[var(--t)] whitespace-nowrap">
                             {formatDate(ds.created_at)}
                           </td>
                           <td className="px-4 py-3">
-                            <Badge 
-                              label={statusLabel(ds.status)} 
-                              variant={statusBadgeVariant(ds.status) as any} 
+                            <Badge
+                              label={statusLabel(ds.status)}
+                              variant={statusBadgeVariant(ds.status) as any}
                               loading={ds.status === 'pending' || ds.status === 'analyzing'}
                             />
                           </td>
-                          <td className="px-4 py-3 text-xs text-[var(--t2)] font-mono">
+                          <td className="px-4 py-3 font-mono text-xs text-[var(--t)]">
                             {ds.total_customers ? ds.total_customers.toLocaleString('en-US') : '—'}
                           </td>
                           <td className="px-4 py-3">
                             {ds.churn_rate_pct != null ? (
-                              <span className={`text-xs font-mono font-bold ${ds.churn_rate_pct >= 30 ? 'text-[var(--d)]' : 'text-[var(--s)]'}`}>
+                              <span className={`font-mono text-xs font-bold ${ds.churn_rate_pct >= 30 ? 'text-[var(--d)]' : 'text-[var(--s)]'}`}>
                                 {ds.churn_rate_pct}%
                               </span>
-                            ) : <span className="text-xs text-[var(--t3)]">—</span>}
+                            ) : <span className="font-mono text-xs text-[var(--t3)]">—</span>}
                           </td>
                           <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1.5">
                               {ds.status === 'done' && (
                                 <a
                                   href={`/dashboard/analytics?dataset_id=${ds.id}`}
-                                  className="text-xs font-semibold text-[var(--p)] hover:underline px-2 py-1.5 font-sans"
+                                  className="text-xs font-semibold text-[var(--p)] hover:underline"
                                 >
                                   View →
                                 </a>
                               )}
-                              <button 
+                              <button
                                 onClick={() => setExpandedDataset(p => p === ds.id ? null : ds.id)}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-[var(--bg2)] text-[var(--t2)] transition-colors cursor-pointer"
+                                className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--t2)] hover:text-[var(--t)] hover:bg-[var(--bg2)] transition-all border border-transparent hover:border-[var(--b)]"
+                                title="Show files"
                               >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={`transition-transform duration-200 ${expandedDataset === ds.id ? 'rotate-180' : ''}`}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={`transition-transform duration-200 ${expandedDataset === ds.id ? 'rotate-180' : ''}`}>
                                   <polyline points="6 9 12 15 18 9" />
                                 </svg>
                               </button>
-                              <button 
+                              <button
                                 onClick={(e) => { e.stopPropagation(); setDatasetToDelete(ds); }}
-                                className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-[var(--d)]/10 text-[var(--d)] transition-colors cursor-pointer"
+                                className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--t2)] hover:text-[var(--d)] hover:bg-[var(--d)]/10 transition-all border border-transparent hover:border-[var(--d)]/20"
                                 title="Delete dataset"
                               >
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -621,37 +647,85 @@ function DataManagementPageContent() {
                           </td>
                         </tr>
                         {expandedDataset === ds.id && (
-                          <tr className="bg-[var(--bg1)]/40">
-                            <td colSpan={6} className="px-4 py-3 border-t border-[var(--b)]">
-                              <p className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-widest mb-2 font-mono">Dataset Files</p>
-                              <div className="flex flex-wrap gap-2">
+                          <tr className="bg-[var(--bg1)]">
+                            <td colSpan={6} className="px-5 py-3 border-t border-[var(--b)]">
+                              <p className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.1em] mb-2 font-mono">Dataset Files</p>
+                              <div className="flex flex-wrap gap-1.5">
                                 {(Object.keys(REQUIRED_FILES) as FileKey[]).map(k => (
-                                   <button 
-                                     key={k}
-                                     onClick={() => openRemotePreview(ds.id, ds.storage_path, k)}
-                                     className="text-[10px] font-semibold text-[var(--t2)] bg-[var(--surf)] border border-[var(--b)] px-3 py-1.5 rounded-lg hover:border-[var(--b3)] hover:text-[var(--t)] transition-colors font-sans cursor-pointer"
-                                   >
-                                     {REQUIRED_FILES[k].label}
-                                   </button>
+                                  <button
+                                    key={k}
+                                    onClick={() => openRemotePreview(ds.id, ds.storage_path, k)}
+                                    className="text-[10px] font-semibold text-[var(--t2)] bg-[var(--surf)] border border-[var(--b)] px-2.5 py-1 rounded-lg hover:border-[var(--t3)] hover:text-[var(--t)] transition-colors cursor-pointer"
+                                  >
+                                    {REQUIRED_FILES[k].label}
+                                  </button>
                                 ))}
                               </div>
                             </td>
                           </tr>
                         )}
                       </Fragment>
-                    ))}
-                  </tbody>
-                </table>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Inline Pagination Footer */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--b)] text-[11px] text-[var(--t3)] font-mono">
+              <span>
+                {loadingDatasets
+                  ? '...'
+                  : totalDatasets === 0
+                  ? 'No results'
+                  : `Showing ${(page - 1) * PAGE_SIZE + 1}–${Math.min(totalDatasets, page * PAGE_SIZE)} of ${totalDatasets}`}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={page === 1 || loadingDatasets}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  className="h-7 w-7 flex items-center justify-center rounded-lg border border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
+                </button>
+                {(() => {
+                  const totalPages = Math.ceil(totalDatasets / PAGE_SIZE);
+                  if (totalPages <= 1) return (
+                    <button className="h-7 min-w-[28px] px-1.5 rounded-lg border text-[11px] bg-[var(--t)] text-[var(--inv-t)] border-[var(--t)]">1</button>
+                  );
+                  const pages: (number | string)[] = totalPages <= 5
+                    ? Array.from({ length: totalPages }, (_, i) => i + 1)
+                    : page <= 3
+                    ? [1, 2, 3, 4, '...', totalPages]
+                    : page >= totalPages - 2
+                    ? [1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+                    : [1, '...', page - 1, page, page + 1, '...', totalPages];
+                  return pages.map((pg, idx) =>
+                    pg === '...' ? (
+                      <span key={idx} className="px-1.5 self-center">…</span>
+                    ) : (
+                      <button
+                        key={idx}
+                        onClick={() => setPage(pg as number)}
+                        className={`h-7 min-w-[28px] px-1.5 rounded-lg border text-[11px] transition-all ${
+                          page === pg
+                            ? 'bg-[var(--t)] text-[var(--inv-t)] border-[var(--t)]'
+                            : 'border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)]'
+                        }`}
+                      >
+                        {pg}
+                      </button>
+                    )
+                  );
+                })()}
+                <button
+                  disabled={page >= Math.ceil(totalDatasets / PAGE_SIZE) || loadingDatasets}
+                  onClick={() => setPage(p => Math.min(Math.ceil(totalDatasets / PAGE_SIZE), p + 1))}
+                  className="h-7 w-7 flex items-center justify-center rounded-lg border border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                </button>
               </div>
-            )}
-            <div className="mt-6 mb-2 font-medium">
-              <Pagination
-                currentPage={page}
-                totalPages={Math.ceil(totalDatasets / PAGE_SIZE)}
-                totalItems={totalDatasets}
-                pageSize={PAGE_SIZE}
-                onPageChange={setPage}
-              />
             </div>
           </Card>
         </div>

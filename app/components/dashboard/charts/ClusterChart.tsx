@@ -125,14 +125,12 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
     ? clusters.filter(c => c.name === localSegment)
     : clusters;
 
-  if (!isMounted) return <div className="h-full min-h-[220px]" />;
+  if (!isMounted) return <div className="h-full min-h-[300px]" />;
 
   return (
     <div className="h-full flex flex-col">
-
-
       {loading ? (
-        <div className="w-full h-[220px] flex items-center justify-center bg-[var(--bg1)] rounded-2xl border border-[var(--b)] border-dashed">
+        <div className="flex-1 min-h-[300px] flex items-center justify-center bg-[var(--bg1)] rounded-2xl border border-[var(--b)] border-dashed">
           <div className="flex flex-col items-center gap-2">
             <svg className="animate-spin text-[var(--b3)]" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
               <path d="M21 12a9 9 0 1 1-6.219-8.56" />
@@ -141,7 +139,7 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
           </div>
         </div>
       ) : (
-        <div className="flex-1 min-h-[220px] overflow-hidden">
+        <div className="flex-1 min-h-[300px] overflow-hidden">
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={350}>
             <ScatterChart margin={{ top: 20, right: 30, bottom: 20, left: 20 }}>
               <CartesianGrid strokeDasharray="0" stroke="var(--b)" vertical={false} opacity={0.5} />
@@ -194,7 +192,7 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
       )}
 
       {!loading && (
-        <div className="flex flex-wrap gap-x-5 gap-y-2 mt-6 border-t border-[var(--b)] pt-4">
+        <div className="flex flex-wrap gap-x-5 gap-y-2 mt-4 pt-4 border-t border-[var(--b)] shrink-0">
           {clusters.map(c => (
             <div key={c.name} className="flex items-center gap-2 group transition-all cursor-default">
               <span className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-transparent group-hover:ring-[var(--b2)]" style={{ backgroundColor: c.color }} />

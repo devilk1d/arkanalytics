@@ -134,7 +134,11 @@ export async function updateXaiNarrative(
 
 // ── Segments ──────────────────────────────────────────────────────────────────
 
-export async function saveSegments(datasetId: string, predictions: CustomerPrediction[]) {
+export async function saveSegments(
+    datasetId: string,
+    predictions: CustomerPrediction[],
+    cohortXai?: Record<string, unknown>
+) {
     const supabase = await createClient()
 
     // Aggregate per segment dari predictions
@@ -162,22 +166,42 @@ export async function saveSegments(datasetId: string, predictions: CustomerPredi
     const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0
     const pct = (arr: string[], val: string) => (arr.filter(v => v === val).length / arr.length) * 100
 
-    const rows = Object.entries(segmentMap).map(([label, s]) => ({
-        dataset_id: datasetId,
-        segment_label: label,
-        segment_cluster: s.cluster,
-        total_customers: s.scores.length,
-        avg_churn_score: Math.round(avg(s.scores) * 10) / 10,
-        pct_high_risk: Math.round(pct(s.risks, 'High') * 10) / 10,
-        avg_revenue: Math.round(avg(s.revenues) * 100) / 100,
-        avg_usage_hrs: Math.round(avg(s.usages) * 100) / 100,
-        avg_nps: Math.round(avg(s.npss) * 100) / 100,
-        segment_actions: s.actions,
-    }))
+    const now = new Date().toISOString()
+
+    const rows = Object.entries(segmentMap).map(([label, s]) => {
+        const xai = cohortXai?.[label]
+        return {
+            dataset_id: datasetId,
+            segment_label: label,
+            segment_cluster: s.cluster,
+            total_customers: s.scores.length,
+            avg_churn_score: Math.round(avg(s.scores) * 10) / 10,
+            pct_high_risk: Math.round(pct(s.risks, 'High') * 10) / 10,
+            avg_revenue: Math.round(avg(s.revenues) * 100) / 100,
+            avg_usage_hrs: Math.round(avg(s.usages) * 100) / 100,
+            avg_nps: Math.round(avg(s.npss) * 100) / 100,
+            segment_actions: s.actions,
+            ...(xai ? { xai_cohort: xai, xai_cohort_generated_at: now } : {}),
+        }
+    })
 
     const { error } = await supabase
         .from('segments')
         .upsert(rows, { onConflict: 'dataset_id,segment_label' })
+    if (error) throw error
+}
+
+export async function updateSegmentCohortXai(
+    datasetId: string,
+    segmentLabel: string,
+    xaiCohort: unknown
+) {
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('segments')
+        .update({ xai_cohort: xaiCohort, xai_cohort_generated_at: new Date().toISOString() })
+        .eq('dataset_id', datasetId)
+        .eq('segment_label', segmentLabel)
     if (error) throw error
 }
 

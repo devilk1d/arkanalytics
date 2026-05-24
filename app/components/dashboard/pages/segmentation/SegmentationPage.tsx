@@ -119,61 +119,6 @@ export function getFallbackPalette(label: string) {
   return getSegmentColorway(label);
 }
 
-export function getSegmentDescriptionAndTraits(label: string, avgChurn: number, avgNps: number, avgRevenue: number) {
-  const lower = label.toLowerCase();
-  let desc = '';
-  let traits: string[] = [];
-
-  if (lower.includes('unhappy') || lower.includes('dissatisfied') || lower.includes('critical') || lower.includes('at-risk') || lower.includes('churn risk')) {
-    desc = `High-priority cohort showing critical signals of customer dissatisfaction. These users have low engagement, poor sentiment scores, and elevated churn risk. Immediate intervention via outreach campaigns or pricing adjustments is strongly recommended.`;
-    traits = ['High Churn Score', 'Low Engagement', 'Negative Sentiment', 'Support Escalations'];
-  } else if (lower.includes('champion') || lower.includes('enterprise') || lower.includes('anchor')) {
-    desc = `Top-tier enterprise customers serving as anchor accounts. These accounts drive disproportionate revenue, have deep product adoption across multiple seats, and show strong expansion potential. Prioritize for Executive Business Reviews and premium support.`;
-    traits = ['High MRR', 'Multi-seat', 'Deep Adoption', 'Expansion Ready'];
-  } else if (lower.includes('loyal') || lower.includes('satisfied')) {
-    desc = `Healthy and consistent mid-market segment showing stable usage and positive satisfaction signals. These users are broadly content with the product and have solid retention profiles, making them ideal candidates for upsell campaigns.`;
-    traits = ['Stable Usage', 'Positive NPS', 'Consistent Billing', 'Upsell Ready'];
-  } else if (lower.includes('potential') || lower.includes('billing') || lower.includes('intensive')) {
-    desc = `Usage-heavy segment characterized by high billing volumes relative to their plan tier. These customers extract significant value but may be approaching pricing thresholds. Monitor for plan upgrade opportunities and usage-limit friction points.`;
-    traits = ['High Usage', 'Billing Sensitive', 'Feature-Heavy', 'Plan Upgrade Target'];
-  } else if (lower.includes('power') || lower.includes('best') || lower.includes('high value')) {
-    desc = `Premium tier customer cohort driving high consistent revenue. Characterized by excellent engagement and high product adoption across multiple features.`;
-    traits = ['High MRR', 'Strong NPS', 'Active Daily', 'Multi-seat'];
-  } else if (lower.includes('at-risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('warning') || lower.includes('risk')) {
-    desc = `Critical risk segment exhibiting significant engagement drops, usage declines, or poor customer satisfaction scores. High likelihood of imminent subscription termination.`;
-    traits = ['Declining Usage', 'Low NPS', 'Support Heavy', 'Month-to-Month'];
-  } else if (lower.includes('new') || lower.includes('adopter') || lower.includes('recent') || lower.includes('starter')) {
-    desc = `Newly acquired accounts showing strong initial setup, but requiring active onboarding. Crucial phase for driving feature adoption and preventing early churn.`;
-    traits = ['Fresh Signup', 'Onboarding Phase', 'Basic Plan', 'Active Setup'];
-  } else if (lower.includes('steady') || lower.includes('satisfied') || lower.includes('mid') || lower.includes('normal')) {
-    desc = `Consistent mid-market customers with steady login frequencies and stable usage curves. Represents the core utility segment of our user base.`;
-    traits = ['Stable Usage', 'Consistent Billing', 'Moderate NPS', 'Standard Tier'];
-  } else if (lower.includes('disengaged') || lower.includes('lost') || lower.includes('inactive')) {
-    desc = `Highly inactive or dormant customer cohort showing extremely low login frequencies. Requires immediate reactivation campaigns or proactive support outreach.`;
-    traits = ['No logins >14d', 'Zero Engagement', 'Legacy Setup', 'High Churn Score'];
-  } else if (lower.includes('discount') || lower.includes('promo') || lower.includes('price') || lower.includes('cost')) {
-    desc = `Price-sensitive group predominantly acquired via promotional codes or lower-priced tiers. High risk during price hikes or contract renewal cycles.`;
-    traits = ['Promo-driven', 'Low Margin', 'Cost Conscious', 'Standard Support'];
-  } else {
-    if (avgChurn > 50) {
-      desc = `Cohort characterized by elevated churn risk patterns (${avgChurn}% score) and lower-than-average user retention trends. Proactive outreach is recommended.`;
-      traits = ['Elevated Churn Risk', 'Low Activity', 'Review Required'];
-    } else {
-      desc = `Healthy user cluster exhibiting consistent product engagement patterns and solid commercial metrics. Stable long-term customer segment.`;
-      traits = ['Healthy Accounts', 'Stable LTV', 'Consistent Activity'];
-    }
-  }
-
-  if (avgNps > 0) {
-    desc += ` Shows an average NPS score of ${avgNps.toFixed(1)}/10.`;
-  }
-  if (avgRevenue > 0) {
-    desc += ` Average revenue contribution is $${Math.round(avgRevenue).toLocaleString('en-US')}/month.`;
-  }
-
-  return { desc, traits };
-}
-
 /* Horizontal Stacked share composition bar */
 const StackedBar = ({ data, total }: { data: { label: string; value: number; color: string }[], total: number }) => {
   return (
@@ -212,7 +157,9 @@ const SegmentationPageContent = memo(() => {
   const [dataset, setDataset] = useState<any>(null);
   const [segmentStats, setSegmentStats] = useState<any[]>([]);
   const [activeSegLabel, setActiveSegLabel] = useState<string>('');
-  
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenerateError, setRegenerateError] = useState('');
+
   // Campaign Drawer state
   const [campaignModalOpen, setCampaignModalOpen] = useState(false);
   const [campaignSubject, setCampaignSubject] = useState('');
@@ -264,12 +211,14 @@ const SegmentationPageContent = memo(() => {
         const displayLabel = normalizeSegmentLabel(s.segment_label);
         const colorSet = getSegmentColorway(displayLabel);
         const share = totalCustomersAll > 0 ? parseFloat(((s.total_customers / totalCustomersAll) * 100).toFixed(1)) : 0;
-        const { desc, traits } = getSegmentDescriptionAndTraits(
-          displayLabel,
-          s.avg_churn_score,
-          s.avg_nps,
-          s.avg_revenue
-        );
+
+        const xai = s.xai_cohort;
+        const hasXai = xai && typeof xai === 'object' && xai.narrative;
+        const desc: string | null              = hasXai ? xai.narrative : null;
+        const traits: string[]                 = hasXai && Array.isArray(xai.defining_traits) ? xai.defining_traits : [];
+        const topPriorityAction: string | null = hasXai ? (xai.top_priority_action ?? null) : null;
+        const riskSummary: string | null       = hasXai ? (xai.risk_summary ?? null) : null;
+        const xaiGeneratedAt: string | null    = s.xai_cohort_generated_at ?? null;
 
         return {
           label: displayLabel,
@@ -289,7 +238,10 @@ const SegmentationPageContent = memo(() => {
           avgUsage: Math.round(s.avg_usage_hrs || 0),
           avgNps: s.avg_nps || 0,
           desc,
-          traits
+          traits,
+          topPriorityAction,
+          riskSummary,
+          xaiGeneratedAt,
         };
       });
       
@@ -325,6 +277,29 @@ const SegmentationPageContent = memo(() => {
         setCampaignModalOpen(false);
       }, 1500);
     }, 2000);
+  };
+
+  const handleRegenerateXai = async () => {
+    if (!datasetId) return;
+    setRegenerating(true);
+    setRegenerateError('');
+    try {
+      const res = await fetch('/api/segments/regenerate-xai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataset_id: datasetId }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setRegenerateError(err.error ?? 'Regeneration failed');
+      } else {
+        await loadData(datasetId);
+      }
+    } catch (e: any) {
+      setRegenerateError(e.message ?? 'Network error');
+    } finally {
+      setRegenerating(false);
+    }
   };
 
   const getRelativeTime = (dateStr: string) => {
@@ -393,6 +368,32 @@ const SegmentationPageContent = memo(() => {
               Behavior-based customer cohorts derived from usage, billing, and engagement features using dynamic clustering models.
             </p>
           </div>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <button
+              onClick={handleRegenerateXai}
+              disabled={regenerating}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[var(--b2)] text-[11px] font-bold text-[var(--t2)] hover:bg-[var(--bg2)] hover:text-[var(--t)] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {regenerating ? (
+                <>
+                  <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                  Generating AI Insights...
+                </>
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  </svg>
+                  Regenerate AI Insights
+                </>
+              )}
+            </button>
+            {regenerateError && (
+              <p className="text-[10px] text-[var(--danger)] font-mono">{regenerateError}</p>
+            )}
+          </div>
         </div>
 
         {/* ── Cohort Selector Cards (replaces static KPI row) ── */}
@@ -436,40 +437,42 @@ const SegmentationPageContent = memo(() => {
           
           {/* Cluster Map & Customer Share (8/12 Columns) */}
           <div className="lg:col-span-8 flex flex-col gap-6">
-            <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex-1 min-h-[460px] flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-[13px] font-bold text-[var(--t)]">Cluster Map</h3>
-                    <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">Engagement (x) × Monthly Revenue (y) · Projection</p>
-                  </div>
-                  <div className="flex-shrink-0 z-10 w-44">
-                    <FilterDropdown
-                      value={activeSegLabel || 'all'}
-                      onChange={(val) => setActiveSegLabel(val === 'all' ? '' : val)}
-                      placeholder="Filter Segment"
-                      size="sm"
-                      showIcon={true}
-                      options={[
-                        { label: 'All Segments', value: 'all' },
-                        ...segmentStats.map(s => ({ label: s.label, value: s.label }))
-                      ]}
-                    />
-                  </div>
+            <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex-1 min-h-[460px] flex flex-col">
+              {/* header row */}
+              <div className="flex items-center justify-between mb-4 shrink-0">
+                <div>
+                  <h3 className="text-[13px] font-bold text-[var(--t)]">Cluster Map</h3>
+                  <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">Engagement (x) × Monthly Revenue (y) · Projection</p>
                 </div>
-                <div className="h-[280px]">
-                  <ClusterChart segmentOrder={segmentStats.map(s => s.label)} activeSegment={activeSegLabel} />
+                <div className="flex-shrink-0 z-10 w-44">
+                  <FilterDropdown
+                    value={activeSegLabel || 'all'}
+                    onChange={(val) => setActiveSegLabel(val === 'all' ? '' : val)}
+                    placeholder="Filter Segment"
+                    size="sm"
+                    showIcon={true}
+                    options={[
+                      { label: 'All Segments', value: 'all' },
+                      ...segmentStats.map(s => ({ label: s.label, value: s.label }))
+                    ]}
+                  />
                 </div>
               </div>
 
-              <div>
-                <div className="h-px bg-[var(--b)] my-4" />
+              {/* chart — fills all remaining space */}
+              <div className="flex-1 min-h-0">
+                <ClusterChart segmentOrder={segmentStats.map(s => s.label)} activeSegment={activeSegLabel} />
+              </div>
+
+              {/* stacked bar — pinned below chart */}
+              <div className="shrink-0 mt-4">
+                <div className="h-px bg-[var(--b)] mb-4" />
                 <div className="text-[10px] font-mono text-[var(--t3)] uppercase tracking-wider mb-2.5">
                   Composition · share of customer base
                 </div>
-                <StackedBar 
-                  data={segmentStats.map(s => ({ label: s.label, value: s.count, color: s.accentColor }))} 
-                  total={totalCustomersAll} 
+                <StackedBar
+                  data={segmentStats.map(s => ({ label: s.label, value: s.count, color: s.accentColor }))}
+                  total={totalCustomersAll}
                 />
                 <div className="flex justify-between items-center text-[10px] text-[var(--t3)] font-mono mt-1.5">
                   <span>0</span>
@@ -494,9 +497,39 @@ const SegmentationPageContent = memo(() => {
                     <span className="w-3.5 h-3.5 rounded-md flex-shrink-0" style={{ backgroundColor: activeSegmentObj.accentColor }} />
                   </div>
 
-                  <p className="text-[12px] text-[var(--t2)] leading-relaxed mb-6 font-medium">
-                    {activeSegmentObj.desc}
-                  </p>
+                  {/* ── AI narrative section ── */}
+                  {regenerating ? (
+                    /* skeleton while regenerating */
+                    <div className="mb-6 space-y-2">
+                      <div className="h-3 w-20 rounded bg-[var(--bg3)] animate-pulse mb-3" />
+                      <div className="h-3 rounded bg-[var(--bg3)] animate-pulse w-full" />
+                      <div className="h-3 rounded bg-[var(--bg3)] animate-pulse w-[92%]" />
+                      <div className="h-3 rounded bg-[var(--bg3)] animate-pulse w-[78%]" />
+                    </div>
+                  ) : activeSegmentObj.desc ? (
+                    /* XAI content */
+                    <div className="mb-6">
+                      <div className="inline-flex items-center gap-1 mb-2 px-2 py-0.5 rounded-md bg-[var(--accent-bg)] border border-[var(--accent-b)]">
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.5">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                        </svg>
+                        <span className="text-[9px] font-mono font-bold text-[var(--accent)] uppercase tracking-wider">AI Generated</span>
+                      </div>
+                      <p className="text-[12px] text-[var(--t2)] leading-relaxed font-medium">
+                        {activeSegmentObj.desc}
+                      </p>
+                    </div>
+                  ) : (
+                    /* empty state — no XAI yet */
+                    <div className="mb-6 flex flex-col items-center justify-center gap-2 py-5 rounded-xl border border-dashed border-[var(--b2)] bg-[var(--bg1)]">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--t4)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      </svg>
+                      <p className="text-[11px] text-[var(--t3)] text-center leading-relaxed max-w-[180px]">
+                        AI insights not generated yet.<br />Click <span className="font-semibold text-[var(--t2)]">Regenerate AI Insights</span> to analyze this cohort.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-3 mb-6">
                     <div className="border border-[var(--b)] bg-[var(--bg1)] rounded-xl p-3 flex flex-col justify-between">
@@ -522,16 +555,59 @@ const SegmentationPageContent = memo(() => {
                     </div>
                   </div>
 
-                  <div className="mb-6">
+                  {/* ── Traits ── */}
+                  <div className="mb-4">
                     <span className="text-[9px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono block mb-2">Defining traits</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {activeSegmentObj.traits.map((t: string) => (
-                        <span key={t} className="inline-flex items-center py-0.5 px-2 bg-[var(--bg1)] border border-[var(--b2)] rounded-md text-[9px] font-mono font-semibold text-[var(--t2)] uppercase tracking-wider">
-                          {t}
-                        </span>
-                      ))}
-                    </div>
+                    {regenerating ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {[56, 72, 48, 64].map((w, i) => (
+                          <div key={i} className="h-5 rounded-md bg-[var(--bg3)] animate-pulse" style={{ width: w }} />
+                        ))}
+                      </div>
+                    ) : activeSegmentObj.traits.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {activeSegmentObj.traits.map((t: string) => (
+                          <span key={t} className="inline-flex items-center py-0.5 px-2 bg-[var(--bg1)] border border-[var(--b2)] rounded-md text-[9px] font-mono font-semibold text-[var(--t2)] uppercase tracking-wider">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {[56, 72, 48, 64].map((w, i) => (
+                          <div key={i} className="h-5 rounded-md border border-dashed border-[var(--b2)] bg-transparent" style={{ width: w }} />
+                        ))}
+                      </div>
+                    )}
                   </div>
+
+                  {/* ── Priority Action ── */}
+                  {regenerating ? (
+                    <div className="mb-4 p-3 rounded-xl bg-[var(--bg1)] border border-[var(--b)] space-y-1.5">
+                      <div className="h-2.5 w-24 rounded bg-[var(--bg3)] animate-pulse" />
+                      <div className="h-2.5 w-full rounded bg-[var(--bg3)] animate-pulse" />
+                      <div className="h-2.5 w-3/4 rounded bg-[var(--bg3)] animate-pulse" />
+                    </div>
+                  ) : activeSegmentObj.topPriorityAction ? (
+                    <div className="mb-4 p-3 rounded-xl bg-[var(--bg1)] border border-[var(--b)]">
+                      <span className="text-[9px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono block mb-1">Priority Action</span>
+                      <p className="text-[11px] text-[var(--t2)] leading-snug">{activeSegmentObj.topPriorityAction}</p>
+                    </div>
+                  ) : null}
+
+                  {/* ── Risk Summary ── */}
+                  {regenerating ? (
+                    <div className="mb-4 p-3 rounded-xl bg-[var(--bg1)] border border-[var(--b)] space-y-1.5">
+                      <div className="h-2.5 w-20 rounded bg-[var(--bg3)] animate-pulse" />
+                      <div className="h-2.5 w-full rounded bg-[var(--bg3)] animate-pulse" />
+                      <div className="h-2.5 w-2/3 rounded bg-[var(--bg3)] animate-pulse" />
+                    </div>
+                  ) : activeSegmentObj.riskSummary ? (
+                    <div className="mb-4 p-3 rounded-xl bg-[var(--bg1)] border border-[var(--b)]">
+                      <span className="text-[9px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono block mb-1">Risk Summary</span>
+                      <p className="text-[11px] text-[var(--t2)] leading-snug">{activeSegmentObj.riskSummary}</p>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="flex gap-3 pt-4 border-t border-[var(--b)]">

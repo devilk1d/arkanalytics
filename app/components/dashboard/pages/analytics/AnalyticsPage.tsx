@@ -54,26 +54,32 @@ function AnalyticsPageContent() {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(true);
-  
-  // Local state for search to keep typing responsive
+
+  // Transient state — local only, never reflected in the URL.
+  // Keeping these out of the URL prevents router.replace from firing on every
+  // keystroke / page click, which is what caused the full-page re-render and
+  // the scroll-to-top on filter change.
   const [search, setSearch] = useState('');
-  
-  // Read other filters directly from URL search parameters to avoid full page reload
-  const plan = searchParams.get('plan') || 'all';
-  const risk = searchParams.get('risk') || 'all';
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
+
+  // Persistent filter state — lives in the URL so that sharing / back-nav works.
+  const plan    = searchParams.get('plan')    || 'all';
+  const risk    = searchParams.get('risk')    || 'all';
   const segment = searchParams.get('segment') || 'all';
-  const page = parseInt(searchParams.get('page') || '1', 10);
   const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
 
   const [segmentOptions, setSegmentOptions] = useState<{label: string, value: string}[]>([]);
   const [csvMetrics, setCsvMetrics] = useState<Map<string, CsvMetrics>>(new Map());
   const [maxUsage, setMaxUsage] = useState(1);
 
-  // Helper to update search params and trigger table-only reload
+  // Update only persistent URL filter params (plan / risk / segment / pageSize).
+  // scroll:false prevents the browser from jumping to the top on every filter change.
+  // Page is always reset to 1 locally — never written to the URL.
   const updateQueryParams = useCallback((newParams: Record<string, string | number | undefined>) => {
     if (!datasetId) return;
     const params = new URLSearchParams(searchParams.toString());
-    
+
     Object.entries(newParams).forEach(([key, val]) => {
       if (val === undefined || val === 'all' || val === '') {
         params.delete(key);
@@ -81,14 +87,9 @@ function AnalyticsPageContent() {
         params.set(key, String(val));
       }
     });
-    
-    // Auto reset page to 1 if we are changing filters other than page/pageSize
-    const hasFilterChange = Object.keys(newParams).some(k => k !== 'page' && k !== 'pageSize');
-    if (hasFilterChange) {
-      params.delete('page');
-    }
-    
-    router.replace(`/dashboard/analytics?${params.toString()}`);
+
+    setPage(1);
+    router.replace(`/dashboard/analytics?${params.toString()}`, { scroll: false });
   }, [router, searchParams, datasetId]);
 
   const [analyzeId, setAnalyzeId] = useState<string | null>(null);
@@ -422,11 +423,6 @@ function AnalyticsPageContent() {
     }
   }, [datasetId, workspace, router, searchParams]);
 
-  // Sync search input with URL query 'q' on load or URL update
-  useEffect(() => {
-    setSearch(searchParams.get('q') || '');
-  }, [searchParams]);
-
   useEffect(() => {
     if (datasetId) {
       setLoading(true);
@@ -436,14 +432,26 @@ function AnalyticsPageContent() {
     }
   }, [datasetId, loadSummaryStats, loadChartsData]);
 
-  // 3. Load Page Data
+  // Debounce search — fires 300 ms after the user stops typing so the table
+  // doesn't reload on every keystroke. Page is reset inside the same batch.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // 3. Load Page Data — re-runs whenever any of the local/URL filter state changes.
   useEffect(() => {
     if (!datasetId) return;
-    loadPage(page, search, plan, risk, segment, datasetId, pageSize);
-  }, [page, search, plan, risk, segment, datasetId, pageSize, loadPage]);
+    loadPage(page, debouncedSearch, plan, risk, segment, datasetId, pageSize);
+  }, [page, debouncedSearch, plan, risk, segment, datasetId, pageSize, loadPage]);
 
   const totalPages = Math.ceil(totalCount / pageSize);
-  const handleSearch = (v: string) => { setSearch(v); updateQueryParams({ page: 1 }); };
+
+  // Search: update local state only — debounce effect handles the fetch.
+  const handleSearch = (v: string) => setSearch(v);
 
   if (loading && !datasetId) {
     return (
@@ -512,7 +520,7 @@ function AnalyticsPageContent() {
         />
         <StatCard
           label="Avg Churn Score"
-          value={loading ? '...' : (summaryStats.avgScore / 100).toFixed(3)}
+          value={loading ? '...' : `${summaryStats.avgScore.toFixed(1)}%`}
           change={`${summaryStats.avgScore > 50 ? 'Needs Attention' : 'Healthy'}`}
           changePositive={summaryStats.avgScore <= 50}
           changeSuffix="overall risk"
@@ -650,8 +658,9 @@ function AnalyticsPageContent() {
           </div>
         )}
 
-        {/* Table */}
-        <div className="min-h-[400px] overflow-x-auto">
+        {/* Table — minHeight is locked to pageSize rows so the container never
+            shrinks during search / filter / pagination loading. */}
+        <div className="overflow-x-auto" style={{ minHeight: `${pageSize * 57 + 44}px` }}>
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--b)]">
@@ -673,10 +682,13 @@ function AnalyticsPageContent() {
                 <th className="px-4 py-3 w-28 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--b)]/50">
-              {tableLoading ? (
+            {/* When rows already exist and we're reloading (search/filter/page),
+                keep the current rows visible at reduced opacity instead of
+                replacing them with skeletons — this prevents height jumps. */}
+            <tbody className={`divide-y divide-[var(--b)]/50 transition-opacity duration-150 ${tableLoading && rows.length > 0 ? 'opacity-40 pointer-events-none' : ''}`}>
+              {tableLoading && rows.length === 0 ? (
                 Array.from({ length: pageSize }).map((_, i) => (
-                  <tr key={i}>
+                  <tr key={i} style={{ height: 57 }}>
                     <td className="px-4 py-3"><div className="w-4 h-4 rounded bg-[var(--bg2)] animate-pulse" /></td>
                     {Array.from({ length: 8 }).map((_, j) => (
                       <td key={j} className="px-4 py-3">
@@ -784,17 +796,17 @@ function AnalyticsPageContent() {
         {/* Inline Pagination Footer */}
         <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--b)] text-[11px] text-[var(--t3)] font-mono">
           <span>
-            Showing {loading ? '...' : totalCount === 0 ? 0 : `${(page - 1) * pageSize + 1}–${Math.min(totalCount, page * pageSize)}`} of {loading ? '...' : totalCount}
+            Showing {tableLoading ? '...' : totalCount === 0 ? 0 : `${(page - 1) * pageSize + 1}–${Math.min(totalCount, page * pageSize)}`} of {tableLoading ? '...' : totalCount}
           </span>
           <div className="flex items-center gap-1">
             <button
-              disabled={page === 1 || loading}
-              onClick={() => updateQueryParams({ page: Math.max(1, page - 1) })}
+              disabled={page === 1 || tableLoading}
+              onClick={() => setPage(p => Math.max(1, p - 1))}
               className="h-7 w-7 flex items-center justify-center rounded-lg border border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
               <ChevronLeftIcon size={13} />
             </button>
-            {!loading && (() => {
+            {!tableLoading && (() => {
               const total = totalPages;
               const current = page;
               let pages: (number | string)[];
@@ -807,27 +819,27 @@ function AnalyticsPageContent() {
               } else {
                 pages = [1, '...', current - 1, current, current + 1, '...', total];
               }
-              return pages.map((p, idx) =>
-                p === '...' ? (
+              return pages.map((pg, idx) =>
+                pg === '...' ? (
                   <span key={idx} className="px-1.5 self-center">…</span>
                 ) : (
                   <button
                     key={idx}
-                    onClick={() => updateQueryParams({ page: p as number })}
+                    onClick={() => setPage(pg as number)}
                     className={`h-7 min-w-[28px] px-1.5 rounded-lg border text-[11px] transition-all ${
-                      page === p
+                      page === pg
                         ? 'bg-[var(--t)] text-[var(--inv-t)] border-[var(--t)]'
                         : 'border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)]'
                     }`}
                   >
-                    {p}
+                    {pg}
                   </button>
                 )
               );
             })()}
             <button
-              disabled={page === totalPages || loading}
-              onClick={() => updateQueryParams({ page: Math.min(totalPages, page + 1) })}
+              disabled={page === totalPages || tableLoading}
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               className="h-7 w-7 flex items-center justify-center rounded-lg border border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
               <ChevronRightIcon size={13} />

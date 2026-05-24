@@ -28,8 +28,11 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${inter.variable} ${spaceGrotesk.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      {/* Prevent dark-mode flash: apply stored theme before first paint */}
+      {/* Prevent dark-mode flash: apply stored theme before first paint.
+          suppressHydrationWarning on <html> tells React that data-theme may
+          differ between server and client — this mismatch is intentional. */}
       <head>
         <script
           dangerouslySetInnerHTML={{

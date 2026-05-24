@@ -50,9 +50,19 @@ export async function POST(req: NextRequest) {
   const data = await railwayRes.json()
   const predictions: CustomerPrediction[] = data.predictions
 
+  // Extract per-segment cohort XAI from predictions (one LLM call per segment, attach to all)
+  const cohortXai: Record<string, unknown> = {}
+  for (const p of predictions as unknown as Record<string, unknown>[]) {
+    const seg = p.segment_label as string
+    const raw = p.xai_segment_cohort as string | null
+    if (raw && !cohortXai[seg]) {
+      try { cohortXai[seg] = JSON.parse(raw) } catch { /* ignore malformed */ }
+    }
+  }
+
   // Simpan ke Supabase
   await savePredictions(datasetId, predictions)
-  await saveSegments(datasetId, predictions)
+  await saveSegments(datasetId, predictions, Object.keys(cohortXai).length ? cohortXai : undefined)
 
   const highRiskCount = predictions.filter(p => p.risk_level === 'High').length
   const churnRatePct = Math.round((highRiskCount / predictions.length) * 1000) / 10
