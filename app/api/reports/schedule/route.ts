@@ -38,6 +38,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+        return NextResponse.json({ error: 'At least one recipient email is required' }, { status: 400 });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const invalidEmails = recipients.filter((e: any) => typeof e !== 'string' || !emailRegex.test(e.trim()));
+    if (invalidEmails.length > 0) {
+        return NextResponse.json({ error: `Invalid recipient email format: ${invalidEmails.join(', ')}` }, { status: 400 });
+    }
+
     const timeOfDay = body.time_of_day || '08:00';
     const dayOfWeek = body.day_of_week !== undefined && body.day_of_week !== '' ? Number(body.day_of_week) : null;
     const dayOfMonth = body.day_of_month !== undefined && body.day_of_month !== '' ? Number(body.day_of_month) : null;

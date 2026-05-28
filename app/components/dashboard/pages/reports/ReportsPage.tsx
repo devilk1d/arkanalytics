@@ -330,12 +330,31 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
       return;
     }
 
+    if (!schedRecipients.trim()) {
+      toastError('At least one recipient email is required');
+      return;
+    }
+
+    const emailList = schedRecipients
+      .split(',')
+      .map(e => e.trim())
+      .filter(e => e.length > 0);
+
+    if (emailList.length === 0) {
+      toastError('At least one recipient email is required');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const invalidEmails = emailList.filter(e => !emailRegex.test(e));
+    if (invalidEmails.length > 0) {
+      toastError(`Invalid email format: ${invalidEmails.join(', ')}`);
+      return;
+    }
+
     setCreatingSched(true);
     try {
-      const emails = schedRecipients
-        .split(',')
-        .map(e => e.trim())
-        .filter(e => e.includes('@'));
+      const emails = emailList;
 
       const res = await fetch('/api/reports/schedule', {
         method: 'POST',
@@ -1224,7 +1243,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
               />
 
               <div>
-                <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Notification Emails <span className="normal-case text-[var(--t4)] font-normal">(optional)</span></label>
+                <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Notification Emails <span className="normal-case text-[var(--d)] font-semibold">(required)</span></label>
                 <input
                   type="text"
                   placeholder="e.g. boss@corp.com, partner@corp.com"
