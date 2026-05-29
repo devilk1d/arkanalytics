@@ -9,6 +9,7 @@ const PAGE_LABELS: Record<string, string> = {
   '/dashboard/overview': 'Overview',
   '/dashboard/analytics': 'Analytics',
   '/dashboard/segmentation': 'Segmentation',
+  '/dashboard/simulation': 'Simulation',
   '/dashboard/data-management': 'Data Management',
   '/dashboard/reports': 'Reports',
   '/dashboard/chat': 'Team Chat',

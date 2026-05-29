@@ -75,6 +75,8 @@ export interface CustomerPrediction {
   // NLP / Sentiment — XAI context & risk flag only (bukan model input)
   sentiment: SentimentProfile
   nlp_red_flag: number          // 1 = hidden risk (tabular aman tapi feedback negatif)
+  loyalty_risk_flag: number     // 1 = loyalty risk
+  has_nps_data: number          // 1 = has nps data, 0 = no nps data
 
   // Segmentation
   segment_label: string

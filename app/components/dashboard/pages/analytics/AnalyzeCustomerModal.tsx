@@ -437,7 +437,7 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
                       {data.customer_id}
                     </h3>
                     <RedFlagBadge show={data.nlp_red_flag === 1} />
-                    <LoyaltyRiskBadge show={(data as any).loyalty_risk_flag === 1} />
+                    <LoyaltyRiskBadge show={data.loyalty_risk_flag === 1} />
                   </div>
                   <p className="text-xs text-[var(--t3)]">{data.plan_type} · {data.contract_type}</p>
                   <p className="text-xs text-[var(--t3)] mt-0.5">
@@ -468,7 +468,7 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
                   </div>
                 </div>
               )}
-              {(data as any).loyalty_risk_flag === 1 && (
+              {data.loyalty_risk_flag === 1 && (
                 <div className="flex items-start gap-2.5 bg-[var(--p)]/8 border border-[var(--p)]/25 rounded-xl p-3 mb-4">
                   <span className="text-[var(--p)] mt-0.5 shrink-0 text-sm">⚑</span>
                   <div>
@@ -529,7 +529,7 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
                 <>
                   <div className="border-t border-[var(--b)] my-5" />
                   <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-widest mb-3">Sentiment Analysis</p>
-                  {!(data as any).has_nps_data ? (
+                  {!data.has_nps_data ? (
                     <div className="border border-[var(--b)] rounded-xl p-4 bg-[var(--bg2)] mb-4">
                       <div className="flex items-center gap-2 mb-1">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-[var(--t3)]" strokeWidth="2" strokeLinecap="round">
