@@ -408,24 +408,32 @@ export function SimulationCockpit(props: SimulationCockpitProps) {
           variant="danger"
           label="Churn Risk Score"
           primary={customer.churn_score.toFixed(0)}
-          foot="Current score out of 100 · higher means higher churn risk"
+          foot={`${customer.risk_level} Risk · ${customer.segment_label} · ${customer.plan_type}`}
         />
         <StatCell
           variant={hasResults ? (projEnd !== null && projEnd < baseEnd ? 'accent' : 'danger') : ''}
           label={projEnd !== null ? 'Score After Scenario' : 'Forecast End Score'}
           primary={hasResults ? shownChurn.toFixed(0) : '—'}
-          foot={hasResults ? (projEnd !== null ? `Without scenario: ${baseEnd.toFixed(0)}` : `At week ${horizonWeeks}`) : 'Run the simulation first'}
+          foot={hasResults
+            ? projEnd !== null
+              ? `Baseline without scenario: ${baseEnd.toFixed(0)}`
+              : `Natural drift at week ${horizonWeeks} · ${customer.contract_type}`
+            : `${customer.plan_type} · ${customer.contract_type}`}
           delta={hasResults ? (shownChurn - customer.churn_score) : null}
         />
         <StatCell
-          label="Score Change"
-          primary={hasResults ? `${churnDelta > 0 ? '+' : '−'}${Math.abs(churnDelta).toFixed(1)}pp` : '—'}
-          foot={projEnd !== null ? 'Scenario vs no action' : 'Natural drift over forecast period'}
+          label="Risk Reduction"
+          primary={hasResults ? `${churnDelta > 0 ? '+' : '−'}${Math.abs(churnDelta).toFixed(1)} pts` : '—'}
+          foot={hasResults
+            ? projEnd !== null
+              ? `Score ${customer.churn_score.toFixed(0)} → ${shownChurn.toFixed(0)} with scenario`
+              : `Score ${customer.churn_score.toFixed(0)} → ${shownChurn.toFixed(0)} at week ${horizonWeeks}`
+            : `Current score: ${customer.churn_score.toFixed(0)} out of 100`}
         />
         <StatCell
           label="Revenue at Risk"
           primary={hasResults ? formatCurrency(revAtRisk) : '—'}
-          foot={`12-month estimate · MRR ${formatCurrency(customer.segment_rfm_context?.total_revenue?.customer ?? 0)}/mo`}
+          foot={`MRR ${formatCurrency(customer.segment_rfm_context?.total_revenue?.customer ?? 0)}/mo · ${customer.contract_type} · ${horizonWeeks}w window`}
         />
       </div>
 

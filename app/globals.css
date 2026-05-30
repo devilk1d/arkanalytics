@@ -1268,7 +1268,7 @@ h1, h2, h3, h4, h5, h6, .font-display {
 .page-cockpit .stat-value {
   font-family: var(--font-mono);
   font-size: 28px;
-  font-weight: 500;
+  font-weight: 700;
   letter-spacing: -0.025em;
   color: var(--t);
   line-height: 1;
