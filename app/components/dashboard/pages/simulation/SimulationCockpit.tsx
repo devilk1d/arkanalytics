@@ -133,7 +133,7 @@ function HistoryOverlay({
     <div className="cmdk-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="cmdk-panel" style={{ maxWidth: 540 }}>
         {/* Header */}
-        <div style={{ padding: '12px 18px 0' }} className="flex items-center gap-2.5 border-b border-[var(--b)] pb-0">
+        <div style={{ padding: '14px 18px 12px' }} className="flex items-center gap-2.5 border-b border-[var(--b)]">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent)', flexShrink: 0 }}>
             <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
           </svg>
@@ -751,7 +751,7 @@ export function SimulationCockpit(props: SimulationCockpitProps) {
       {cmdkMode && (
         <div className="cmdk-overlay" onClick={(e) => { if (e.target === e.currentTarget) onSetCmdkMode(null); }}>
           <div className="cmdk-panel">
-            <div style={{ padding: '12px 18px 0' }} className="flex items-center gap-2.5 border-b border-[var(--b)] pb-2">
+            <div style={{ padding: '14px 18px 12px' }} className="flex items-center gap-2.5 border-b border-[var(--b)]">
               <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--accent)]">
                 ⌘K · Switch customer
               </span>
@@ -773,7 +773,7 @@ export function SimulationCockpit(props: SimulationCockpitProps) {
             </div>
             <div className="cmdk-foot">
               <span><kbd>↵</kbd> Select · <kbd>Esc</kbd> Close</span>
-              <span className="text-[var(--t4)]">{customersList.length} customers · model v2.4.1</span>
+              <span className="text-[var(--t4)]">{customersList.length} customers </span>
             </div>
           </div>
         </div>
