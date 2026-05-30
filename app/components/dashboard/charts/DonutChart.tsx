@@ -69,7 +69,7 @@ const DonutChart = ({ data }: { data?: any[] }) => {
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-0">
             <span className="text-[9px] text-[var(--t4)] font-bold uppercase tracking-widest">Total</span>
             <span className="text-2xl font-black text-[var(--t)] leading-tight">
-              {total >= 1000 ? `${(total / 1000).toFixed(1)}k` : total.toLocaleString('en-US')}
+              {total.toLocaleString('en-US')}
             </span>
           </div>
         </div>

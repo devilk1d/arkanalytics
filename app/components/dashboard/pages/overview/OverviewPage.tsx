@@ -297,9 +297,9 @@ const OverviewPage = ({
 
               {hasSegments ? (
                 <div className="flex flex-col gap-3">
-                  {/* First row of 3 segments */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {segments.slice(0, 3).map((s: any, i: number) => {
+                  {/* First row of 2 segments */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {segments.slice(0, 2).map((s: any, i: number) => {
                       const displayName = normalizeSegmentLabel(s.name);
                       const colorSet = getFallbackPalette(displayName, s.cluster);
                       return (
@@ -312,7 +312,7 @@ const OverviewPage = ({
                             <div className="font-mono text-2xl font-black text-[var(--t)] tracking-tight">
                               {s.count.toLocaleString('en-US')}
                             </div>
-                            <div className="text-[10px] text-[var(--t3)] font-mono mt-1">
+                            <div className="text-[12px] text-[var(--t3)] font-mono mt-1">
                               {s.pct}% share · {s.pctHighRisk}% risk
                             </div>
                           </div>
@@ -320,7 +320,7 @@ const OverviewPage = ({
                             <div className="h-1 bg-[var(--bg3)] rounded-full overflow-hidden mb-3">
                               <div className="h-full rounded-full transition-all duration-500" style={{ width: `${s.pct}%`, backgroundColor: colorSet.hex }}></div>
                             </div>
-                            <div className="flex items-center justify-between text-[10px] pt-2 border-t border-[var(--b)] font-mono">
+                            <div className="flex items-center justify-between text-[12px] pt-2 border-t border-[var(--b)] font-mono">
                               <span className="text-[var(--t3)] uppercase tracking-wider">Avg MRR</span>
                               <span className="text-[var(--t)] font-bold">{s.avgMrr}</span>
                             </div>
@@ -330,10 +330,10 @@ const OverviewPage = ({
                     })}
                   </div>
                   
-                  {/* Second row of segments (if remaining) */}
-                  {segments.length > 3 && (
+                 {/* Second row of 2 segments */}
+                  {segments.length > 2 && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {segments.slice(3, 5).map((s: any, i: number) => {
+                      {segments.slice(2, 4).map((s: any, i: number) => {
                         const displayName = normalizeSegmentLabel(s.name);
                         const colorSet = getFallbackPalette(displayName, s.cluster);
                         return (
@@ -346,7 +346,7 @@ const OverviewPage = ({
                               <div className="font-mono text-2xl font-black text-[var(--t)] tracking-tight">
                                 {s.count.toLocaleString('en-US')}
                               </div>
-                              <div className="text-[10px] text-[var(--t3)] font-mono mt-1">
+                              <div className="text-[12px] text-[var(--t3)] font-mono mt-1">
                                 {s.pct}% share · {s.pctHighRisk}% risk
                               </div>
                             </div>
@@ -354,7 +354,7 @@ const OverviewPage = ({
                               <div className="h-1 bg-[var(--bg3)] rounded-full overflow-hidden mb-3">
                                 <div className="h-full rounded-full transition-all duration-500" style={{ width: `${s.pct}%`, backgroundColor: colorSet.hex }}></div>
                               </div>
-                              <div className="flex items-center justify-between text-[10px] pt-2 border-t border-[var(--b)] font-mono">
+                              <div className="flex items-center justify-between text-[12px] pt-2 border-t border-[var(--b)] font-mono">
                                 <span className="text-[var(--t3)] uppercase tracking-wider">Avg MRR</span>
                                 <span className="text-[var(--t)] font-bold">{s.avgMrr}</span>
                               </div>
