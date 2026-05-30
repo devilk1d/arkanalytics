@@ -54,6 +54,7 @@ export default function Navbar() {
   const [scrolled, setScrolled]           = useState(false);
   const [user, setUser]                   = useState<any>(null);
   const [invitations, setInvitations]     = useState<any[]>([]);
+  const [hasWorkspace, setHasWorkspace]   = useState(false);
   const [activeSection, setActiveSection] = useState('');
 
   const scrollToHero = () =>
@@ -62,12 +63,25 @@ export default function Navbar() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data }) => {
-      setUser(data.user);
-      if (data.user?.email) {
+      const u = data.user;
+      setUser(u);
+      if (!u) return;
+
+      // Check workspace membership
+      const { data: membership } = await supabase
+        .from('workspace_members')
+        .select('workspace_id')
+        .eq('user_id', u.id)
+        .limit(1)
+        .maybeSingle();
+      setHasWorkspace(!!membership);
+
+      // Pending invitations (only relevant when no workspace yet)
+      if (!membership && u.email) {
         const { data: invites } = await supabase
           .from('workspace_invitations')
           .select('id, token, workspaces(name)')
-          .eq('invited_email', data.user.email)
+          .eq('invited_email', u.email)
           .eq('status', 'pending');
         if (invites) setInvitations(invites);
       }
@@ -189,7 +203,23 @@ export default function Navbar() {
         {/* Auth section */}
         {user ? (
           <>
-            {invitations.length > 0 && (
+            {/* User has a workspace → Dashboard button */}
+            {hasWorkspace && (
+              <Link
+                href="/dashboard/overview"
+                className="text-[13px] font-medium px-4 py-2 rounded-lg transition-all duration-200 hover:opacity-87 hover:scale-[1.02] active:scale-95 flex items-center gap-2"
+                style={{ background: 'var(--t)', color: 'var(--inv-t)' }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                  <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                Dashboard
+              </Link>
+            )}
+
+            {/* Pending invitations (no workspace yet) */}
+            {!hasWorkspace && invitations.length > 0 && (
               <div className="relative group">
                 <button
                   className="relative px-3 py-2 text-[13px] font-medium flex items-center gap-2 rounded-lg transition-colors"
@@ -204,8 +234,8 @@ export default function Navbar() {
                   Invitations ({invitations.length})
                 </button>
                 <div
-                    className="absolute right-0 mt-2 w-64 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100]"
-                    style={{ background: 'var(--dropdown-bg)', border: '1px solid var(--dropdown-border)' }}
+                  className="absolute right-0 mt-2 w-64 rounded-2xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100]"
+                  style={{ background: 'var(--dropdown-bg)', border: '1px solid var(--dropdown-border)' }}
                 >
                   <div className="p-2 flex flex-col gap-1">
                     <div className="px-3 py-2 text-[10px] font-semibold tracking-wider uppercase" style={{ color: 'var(--t3)' }}>
@@ -226,6 +256,7 @@ export default function Navbar() {
               </div>
             )}
 
+            {/* Avatar + dropdown */}
             <div className="relative group">
               <button
                 className="w-9 h-9 rounded-full flex items-center justify-center border font-bold text-sm focus:outline-none"
@@ -244,9 +275,18 @@ export default function Navbar() {
                   <p className="px-3 pb-2 text-[11px] truncate" style={{ color: 'var(--dropdown-muted)', borderBottom: '1px solid var(--dropdown-border)' }}>
                     {user.email}
                   </p>
+                  {hasWorkspace && (
+                    <Link
+                      href="/dashboard/overview"
+                      className="w-full text-left mt-1 px-3 py-2 text-[13px] rounded-xl transition-colors block"
+                      style={{ color: 'var(--dropdown-text)' }}
+                    >
+                      Go to Dashboard
+                    </Link>
+                  )}
                   <button
                     onClick={handleSignOut}
-                    className="w-full text-left mt-1 px-3 py-2 text-[13px] rounded-xl transition-colors"
+                    className="w-full text-left px-3 py-2 text-[13px] rounded-xl transition-colors"
                     style={{ color: 'var(--dropdown-text)' }}
                   >
                     Sign Out
@@ -285,8 +325,8 @@ export default function Navbar() {
 
       </div>
 
-      {/* Marquee waiting bar */}
-      {user && invitations.length === 0 && (
+      {/* Marquee waiting bar — only for users without a workspace and no pending invites */}
+      {user && !hasWorkspace && invitations.length === 0 && (
         <div
           className="absolute top-full left-0 right-0 text-[10px] py-1.5 overflow-hidden flex whitespace-nowrap z-40"
           style={{
