@@ -56,13 +56,15 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
       // 1. Fetch exact total customers from segments table
       const { data: segmentData } = await supabase
         .from('segments')
-        .select('segment_label, total_customers')
+        .select('segment_label, segment_cluster, total_customers')
         .eq('dataset_id', datasetId);
-        
+
       const countsMap: Record<string, number> = {};
+      const clusterMap: Record<string, number> = {};
       if (segmentData) {
         segmentData.forEach((s: any) => {
           countsMap[s.segment_label] = s.total_customers;
+          clusterMap[normalizeSegmentLabel(s.segment_label)] = s.segment_cluster;
         });
       }
 
@@ -105,7 +107,7 @@ export default function ClusterChart({ segmentOrder, activeSegment }: { segmentO
         });
 
         const newClusters = segKeys.map(seg => {
-          const colorSet = getFallbackPalette(seg);
+          const colorSet = getFallbackPalette(seg, clusterMap[seg]);
           return {
             name: seg,
             color: colorSet.hex,

@@ -17,7 +17,8 @@ export interface SentimentProfile {
   urgency_score: number
   dominant_topic: string   // e.g. "Billing & Account"
   topic_strength: number
-  feedback_preview: string
+  feedback_preview?: string
+  feedback_texts?: string[]
 }
 
 export interface RfmMetric {

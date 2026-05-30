@@ -202,6 +202,7 @@ h1, h2, h3, h4, h5, h6, .font-display {
 /* ══════════════════════════════════════════
    KEYFRAMES
 ══════════════════════════════════════════ */
+@keyframes pulse       { 0%,100% { opacity:1 } 50% { opacity:0.4 } }
 @keyframes fadeInUp    { from { opacity:0; transform:translateY(24px) } to { opacity:1; transform:none } }
 @keyframes fadeIn      { from { opacity:0 } to { opacity:1 } }
 @keyframes scaleIn     { from { opacity:0; transform:scale(.96) } to { opacity:1; transform:scale(1) } }
@@ -631,7 +632,12 @@ h1, h2, h3, h4, h5, h6, .font-display {
   font-size: 13px;
   color: var(--t2);
   line-height: 1.55;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
+.page-cockpit .chat-msg-ai p { margin: 0; }
+.page-cockpit .chat-msg-ai p + p { margin-top: 2px; }
 
 .page-cockpit .scenario-input {
   display: flex;
@@ -827,7 +833,6 @@ h1, h2, h3, h4, h5, h6, .font-display {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
 }
 .page-cockpit .picker-search {
   flex: 1;
@@ -1117,12 +1122,12 @@ h1, h2, h3, h4, h5, h6, .font-display {
   flex-direction: column;
   gap: 12px;
   background: var(--bg1);
-  max-height: 560px;
   overflow-y: auto;
 }
 .page-cockpit .narrative-side-head {
   font-family: var(--font-mono);
   font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.14em;
   color: var(--accent);
@@ -1134,7 +1139,7 @@ h1, h2, h3, h4, h5, h6, .font-display {
 }
 .page-cockpit .narrative-side-quote {
   font-size: 12px;
-  color: var(--t3);
+  color: var(--t2);
   font-style: italic;
   letter-spacing: 0;
   text-transform: none;
@@ -1147,7 +1152,7 @@ h1, h2, h3, h4, h5, h6, .font-display {
 .page-cockpit .narrative-para {
   font-size: 12px;
   line-height: 1.75;
-  color: var(--t2);
+  color: var(--t);
   padding-bottom: 10px;
   margin-bottom: 2px;
   border-bottom: 1px dashed var(--b);
@@ -1254,9 +1259,10 @@ h1, h2, h3, h4, h5, h6, .font-display {
 .page-cockpit .stat-label {
   font-family: var(--font-mono);
   font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--t3);
+  letter-spacing: 0.1em;
+  color: var(--t2);
   margin-bottom: 10px;
 }
 .page-cockpit .stat-value {
@@ -1276,11 +1282,12 @@ h1, h2, h3, h4, h5, h6, .font-display {
 }
 .page-cockpit .stat-foot {
   font-size: 10px;
-  color: var(--t3);
+  font-weight: 600;
+  color: var(--t2);
   margin-top: 8px;
   font-family: var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
 }
 
 /* horizon strip */
@@ -1294,9 +1301,10 @@ h1, h2, h3, h4, h5, h6, .font-display {
 .page-cockpit .horizon-label {
   font-family: var(--font-mono);
   font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--t3);
+  letter-spacing: 0.1em;
+  color: var(--t2);
   margin-right: auto;
 }
 .page-cockpit .horizon-pills {
@@ -1341,6 +1349,9 @@ h1, h2, h3, h4, h5, h6, .font-display {
 .page-cockpit .chart-hero {
   padding: 24px 36px 28px;
   border-bottom: 1px solid var(--b);
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
 }
 .page-cockpit .chart-hero-head {
   display: flex;
@@ -1356,7 +1367,8 @@ h1, h2, h3, h4, h5, h6, .font-display {
 }
 .page-cockpit .chart-hero-sub {
   font-size: 11px;
-  color: var(--t3);
+  font-weight: 500;
+  color: var(--t2);
   font-family: var(--font-mono);
   margin-top: 4px;
   text-transform: uppercase;
@@ -1368,11 +1380,11 @@ h1, h2, h3, h4, h5, h6, .font-display {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.2fr) minmax(0, 1fr);
   border-bottom: 1px solid var(--b);
-  min-height: 460px;
+  /* no min-height — each col has its own fixed height */
 }
 @media (max-width: 1024px) {
   .page-cockpit .triple { grid-template-columns: 1fr; }
-  .page-cockpit .triple-col { border-right: none !important; border-bottom: 1px solid var(--b); }
+  .page-cockpit .triple-col { border-right: none !important; border-bottom: 1px solid var(--b); max-height: none !important; }
   .page-cockpit .triple-col:last-child { border-bottom: none; }
 }
 .page-cockpit .triple-col {
@@ -1382,15 +1394,19 @@ h1, h2, h3, h4, h5, h6, .font-display {
   flex-direction: column;
   gap: 18px;
   min-width: 0;
+  /* fixed height — inner sections own their own scroll */
+  height: 500px;
+  overflow: hidden;
 }
 .page-cockpit .triple-col:last-child { border-right: none; }
 
 .page-cockpit .triple-h {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  color: var(--t3);
+  letter-spacing: 0.1em;
+  color: var(--t);
   margin-bottom: 4px;
   display: flex;
   align-items: center;
@@ -1401,8 +1417,8 @@ h1, h2, h3, h4, h5, h6, .font-display {
 .page-cockpit .triple-h-num {
   font-family: var(--font-mono);
   font-size: 10px;
-  color: var(--t4);
-  font-weight: 600;
+  color: var(--t2);
+  font-weight: 700;
 }
 
 /* agent thread */
@@ -1438,13 +1454,14 @@ h1, h2, h3, h4, h5, h6, .font-display {
   font-family: var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--t3);
+  font-weight: 600;
+  color: var(--t2);
 }
-.page-cockpit .agent-msg-name { color: var(--t2); font-weight: 600; }
+.page-cockpit .agent-msg-name { color: var(--t); font-weight: 800; }
 .page-cockpit .agent-msg-body {
   font-size: 12px;
   line-height: 1.6;
-  color: var(--t2);
+  color: var(--t);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1481,12 +1498,13 @@ h1, h2, h3, h4, h5, h6, .font-display {
 .page-cockpit .playbook-num {
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--t3);
-  font-weight: 500;
+  color: var(--t2);
+  font-weight: 700;
 }
 .page-cockpit .playbook-text {
   font-size: 12px;
-  color: var(--t2);
+  font-weight: 500;
+  color: var(--t);
   line-height: 1.5;
   transition: color .12s;
   min-width: 0;
@@ -1495,6 +1513,8 @@ h1, h2, h3, h4, h5, h6, .font-display {
 .page-cockpit .playbook-item:disabled { opacity: 0.4; cursor: not-allowed; }
 .page-cockpit .playbook-item:disabled:hover .playbook-text { color: var(--t2); }
 .page-cockpit .playbook-item:disabled:hover .playbook-num { color: var(--t3); }
+.page-cockpit .playbook-item.used { opacity: 0.6; cursor: not-allowed; }
+.page-cockpit .playbook-item.used .playbook-num { color: var(--accent); font-size: 9px; letter-spacing: 0.05em; }
 
 /* playbook compare label */
 .page-cockpit .playbook-compare-label {

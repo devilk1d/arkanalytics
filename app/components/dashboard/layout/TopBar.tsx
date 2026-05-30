@@ -1,7 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useDashboardContext } from '../context/DashboardContext';
 import { useEffect, useState } from 'react';
 
@@ -81,12 +82,14 @@ interface TopBarProps {
 
 export default function TopBar({ page }: TopBarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { workspace, profile } = useDashboardContext();
 
   const workspaceName = workspace?.name || 'Workspace';
   const workspaceLogo = workspace?.logoUrl ?? null;
   const currentPage = page || getPageLabel(pathname);
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const customerId = searchParams.get('customer_id');
 
   return (
     <div
@@ -113,7 +116,25 @@ export default function TopBar({ page }: TopBarProps) {
         </svg>
 
         {/* Current page */}
-        <span className="text-[13px] font-semibold text-[var(--t)] truncate">{currentPage}</span>
+        {customerId && currentPage === 'Simulation' ? (
+          <Link href="/dashboard/simulation" className="text-[13px] font-semibold text-[var(--t3)] hover:text-[var(--t)] transition-colors truncate">
+            {currentPage}
+          </Link>
+        ) : (
+          <span className="text-[13px] font-semibold text-[var(--t)] truncate">{currentPage}</span>
+        )}
+
+        {customerId && currentPage === 'Simulation' && (
+          <>
+            {/* Separator */}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[var(--t4)] shrink-0">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+
+            {/* Simulated Customer ID */}
+            <span className="text-[13px] font-semibold text-[var(--t)] truncate">{customerId}</span>
+          </>
+        )}
       </div>
 
       {/* Right: actions */}

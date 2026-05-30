@@ -16,6 +16,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'customer_id and dataset_id required' }, { status: 400 })
   }
 
+  const force = req.nextUrl.searchParams.get('force') === 'true'
   const dedupeKey = `${datasetId}:${customerId}`
 
   // ── Jika ada request yang sedang berjalan untuk key yang sama → tunggu hasilnya
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Buat promise baru dan daftarkan sebelum await apapun ─────────────────
-  const requestPromise = handleRequest(req, customerId, datasetId)
+  const requestPromise = handleRequest(req, customerId, datasetId, force)
   inFlightRequests.set(dedupeKey, requestPromise)
 
   try {
@@ -43,11 +44,14 @@ async function handleRequest(
   req: NextRequest,
   customerId: string,
   datasetId: string,
+  force: boolean,
 ): Promise<NextResponse> {
   // ── Path A: DB sudah punya data lengkap termasuk XAI → instant return ─────
-  const existing = await getPrediction(datasetId, customerId)
-  if (existing && existing.xai_churn_explanation) {
-    return NextResponse.json(existing)
+  if (!force) {
+    const existing = await getPrediction(datasetId, customerId)
+    if (existing && existing.xai_churn_explanation) {
+      return NextResponse.json(existing)
+    }
   }
 
   // ── Path B/C: Perlu panggil Railway ───────────────────────────────────────

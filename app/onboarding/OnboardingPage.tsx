@@ -6,6 +6,7 @@ import HeroSection from '../components/onboarding/HeroSection';
 import StatsBanner from '../components/onboarding/StatsBanner';
 import ProblemsSection from '../components/onboarding/ProblemsSection';
 import FeaturesSection from '../components/onboarding/FeaturesSection';
+import SimulationSection from '../components/onboarding/SimulationSection';
 import ProcessSection from '../components/onboarding/ProcessSection';
 import TestimonialsSection from '../components/onboarding/TestimonialsSection';
 import CTASection from '../components/onboarding/CTASection';
@@ -24,6 +25,7 @@ export default function OnboardingPage() {
         <StatsBanner />
         <ProblemsSection />
         <FeaturesSection />
+        <SimulationSection />
         <ProcessSection />
         <TestimonialsSection />
         <CTASection />

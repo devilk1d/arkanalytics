@@ -274,7 +274,7 @@ export default async function Page() {
         // Segment query
         supabase
           .from('segments')
-          .select('segment_label, total_customers, avg_revenue, pct_high_risk')
+          .select('segment_label, segment_cluster, total_customers, avg_revenue, pct_high_risk')
           .eq('dataset_id', dataset.id)
           .order('avg_churn_score', { ascending: false })
       ]);
@@ -309,6 +309,7 @@ export default async function Page() {
         const totalSeg = segRows.reduce((s: number, r: any) => s + (r.total_customers || 0), 0);
         segmentData = segRows.map((r: any) => ({
           name: r.segment_label,
+          cluster: r.segment_cluster,
           count: r.total_customers || 0,
           pct: totalSeg > 0 ? parseFloat(((r.total_customers / totalSeg) * 100).toFixed(1)) : 0,
           avgMrr: `$${Math.round(r.avg_revenue || 0).toLocaleString('en-US')}`,

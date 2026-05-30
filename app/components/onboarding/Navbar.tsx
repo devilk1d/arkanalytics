@@ -76,15 +76,25 @@ export default function Navbar() {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener('scroll', onScroll);
 
-    const obs = new IntersectionObserver(
-      (entries) => entries.forEach((e) => { if (e.isIntersecting) setActiveSection(e.target.id); }),
-      { rootMargin: '-30% 0px -30% 0px' }
-    );
-    ['hero', 'problems', 'features', 'process', 'testimonials'].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) obs.observe(el);
-    });
-    return () => { window.removeEventListener('scroll', onScroll); obs.disconnect(); };
+    const ids = ['hero', 'problems', 'features', 'simulation', 'process', 'testimonials'];
+
+    const onSectionScroll = () => {
+      const mid = window.innerHeight * 0.4;
+      let current = '';
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        if (el.getBoundingClientRect().top <= mid) current = id;
+      }
+      setActiveSection(current);
+    };
+    window.addEventListener('scroll', onSectionScroll, { passive: true });
+    onSectionScroll();
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('scroll', onSectionScroll);
+    };
   }, []);
 
   const handleSignOut = async () => {
@@ -131,7 +141,7 @@ export default function Navbar() {
 
       {/* Nav links */}
       <div className="hidden md:flex items-center gap-1">
-        {['Problems', 'Features', 'Process', 'Testimonials'].map((item) => {
+        {['Problems', 'Features', 'Simulation', 'Process', 'Testimonials'].map((item) => {
           const id     = item.toLowerCase();
           const active = activeSection === id;
           return (

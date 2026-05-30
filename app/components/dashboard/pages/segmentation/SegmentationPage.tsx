@@ -85,37 +85,36 @@ export function getSegmentIcon(label: string, colorClass: string) {
   );
 }
 
-export function getSegmentColorway(label: string) {
-  const lower = label.toLowerCase();
-  
-  if (lower.includes('risk') || lower.includes('churn') || lower.includes('danger') || lower.includes('leave') || lower.includes('unhappy') || lower.includes('dissatisfied') || lower.includes('poor') || lower.includes('bad') || lower.includes('low') || lower.includes('critical') || lower.includes('warning') || lower.includes('at-risk') || lower.includes('lost') || lower.includes('attrition')) {
-    return PALETTE[0]; // Red
-  }
-  if (lower.includes('satisfied') || lower.includes('best') || lower.includes('active')) {
-    return PALETTE[3]; // Emerald
-  }
-  if (lower.includes('champion') || lower.includes('enterprise') || lower.includes('anchor') || lower.includes('flagship') || lower.includes('key account')) {
-    return PALETTE[2]; // Purple — premium/enterprise tier
-  }
-  if (lower.includes('new') || lower.includes('adopter') || lower.includes('recent') || lower.includes('starter')) {
-    return PALETTE[1]; // Blue
-  }
-  if (lower.includes('value') || lower.includes('high') || lower.includes('premium') || lower.includes('whale') || lower.includes('tier') || lower.includes('big') || lower.includes('loyal')) {
-    return PALETTE[3]; // Emerald
-  }
-  if (lower.includes('potential') || lower.includes('bill') || lower.includes('price') || lower.includes('cost') || lower.includes('usage') || lower.includes('intensive') || lower.includes('budget')) {
-    return PALETTE[4]; // Amber
-  }
-  if (lower.includes('interest') || lower.includes('lead') || lower.includes('promising')) {
-    return PALETTE[5]; // Cyan
-  }
-
+/**
+ * Segment color assignment — always by label keyword, never by cluster index.
+ *
+ * WHY: k-means cluster numbers are arbitrary. The model might assign cluster 0
+ * to any segment depending on initialization. Hardcoding cluster→color breaks
+ * whenever the model is retrained. Label keywords are stable across model versions.
+ *
+ * Ground truth (verified from actual model output):
+ *   At-Risk Actives   → amber  (PALETTE[4])
+ *   Disengaged Payers → purple (PALETTE[2])
+ *   Loyal Champions   → blue   (PALETTE[1])
+ *   High-Value At-Risk→ red    (PALETTE[0])
+ */
+export function getSegmentColorway(label: string, _cluster?: number): typeof PALETTE[number] {
+  const l = label.toLowerCase();
+  // Priority order matters for overlapping keywords
+  if ((l.includes('high') && l.includes('value')) || l === 'churned') return PALETTE[0]; // red
+  if (l.includes('loyal') || l.includes('champion') || l === 'retained') return PALETTE[1]; // blue
+  if (l.includes('disengage') || l.includes('payer') || l.includes('dormant')) return PALETTE[2]; // purple
+  if (l.includes('at-risk') || l.includes('at risk') || l.includes('active') ||
+      (l.includes('risk') && !l.includes('high'))) return PALETTE[4]; // amber
+  if (l.includes('new') || l.includes('potential') || l.includes('prospect')) return PALETTE[3]; // emerald
+  if (l.includes('high') && l.includes('risk')) return PALETTE[0]; // red for "High Risk"
+  // Stable hash fallback for unknown labels
   let hash = 0;
   for (let i = 0; i < label.length; i++) hash = label.charCodeAt(i) + ((hash << 5) - hash);
   return PALETTE[Math.abs(hash) % PALETTE.length];
 }
 
-export function getFallbackPalette(label: string) {
+export function getFallbackPalette(label: string, _cluster?: number): typeof PALETTE[number] {
   return getSegmentColorway(label);
 }
 
@@ -209,7 +208,7 @@ const SegmentationPageContent = memo(() => {
 
       const stats = segData.map((s: any) => {
         const displayLabel = normalizeSegmentLabel(s.segment_label);
-        const colorSet = getSegmentColorway(displayLabel);
+        const colorSet = getSegmentColorway(displayLabel, s.segment_cluster);
         const share = totalCustomersAll > 0 ? parseFloat(((s.total_customers / totalCustomersAll) * 100).toFixed(1)) : 0;
 
         const xai = s.xai_cohort;

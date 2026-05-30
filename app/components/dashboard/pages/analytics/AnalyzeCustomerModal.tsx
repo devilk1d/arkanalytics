@@ -13,7 +13,7 @@ interface ChurnXai {
   score_reason: string;
   risk_factors: string[];
   feedback_signal: string;
-  action: { retain: string; offer: string; reason: string; };
+  action: { retain: string[]; offer: string[]; reason: string; };
   error?: string;
   detail?: string;
 }
@@ -97,13 +97,13 @@ function XaiPanel({ raw, onRetry, isRetrying = false }: { raw: string | null; on
       </div>
 
       <div className="border-l-2 border-blue-500/50 pl-3 py-0.5">
-        <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-wide mb-1">Mengapa Score Ini?</p>
+        <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-wide mb-1">Why This Score?</p>
         <p className="text-xs text-[var(--t)] leading-relaxed">{xai!.score_reason}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-[var(--r)]/10 border border-[var(--r)]/20 rounded-xl p-3">
-          <p className="text-[10px] font-semibold text-[var(--r)] uppercase tracking-wide mb-2">Faktor Risiko Utama</p>
+          <p className="text-[10px] font-semibold text-[var(--r)] uppercase tracking-wide mb-2">Main Risk Factors</p>
           <div className="flex flex-col gap-1.5">
             {xai!.risk_factors?.map((f, i) => (
               <div key={i} className="flex items-start gap-1.5">
@@ -114,25 +114,39 @@ function XaiPanel({ raw, onRetry, isRetrying = false }: { raw: string | null; on
           </div>
         </div>
         <div className="bg-[var(--bg2)] border border-[var(--b)] rounded-xl p-3">
-          <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-wide mb-2">Sinyal Feedback</p>
+          <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-wide mb-2">Feedback Signal</p>
           <p className="text-[11px] text-[var(--t)] leading-relaxed">{xai!.feedback_signal}</p>
         </div>
       </div>
 
       {xai!.action && (
         <div className="border border-[var(--b)] rounded-xl p-3">
-          <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-wide mb-2">Rekomendasi Tindakan</p>
+          <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-wide mb-2">Recommendation Actions</p>
           <div className="grid grid-cols-2 gap-3 mb-2">
             <div>
-              <p className="text-[10px] text-[var(--t3)] mb-1">Retensi</p>
-              <div className="inline-block text-[11px] font-bold bg-[var(--t)] text-[var(--bg1)] px-4 py-2.5 rounded-xl leading-tight">
-                {xai!.action.retain}
+              <p className="text-[10px] text-[var(--t3)] mb-1">Retention</p>
+              <div className="text-[11px] font-bold bg-[var(--t)] text-[var(--bg1)] px-4 py-2.5 rounded-xl leading-tight">
+                <ul className="space-y-1">
+                  {(Array.isArray(xai!.action.retain) ? xai!.action.retain : [xai!.action.retain]).map((item, i) => (
+                    <li key={i} className="flex gap-1.5">
+                      <span className="shrink-0">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
             <div>
-              <p className="text-[10px] text-[var(--t3)] mb-1">Penawaran</p>
-              <div className="inline-block text-[11px] font-semibold bg-[var(--bg2)] text-[var(--t)] px-4 py-2.5 rounded-xl leading-tight border border-[var(--b)]">
-                {xai!.action.offer}
+              <p className="text-[10px] text-[var(--t3)] mb-1">Offer</p>
+              <div className="text-[11px] font-semibold bg-[var(--bg2)] text-[var(--t)] px-4 py-2.5 rounded-xl leading-tight border border-[var(--b)]">
+                <ul className="space-y-1">
+                  {(Array.isArray(xai!.action.offer) ? xai!.action.offer : [xai!.action.offer]).map((item, i) => (
+                    <li key={i} className="flex gap-1.5">
+                      <span className="shrink-0">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           </div>
@@ -356,7 +370,7 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
       if (!form) return;
       setLoadingStage('predicting');
       const xaiRes = await window.fetch(
-        `/api/predict-single?customer_id=${encodeURIComponent(customerId)}&dataset_id=${datasetId}`,
+        `/api/predict-single?customer_id=${encodeURIComponent(customerId)}&dataset_id=${datasetId}&force=true`,
         { method: 'POST', body: form }
       );
       if (xaiRes.ok) setData(await xaiRes.json() as CustomerPrediction);
@@ -496,7 +510,26 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
                   </div>
                 </div>
               ) : (
-                <XaiPanel raw={data.xai_churn_explanation ?? null} onRetry={handleManualXaiRetry} isRetrying={xaiGenerating} />
+                <>
+                  <XaiPanel raw={data.xai_churn_explanation ?? null} onRetry={handleManualXaiRetry} isRetrying={xaiGenerating} />
+                  {data.xai_churn_explanation && (
+                    <div className="flex justify-end mb-2 -mt-1">
+                      <button
+                        onClick={handleManualXaiRetry}
+                        disabled={xaiGenerating}
+                        className="flex items-center gap-1.5 text-[10px] font-semibold text-[var(--t3)] hover:text-[var(--t)] disabled:opacity-50 transition-colors px-2 py-1 rounded-lg hover:bg-[var(--bg3)]"
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                          <path d="M21 3v5h-5" />
+                          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                          <path d="M8 16H3v5" />
+                        </svg>
+                        Regenerate
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
 
               <div className="border-t border-[var(--b)] my-5" />
@@ -538,7 +571,7 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
                         <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-wide">No Feedback Available</p>
                       </div>
                       <p className="text-xs text-[var(--t2)] leading-relaxed">
-                        Customer ini belum pernah mengisi NPS survey. Rekomendasi AI tetap tersedia berdasarkan data tabular (SHAP, RFM, billing).
+                        This Customer does not have NPS survey feedback.
                       </p>
                     </div>
                   ) : (
@@ -574,15 +607,18 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
                         ))}
                       </div>
 
-                      {/* Feedback preview — always render if feedback_preview is a non-empty string */}
-                      {typeof data.sentiment.feedback_preview === 'string' &&
-                        data.sentiment.feedback_preview.trim() !== '' &&
-                        data.sentiment.feedback_preview !== '0' && (
+                      {/* Feedback preview from feedback_texts array */}
+                      {Array.isArray(data.sentiment.feedback_texts) &&
+                        data.sentiment.feedback_texts.length > 0 && (
                           <div className="border border-[var(--b)] rounded-xl p-3 bg-[var(--bg2)]">
                             <p className="text-[10px] text-[var(--t3)] mb-1.5">Customer Feedback</p>
-                            <p className="text-xs text-[var(--t2)] leading-relaxed italic">
-                              &ldquo;{data.sentiment.feedback_preview}&rdquo;
-                            </p>
+                            <div className="flex flex-col gap-2">
+                              {data.sentiment.feedback_texts.slice(0, 3).map((text: string, i: number) => (
+                                <p key={i} className="text-xs text-[var(--t2)] leading-relaxed italic">
+                                  &ldquo;{text}&rdquo;
+                                </p>
+                              ))}
+                            </div>
                           </div>
                         )}
                     </>

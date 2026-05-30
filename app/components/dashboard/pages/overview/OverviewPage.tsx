@@ -301,7 +301,7 @@ const OverviewPage = ({
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     {segments.slice(0, 3).map((s: any, i: number) => {
                       const displayName = normalizeSegmentLabel(s.name);
-                      const colorSet = getFallbackPalette(displayName);
+                      const colorSet = getFallbackPalette(displayName, s.cluster);
                       return (
                         <div key={i} className="border border-[var(--b)] rounded-xl p-4 flex flex-col justify-between min-h-[140px] bg-[var(--bg1)]">
                           <div>
@@ -335,7 +335,7 @@ const OverviewPage = ({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {segments.slice(3, 5).map((s: any, i: number) => {
                         const displayName = normalizeSegmentLabel(s.name);
-                        const colorSet = getFallbackPalette(displayName);
+                        const colorSet = getFallbackPalette(displayName, s.cluster);
                         return (
                           <div key={i} className="border border-[var(--b)] rounded-xl p-4 flex flex-col justify-between min-h-[140px] bg-[var(--bg1)]">
                             <div>
