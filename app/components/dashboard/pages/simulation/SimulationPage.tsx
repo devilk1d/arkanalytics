@@ -43,9 +43,14 @@ function SimulationPageInner() {
   // ── Client-side Customer List ──────────────────────────────────────────────
   const [customersList, setCustomersList] = useState<PredictionRow[]>([]);
   const [listLoading, setListLoading] = useState(false);
+  // Tracks whether the customer list fetch has completed at least once for the current datasetId.
+  // Without this, the first render (listLoading=false, list=[]) incorrectly shows CustomerPickerView
+  // instead of the loading screen when a customer_id is already set in the URL.
+  const customersFetched = useRef(false);
   useEffect(() => {
     if (!datasetId) return;
     setListLoading(true);
+    customersFetched.current = false;
     async function fetchAllPredictions() {
       let allData: PredictionRow[] = [];
       let pageIndex = 0;
@@ -63,6 +68,7 @@ function SimulationPageInner() {
         } else { hasMore = false; }
       }
       setCustomersList(allData);
+      customersFetched.current = true;
       setListLoading(false);
     }
     fetchAllPredictions();
@@ -458,7 +464,7 @@ function SimulationPageInner() {
   };
 
   // ═══ EMPTY / WELCOME STATE ════════════════════════════════════════════════
-  if (selectedId && listLoading) {
+  if (selectedId && (listLoading || !customersFetched.current)) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-3.5rem)] text-[var(--t3)] font-mono text-xs uppercase tracking-[0.15em] gap-3">
         <span className="dot-pulse" />
