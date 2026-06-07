@@ -298,15 +298,29 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
             if (abort.signal.aborted || !form) { setXaiGenerating(false); return; }
 
             setLoadingStage('predicting');
-            const xaiRes = await window.fetch(
-              `/api/predict-single?customer_id=${encodeURIComponent(customerId)}&dataset_id=${datasetId}`,
-              { method: 'POST', body: form, signal: abort.signal }
-            );
-            if (!abort.signal.aborted && xaiRes.ok) {
-              const updated = await xaiRes.json();
-              setData(updated as CustomerPrediction);
+            try {
+              const xaiRes = await window.fetch(
+                `/api/predict-single?customer_id=${encodeURIComponent(customerId)}&dataset_id=${datasetId}`,
+                { method: 'POST', body: form, signal: abort.signal }
+              );
+              if (!abort.signal.aborted) {
+                if (xaiRes.ok) {
+                  const updated = await xaiRes.json();
+                  setData(updated as CustomerPrediction);
+                } else {
+                  // Railway returned error — show it via XaiPanel so user can retry
+                  const errBody = await xaiRes.json().catch(() => ({})) as Record<string, unknown>;
+                  const errMsg = (errBody?.error ?? errBody?.detail ?? `AI generation failed (HTTP ${xaiRes.status})`) as string;
+                  setData(prev => prev ? { ...prev, xai_churn_explanation: JSON.stringify({ error: errMsg }) } as CustomerPrediction : prev);
+                }
+              }
+            } catch (fetchErr: unknown) {
+              if ((fetchErr as Error)?.name !== 'AbortError') {
+                setData(prev => prev ? { ...prev, xai_churn_explanation: JSON.stringify({ error: 'Connection error — could not reach the model service.' }) } as CustomerPrediction : prev);
+              }
+            } finally {
+              setXaiGenerating(false);
             }
-            setXaiGenerating(false);
           }
           return;
         }
@@ -373,9 +387,16 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
         `/api/predict-single?customer_id=${encodeURIComponent(customerId)}&dataset_id=${datasetId}&force=true`,
         { method: 'POST', body: form }
       );
-      if (xaiRes.ok) setData(await xaiRes.json() as CustomerPrediction);
+      if (xaiRes.ok) {
+        setData(await xaiRes.json() as CustomerPrediction);
+      } else {
+        const errBody = await xaiRes.json().catch(() => ({})) as Record<string, unknown>;
+        const errMsg = (errBody?.error ?? errBody?.detail ?? `Retry failed (HTTP ${xaiRes.status})`) as string;
+        setData(prev => prev ? { ...prev, xai_churn_explanation: JSON.stringify({ error: errMsg }) } as CustomerPrediction : prev);
+      }
     } catch (err) {
       console.error('XAI Retry Error:', err);
+      setData(prev => prev ? { ...prev, xai_churn_explanation: JSON.stringify({ error: 'Connection error — could not reach the model service.' }) } as CustomerPrediction : prev);
     } finally {
       setXaiGenerating(false);
     }
