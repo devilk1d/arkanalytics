@@ -1,6 +1,6 @@
 import SegmentationPage from "../../components/dashboard/pages/segmentation/SegmentationPage";
 
-export const metadata = { title: "Customer Segmentation | Arkanalytics" };
+export const metadata = { title: "Customer Segmentation" };
 
 export default function Page() {
   return <SegmentationPage />;

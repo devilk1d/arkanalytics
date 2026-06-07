@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import ReportsPage from "../../components/dashboard/pages/reports/ReportsPage";
 
-export const metadata = { title: "Reports | Arkanalytics" };
+export const metadata = { title: "Reports" };
 
 export default async function Page() {
   const supabase = await createClient();
