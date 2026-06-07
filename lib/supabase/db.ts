@@ -3,6 +3,7 @@
 // Digunakan di API routes (server-side only)
 
 import { createClient } from './server'
+import { createAdminClient } from './admin'
 import { CustomerPrediction } from '@/types/churn'
 
 // ── Datasets ──────────────────────────────────────────────────────────────────
@@ -23,7 +24,7 @@ export async function updateDatasetStatus(
     status: 'pending' | 'analyzing' | 'done' | 'error',
     extra?: { total_customers?: number; churn_rate_pct?: number; error_message?: string }
 ) {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
     const { error } = await supabase
         .from('datasets')
         .update({ status, analyzed_at: status === 'done' ? new Date().toISOString() : null, ...extra })
@@ -49,7 +50,7 @@ export async function getDatasets(userId: string) {
  * Gunakan upsert agar aman jika di-run ulang.
  */
 export async function savePredictions(datasetId: string, predictions: CustomerPrediction[]) {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // Cast ke unknown agar bisa akses field v2.3 yang belum ada di type CustomerPrediction
     const rows = (predictions as unknown as Record<string, unknown>[]).map(p => ({
@@ -76,10 +77,13 @@ export async function savePredictions(datasetId: string, predictions: CustomerPr
         xai_segment_explanation: (p.xai_segment_explanation as string | null) ?? null,
     }))
 
-    const { error } = await supabase
-        .from('predictions')
-        .upsert(rows, { onConflict: 'dataset_id,customer_id' })
-    if (error) throw error
+    const CHUNK = 250
+    for (let i = 0; i < rows.length; i += CHUNK) {
+        const { error } = await supabase
+            .from('predictions')
+            .upsert(rows.slice(i, i + CHUNK), { onConflict: 'dataset_id,customer_id' })
+        if (error) throw error
+    }
 }
 
 /**
@@ -123,7 +127,7 @@ export async function updateXaiNarrative(
     xaiChurn: string,
     xaiSegment: string
 ) {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
     const { error } = await supabase
         .from('predictions')
         .update({ xai_churn_explanation: xaiChurn, xai_segment_explanation: xaiSegment })
@@ -139,7 +143,7 @@ export async function saveSegments(
     predictions: CustomerPrediction[],
     cohortXai?: Record<string, unknown>
 ) {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     // Aggregate per segment dari predictions
     const segmentMap: Record<string, {
@@ -196,7 +200,7 @@ export async function updateSegmentCohortXai(
     segmentLabel: string,
     xaiCohort: unknown
 ) {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
     const { error } = await supabase
         .from('segments')
         .update({ xai_cohort: xaiCohort, xai_cohort_generated_at: new Date().toISOString() })
