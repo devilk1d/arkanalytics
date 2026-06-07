@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import OverviewPage from "../../components/dashboard/pages/overview/OverviewPage";
 
-export const metadata = { title: "Dashboard Overview | Arkanalytics" };
+export const metadata = { title: "Dashboard Overview" };
 
 // ── CSV parser (unchanged) ────────────────────────────────────────────────────
 function parseSimpleCSV(text: string): Record<string, string>[] {

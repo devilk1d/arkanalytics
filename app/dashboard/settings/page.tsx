@@ -1,6 +1,6 @@
 import SettingsPage from "../../components/dashboard/pages/settings/SettingsPage";
 
-export const metadata = { title: "Settings | Arkanalytics" };
+export const metadata = { title: "Settings" };
 
 export default function Page() {
   return <SettingsPage />;
