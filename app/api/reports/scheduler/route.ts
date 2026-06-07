@@ -272,32 +272,244 @@ export async function POST(req: NextRequest) {
                         try {
                             const resendInstance = new Resend(apiKey);
                             const resendOutput = await resendInstance.emails.send({
-                                from: 'Arkanalytics Reports <onboarding@resend.dev>',
+                                from: 'Arkanalytics Reports <noreply@arkanalytics.site>',
                                 to: schedule.recipients,
                                 subject: `[Arkanalytics] Scheduled Report: ${schedule.name}`,
                                 html: `
-                                    <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; color: #111;">
-                                        <h2 style="color: #000;">Arkanalytics Automated Report</h2>
-                                        <p>Hello,</p>
-                                        <p>Your scheduled report <strong>"${schedule.name}"</strong> has been successfully generated.</p>
-                                        <table style="width: 100%; margin: 20px 0; border-collapse: collapse;">
-                                            <tr style="border-bottom: 1px solid #eee;">
-                                                <td style="padding: 8px 0; color: #666;">Category:</td>
-                                                <td style="padding: 8px 0; font-weight: bold; text-transform: uppercase;">${schedule.report_category}</td>
+                                    <!DOCTYPE html>
+                                    <html lang="en">
+                                    <head>
+                                    <meta charset="UTF-8" />
+                                    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+                                    <title>Automated Report</title>
+                                    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet" />
+                                    </head>
+                                    <body style="margin:0;padding:0;background-color:#f5f5f3;">
+
+                                    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f3;padding:40px 16px;">
+                                        <tr>
+                                        <td align="center">
+                                            <table width="100%" cellpadding="0" cellspacing="0"
+                                            style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e8e8e5;">
+
+                                            <!-- ── HEADER ── -->
+                                            <tr>
+                                                <td style="padding:24px 32px;border-bottom:1px solid #e8e8e5;">
+                                                <table width="100%" cellpadding="0" cellspacing="0">
+                                                    <tr>
+                                                    <td style="vertical-align:middle;">
+                                                        <table cellpadding="0" cellspacing="0">
+                                                        <tr>
+                                                            <td style="vertical-align:middle;padding-right:10px;">
+                                                            <img
+                                                                src="https://jplrvebvjugbmnhapwpo.supabase.co/storage/v1/object/public/files/logo_arka_hitam.png"
+                                                                alt="Arkanalytics"
+                                                                height="28"
+                                                                style="display:block;"
+                                                            />
+                                                            </td>
+                                                            <td style="vertical-align:middle;">
+                                                            <span style="font-family:'Space Grotesk',Arial,sans-serif;font-size:17px;font-weight:700;color:#111111;letter-spacing:-0.3px;">Arkanalytics</span>
+                                                            </td>
+                                                        </tr>
+                                                        </table>
+                                                    </td>
+
+                                                    <td align="right" style="vertical-align:middle;">
+                                                        <div style="width:38px;height:38px;border:1px solid #e0e0dc;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;">
+                                                        <!-- Report / file icon -->
+                                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                                                            stroke="#333333" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                                                            <polyline points="14 2 14 8 20 8"/>
+                                                            <line x1="16" y1="13" x2="8" y2="13"/>
+                                                            <line x1="16" y1="17" x2="8" y2="17"/>
+                                                            <polyline points="10 9 9 9 8 9"/>
+                                                        </svg>
+                                                        </div>
+                                                    </td>
+                                                    </tr>
+                                                </table>
+                                                </td>
                                             </tr>
-                                            <tr style="border-bottom: 1px solid #eee;">
-                                                <td style="padding: 8px 0; color: #666;">Target Segment:</td>
-                                                <td style="padding: 8px 0; font-weight: bold;">${schedule.include_segments}</td>
+
+                                            <!-- ── BODY ── -->
+                                            <tr>
+                                                <td style="padding:40px 32px 0 32px;">
+
+                                                <p style="font-family:'Inter',Arial,sans-serif;font-size:14px;color:#888888;margin:0 0 8px;font-weight:500;letter-spacing:0.1px;">
+                                                    Hello,
+                                                </p>
+
+                                                <h1 style="font-family:'Space Grotesk',Arial,sans-serif;margin:0 0 20px;font-size:36px;font-weight:800;line-height:1.15;color:#111111;letter-spacing:-0.5px;">
+                                                    Automated<br/>Report Ready
+                                                </h1>
+
+                                                <p style="font-family:'Inter',Arial,sans-serif;margin:0 0 28px;font-size:16px;color:#444444;line-height:1.6;">
+                                                    Your scheduled report <strong>${schedule.name}</strong> has been successfully generated and is ready for review.
+                                                </p>
+
+                                                <!-- ── Report Detail Cards ── -->
+                                                <table width="100%" cellpadding="0" cellspacing="0"
+                                                    style="border:1px solid #e8e8e5;border-radius:10px;margin-bottom:28px;">
+
+                                                    <!-- Category -->
+                                                    <tr>
+                                                    <td style="padding:14px 20px;border-bottom:1px solid #e8e8e5;">
+                                                        <table width="100%" cellpadding="0" cellspacing="0">
+                                                        <tr>
+                                                            <td style="vertical-align:middle;">
+                                                            <p style="font-family:'Inter',Arial,sans-serif;margin:0 0 3px;font-size:11px;font-weight:500;color:#999999;text-transform:uppercase;letter-spacing:0.5px;">Category</p>
+                                                            <p style="font-family:'Space Grotesk',Arial,sans-serif;margin:0;font-size:14px;font-weight:700;color:#111111;text-transform:uppercase;">${schedule.report_category}</p>
+                                                            </td>
+                                                            <td align="right" style="vertical-align:middle;">
+                                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#cccccc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                                                                <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+                                                            </svg>
+                                                            </td>
+                                                        </tr>
+                                                        </table>
+                                                    </td>
+                                                    </tr>
+
+                                                    <!-- Target Segment -->
+                                                    <tr>
+                                                    <td style="padding:14px 20px;border-bottom:1px solid #e8e8e5;">
+                                                        <table width="100%" cellpadding="0" cellspacing="0">
+                                                        <tr>
+                                                            <td style="vertical-align:middle;">
+                                                            <p style="font-family:'Inter',Arial,sans-serif;margin:0 0 3px;font-size:11px;font-weight:500;color:#999999;text-transform:uppercase;letter-spacing:0.5px;">Target Segment</p>
+                                                            <p style="font-family:'Space Grotesk',Arial,sans-serif;margin:0;font-size:14px;font-weight:700;color:#111111;">${schedule.include_segments}</p>
+                                                            </td>
+                                                            <td align="right" style="vertical-align:middle;">
+                                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#cccccc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                                                                <circle cx="9" cy="7" r="4"/>
+                                                                <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                                                                <path d="M16 3.13a4 4 0 010 7.75"/>
+                                                            </svg>
+                                                            </td>
+                                                        </tr>
+                                                        </table>
+                                                    </td>
+                                                    </tr>
+
+                                                    <!-- Format -->
+                                                    <tr>
+                                                    <td style="padding:14px 20px;">
+                                                        <table width="100%" cellpadding="0" cellspacing="0">
+                                                        <tr>
+                                                            <td style="vertical-align:middle;">
+                                                            <p style="font-family:'Inter',Arial,sans-serif;margin:0 0 3px;font-size:11px;font-weight:500;color:#999999;text-transform:uppercase;letter-spacing:0.5px;">Format</p>
+                                                            <p style="font-family:'Space Grotesk',Arial,sans-serif;margin:0;font-size:14px;font-weight:700;color:#111111;text-transform:uppercase;">${schedule.export_type}</p>
+                                                            </td>
+                                                            <td align="right" style="vertical-align:middle;">
+                                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#cccccc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                                                                <polyline points="14 2 14 8 20 8"/>
+                                                            </svg>
+                                                            </td>
+                                                        </tr>
+                                                        </table>
+                                                    </td>
+                                                    </tr>
+
+                                                </table>
+
+                                                <!-- ── Attachment notice ── -->
+                                                <table width="100%" cellpadding="0" cellspacing="0"
+                                                    style="border:1px solid #e8e8e5;border-radius:10px;margin-bottom:32px;">
+                                                    <tr>
+                                                    <td style="padding:16px 20px;">
+                                                        <table cellpadding="0" cellspacing="0">
+                                                        <tr>
+                                                            <td style="vertical-align:top;padding-right:14px;width:36px;">
+                                                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                                                                stroke="#333333" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+                                                            </svg>
+                                                            </td>
+                                                            <td>
+                                                            <p style="font-family:'Space Grotesk',Arial,sans-serif;margin:0 0 4px;font-size:14px;font-weight:700;color:#111111;">Report attached to this email</p>
+                                                            <p style="font-family:'Inter',Arial,sans-serif;margin:0;font-size:13px;color:#666666;line-height:1.5;">You can also view historical exports directly within your Arkanalytics workspace dashboard.</p>
+                                                            </td>
+                                                        </tr>
+                                                        </table>
+                                                    </td>
+                                                    </tr>
+                                                </table>
+
+                                                </td>
                                             </tr>
-                                            <tr style="border-bottom: 1px solid #eee;">
-                                                <td style="padding: 8px 0; color: #666;">Format:</td>
-                                                <td style="padding: 8px 0; font-weight: bold; text-transform: uppercase;">${schedule.export_type}</td>
+
+                                            <!-- ── DIVIDER ── -->
+                                            <tr>
+                                                <td style="padding:0 32px;">
+                                                <hr style="border:none;border-top:1px solid #e8e8e5;margin:0;" />
+                                                </td>
                                             </tr>
-                                        </table>
-                                        <p style="margin-top: 20px; font-size: 13px; color: #888;">
-                                            The document is attached to this email. You can also view historical exports directly within your Arkanalytics workspace dashboard.
-                                        </p>
-                                    </div>
+
+                                            <!-- ── HELP SECTION ── -->
+                                            <tr>
+                                                <td style="padding:24px 32px;">
+                                                <table cellpadding="0" cellspacing="0">
+                                                    <tr>
+                                                    <td style="vertical-align:top;padding-right:14px;">
+                                                        <div style="width:30px;height:30px;border:1.5px solid #999999;border-radius:50%;text-align:center;line-height:28px;font-size:14px;color:#666666;font-family:'Inter',Arial,sans-serif;">?</div>
+                                                    </td>
+                                                    <td style="vertical-align:top;">
+                                                        <p style="font-family:'Space Grotesk',Arial,sans-serif;margin:0 0 4px;font-size:14px;font-weight:700;color:#111111;">Need help?</p>
+                                                        <p style="font-family:'Inter',Arial,sans-serif;margin:0;font-size:13px;color:#666666;line-height:1.5;">If you weren't expecting this report or have questions, you can manage your schedules from your Arkanalytics dashboard.</p>
+                                                    </td>
+                                                    </tr>
+                                                </table>
+                                                </td>
+                                            </tr>
+
+                                            <!-- ── FOOTER ── -->
+                                            <tr>
+                                                <td style="padding:20px 32px;border-top:1px solid #e8e8e5;">
+                                                <table width="100%" cellpadding="0" cellspacing="0">
+                                                    <tr>
+                                                    <td style="vertical-align:middle;">
+                                                        <p style="font-family:'Space Grotesk',Arial,sans-serif;margin:0;font-size:14px;font-weight:700;color:#111111;">Arkanalytics</p>
+                                                        <p style="font-family:'Inter',Arial,sans-serif;margin:4px 0 0;font-size:12px;color:#999999;">All rights reserved.</p>
+                                                    </td>
+                                                    <td align="right" style="vertical-align:middle;">
+                                                        <a href="#" style="text-decoration:none;display:inline-block;margin-left:14px;vertical-align:middle;">
+                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="#555555" xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                                                        </svg>
+                                                        </a>
+                                                        <a href="#" style="text-decoration:none;display:inline-block;margin-left:14px;vertical-align:middle;">
+                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="#555555" xmlns="http://www.w3.org/2000/svg">
+                                                            <path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6z"/>
+                                                            <rect x="2" y="9" width="4" height="12"/>
+                                                            <circle cx="4" cy="4" r="2"/>
+                                                        </svg>
+                                                        </a>
+                                                        <a href="#" style="text-decoration:none;display:inline-block;margin-left:14px;vertical-align:middle;">
+                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#555555" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                            <circle cx="12" cy="12" r="10"/>
+                                                            <path d="M2 12h20"/>
+                                                            <path d="M12 2a15.3 15.3 0 010 20"/>
+                                                            <path d="M12 2a15.3 15.3 0 000 20"/>
+                                                        </svg>
+                                                        </a>
+                                                    </td>
+                                                    </tr>
+                                                </table>
+                                                </td>
+                                            </tr>
+
+                                            </table>
+                                        </td>
+                                        </tr>
+                                    </table>
+
+                                    </body>
+                                    </html>
                                 `,
                                 attachments: [
                                     {
