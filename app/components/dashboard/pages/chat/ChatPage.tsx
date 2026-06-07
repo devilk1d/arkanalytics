@@ -1,7 +1,7 @@
 'use client';
 
 import { ChangeEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import DashboardLayout from '../../layout/DashboardLayout';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useDashboardContext, type WorkspaceMember } from '../../context/DashboardContext';
 import ChatMessages from './ChatMessages';
@@ -56,11 +56,14 @@ const widthMemoryCache = {
 
 export default function ChatPage() {
   const supabase = useMemo(() => createClient(), []);
+  const searchParams = useSearchParams();
   const { workspace, profile, members } = useDashboardContext();
 
   const shellRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
   const autoSelectEnabledRef = useRef(false);
+  const convoQuery = searchParams.get('convo');
+  const composeQuery = searchParams.get('compose');
 
   const LEFT_MIN = 64;
   const LEFT_COLLAPSE_THRESHOLD = 100;
@@ -74,7 +77,7 @@ export default function ChatPage() {
   const [leftWidth, setLeftWidth] = useState(() => (widthMemoryCache.initialized ? widthMemoryCache.left : LEFT_DEFAULT));
   const [rightWidth, setRightWidth] = useState(() => (widthMemoryCache.initialized ? widthMemoryCache.right : RIGHT_DEFAULT));
   const [panelReady, setPanelReady] = useState(false);
-  const [chatHeight, setChatHeight] = useState(0);
+  const [showRightPanel, setShowRightPanel] = useState(false);
 
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [activeConvo, setActiveConvo] = useState('');
@@ -87,8 +90,8 @@ export default function ChatPage() {
   const [chatFilter, setChatFilter] = useState('all');
   const [rightTab, setRightTab] = useState<RightTab>('actions');
   const [search, setSearch] = useState('');
-  const [sidebarMode, setSidebarMode] = useState<'list' | 'compose'>('list');
-  const [composeTab, setComposeTab] = useState<'direct' | 'group'>('direct');
+  const [sidebarMode, setSidebarMode] = useState<'list' | 'compose'>(composeQuery ? 'compose' : 'list');
+  const [composeTab, setComposeTab] = useState<'direct' | 'group'>(composeQuery === 'group' ? 'group' : 'direct');
   const [newTask, setNewTask] = useState('');
   const [newNote, setNewNote] = useState('');
   const [groupName, setGroupName] = useState('');
@@ -115,23 +118,20 @@ export default function ChatPage() {
     setPanelReady(true);
   }, [LEFT_DEFAULT, LEFT_MAX, LEFT_MIN, RIGHT_DEFAULT, RIGHT_MAX, RIGHT_MIN]);
 
-  useLayoutEffect(() => {
-    const measure = () => {
-      if (!anchorRef.current) return;
-      const top = anchorRef.current.getBoundingClientRect().top;
-      setChatHeight(window.innerHeight - top);
-    };
 
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, []);
 
   useEffect(() => {
     widthMemoryCache.initialized = true;
     widthMemoryCache.left = leftWidth;
     writeStoredWidth(WIDTH_KEYS.left, leftWidth);
   }, [leftWidth]);
+
+  useEffect(() => {
+    const cid = searchParams.get('convo_id');
+    const pref = searchParams.get('prefill');
+    if (cid) setActiveConvo(cid);
+    if (pref) setMessage(pref);
+  }, [searchParams]);
 
   useEffect(() => {
     widthMemoryCache.initialized = true;
@@ -237,6 +237,7 @@ export default function ChatPage() {
           id: m.user_id,
           name: mInfo?.fullName || memberNameById[m.user_id] || 'User',
           avatarUrl: mInfo?.avatarUrl || memberAvatarById[m.user_id] || null,
+          isOnline: mInfo?.isOnline ?? false,
         };
       });
       const latest = latestByConversation.get(row.id);
@@ -292,10 +293,13 @@ export default function ChatPage() {
 
     setActiveConvo((prev) => {
       if (prev && mapped.some((item) => item.id === prev)) return prev;
+      if (convoQuery && mapped.some((item) => item.id === convoQuery)) {
+        return convoQuery;
+      }
       if (!autoSelectEnabledRef.current) return '';
       return mapped[0]?.id || '';
     });
-  }, [memberAvatarById, memberNameById, profile, supabase, workspace]);
+  }, [memberAvatarById, memberNameById, profile, supabase, workspace, convoQuery]);
 
   const fetchMessages = useCallback(async () => {
     if (!activeConvo) {
@@ -782,103 +786,112 @@ export default function ChatPage() {
   }, [RIGHT_MAX, RIGHT_MIN, CENTER_MIN, leftWidth]);
 
   return (
-    <DashboardLayout page="Team Chat">
-      <div ref={anchorRef} style={{ margin: '-1.5rem' }}>
-        <div
-          ref={shellRef}
-          className="flex min-h-0 gap-0 overflow-hidden rounded-2xl border border-gray-100 bg-white"
-          style={{ height: chatHeight || '100vh', visibility: panelReady ? 'visible' : 'hidden' }}
-        >
-        <aside className="flex shrink-0 flex-col overflow-hidden border-r border-gray-100" style={{ width: leftWidth }}>
-          <ChatSidebar
-            conversations={conversations}
-            filtered={filtered}
-            activeConvo={activeConvo}
-            onSelectConvo={handleSelectConversation}
-            search={search}
-            onSearchChange={setSearch}
-            chatFilter={chatFilter}
-            onFilterChange={setChatFilter}
-            sidebarMode={sidebarMode}
-            onToggleSidebarMode={() => setSidebarMode((prev) => (prev === 'list' ? 'compose' : 'list'))}
-            composeTab={composeTab}
-            onComposeTabChange={setComposeTab}
-            groupName={groupName}
-            onGroupNameChange={setGroupName}
-            groupMemberIds={groupMemberIds}
-            onGroupMemberToggle={handleGroupMemberToggle}
-            onCreateGroup={() => { void createGroupConversation(); }}
-            onCreateDirect={(peerId) => { void createDirectConversation(peerId); }}
-            availableMembers={availableMembers}
-            collapsed={leftWidth <= LEFT_COLLAPSE_THRESHOLD}
-          />
-        </aside>
+    <div className="fade-in flex flex-col h-full" style={{ margin: '-1.5rem' }}>
+        {/* ── Chat Container ── */}
+        <div ref={anchorRef} className="flex-1 min-h-0 relative">
+          <div
+            ref={shellRef}
+            className="flex min-h-0 gap-0 overflow-hidden bg-[var(--bg1)]"
+            style={{ height: 'calc(100vh - 56px)', visibility: panelReady ? 'visible' : 'hidden' }}
+          >
+            <aside className="flex shrink-0 flex-col overflow-hidden border-r border-[var(--b)] bg-[var(--bg1)]" style={{ width: leftWidth }}>
+              <ChatSidebar
+                conversations={conversations}
+                filtered={filtered}
+                activeConvo={activeConvo}
+                onSelectConvo={handleSelectConversation}
+                search={search}
+                onSearchChange={setSearch}
+                chatFilter={chatFilter}
+                onFilterChange={setChatFilter}
+                sidebarMode={sidebarMode}
+                onToggleSidebarMode={() => setSidebarMode((prev) => (prev === 'list' ? 'compose' : 'list'))}
+                composeTab={composeTab}
+                onComposeTabChange={setComposeTab}
+                groupName={groupName}
+                onGroupNameChange={setGroupName}
+                groupMemberIds={groupMemberIds}
+                onGroupMemberToggle={handleGroupMemberToggle}
+                onCreateGroup={() => { void createGroupConversation(); }}
+                onCreateDirect={(peerId) => { void createDirectConversation(peerId); }}
+                availableMembers={availableMembers}
+                currentUserId={profile?.id ?? ''}
+                collapsed={leftWidth <= LEFT_COLLAPSE_THRESHOLD}
+              />
+            </aside>
 
-        <ChatResizeDivider onDrag={handleLeftDrag} />
+            <ChatResizeDivider onDrag={handleLeftDrag} />
 
-        <section className="flex min-w-0 flex-1 flex-col">
-          <ChatMessages
-            convo={convo}
-            messages={messages}
-            currentUserId={profile?.id}
-            workspaceMembers={members}
-            message={message}
-            onMessageChange={handleMessageChange}
-            onSendMessage={() => { void sendMessage(); }}
-            replyingTo={replyingTo}
-            onReply={setReplyingTo}
-            onCancelReply={() => setReplyingTo(null)}
-            mentionSearch={mentionSearch}
-            showMentions={showMentions}
-            onSelectMention={insertMention}
-            getReadReceipt={getReadReceipt}
-            inviteUserId={inviteUserId}
-            onInviteUserChange={setInviteUserId}
-            onInvite={() => { void inviteToGroup(); }}
-            groupInviteCandidates={groupInviteCandidates}
-            onFileUpload={handleFileUpload}
-          />
-        </section>
+            <section className="flex min-w-0 flex-1 flex-col">
+              <ChatMessages
+                convo={convo}
+                messages={messages}
+                currentUserId={profile?.id}
+                workspaceMembers={members}
+                message={message}
+                onMessageChange={handleMessageChange}
+                onSendMessage={() => { void sendMessage(); }}
+                replyingTo={replyingTo}
+                onReply={setReplyingTo}
+                onCancelReply={() => setReplyingTo(null)}
+                mentionSearch={mentionSearch}
+                showMentions={showMentions}
+                onSelectMention={insertMention}
+                getReadReceipt={getReadReceipt}
+                inviteUserId={inviteUserId}
+                onInviteUserChange={setInviteUserId}
+                onInvite={() => { void inviteToGroup(); }}
+                groupInviteCandidates={groupInviteCandidates}
+                onFileUpload={handleFileUpload}
+                showRightPanel={showRightPanel}
+                onToggleRightPanel={() => setShowRightPanel(p => !p)}
+              />
+            </section>
 
-        <ChatResizeDivider onDrag={handleRightDrag} />
+            {showRightPanel && (
+              <>
+                <ChatResizeDivider onDrag={handleRightDrag} />
 
-        <aside className="flex shrink-0 flex-col overflow-hidden border-l border-gray-100 bg-white" style={{ width: rightWidth }}>
-          <ChatRightPanel
-            currentUserId={profile?.id}
-            activeTab={rightTab}
-            onTabChange={setRightTab}
-            convo={convo}
-            inviteUserId={inviteUserId}
-            onInviteUserChange={setInviteUserId}
-            onInvite={() => { void inviteToGroup(); }}
-            onInviteUser={(userId: string) => { void inviteUserToGroup(userId); }}
-            groupInviteCandidates={groupInviteCandidates}
-            workspaceMembers={members}
-            onAvatarChange={updateGroupAvatar}
-            tasks={tasks}
-            notes={notes}
-            newTask={newTask}
-            newNote={newNote}
-            onTaskChange={setNewTask}
-            onNoteChange={setNewNote}
-            onCreateTask={createTask}
-            onCreateNote={() => { void createNote(); }}
-            onUpdateNote={(id, title, content) => { void updateNote(id, title, content); }}
-            onDeleteNote={(id) => { void deleteNote(id); }}
-            onToggleTask={(task) => { void toggleTask(task); }}
-            files={attachments}
-            onUpload={(e: any) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                const type = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'document';
-                void handleFileUpload(file, type);
-              }
-            }}
-            uploadLoading={uploadLoading}
-          />
-        </aside>
+                <aside className="flex shrink-0 flex-col overflow-hidden border-l border-[var(--b)] bg-[var(--bg1)]" style={{ width: rightWidth }}>
+                  <ChatRightPanel
+                    currentUserId={profile?.id}
+                    activeTab={rightTab}
+                    onTabChange={setRightTab}
+                    convo={convo}
+                    inviteUserId={inviteUserId}
+                    onInviteUserChange={setInviteUserId}
+                    onInvite={() => { void inviteToGroup(); }}
+                    onInviteUser={(userId: string) => { void inviteUserToGroup(userId); }}
+                    groupInviteCandidates={groupInviteCandidates}
+                    workspaceMembers={members}
+                    onAvatarChange={updateGroupAvatar}
+                    tasks={tasks}
+                    messages={messages}
+                    notes={notes}
+                    newTask={newTask}
+                    newNote={newNote}
+                    onTaskChange={setNewTask}
+                    onNoteChange={setNewNote}
+                    onCreateTask={createTask}
+                    onCreateNote={() => { void createNote(); }}
+                    onUpdateNote={(id, title, content) => { void updateNote(id, title, content); }}
+                    onDeleteNote={(id) => { void deleteNote(id); }}
+                    onToggleTask={(task) => { void toggleTask(task); }}
+                    files={attachments}
+                    onUpload={(e: any) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const type = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'document';
+                        void handleFileUpload(file, type);
+                      }
+                    }}
+                    uploadLoading={uploadLoading}
+                  />
+                </aside>
+              </>
+            )}
+          </div>
         </div>
-      </div>
-    </DashboardLayout>
+    </div>
   );
 }

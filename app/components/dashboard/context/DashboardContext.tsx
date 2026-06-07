@@ -1,7 +1,9 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { resolvePermissions } from './permissions';
+import { usePresence } from '@/app/hooks/usePresence';
 
 type UserProfile = {
   id: string;
@@ -31,6 +33,7 @@ export type WorkspaceMember = {
   role: string;
   joinedAt: string;
   lastActiveAt: string | null;
+  isOnline: boolean;
 };
 
 type RoleSummary = {
@@ -54,6 +57,8 @@ type DashboardContextValue = {
   profile: UserProfile | null;
   workspace: WorkspaceInfo | null;
   myRole: string;
+  /** Resolved permission list for the current user based on their role */
+  myPermissions: string[];
   members: WorkspaceMember[];
   roleSummary: RoleSummary[];
   customRoles: CustomRole[];
@@ -293,6 +298,7 @@ export function DashboardProvider({ children, initialState }: { children: React.
       role: row.role,
       joinedAt: row.joined_at,
       lastActiveAt: row.last_active_at,
+      isOnline: row.is_online ?? false,
     }));
 
     setMembers(mappedMembers);
@@ -411,6 +417,88 @@ export function DashboardProvider({ children, initialState }: { children: React.
     void refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount only
+
+  // ── Presence heartbeat for current user ──────────────────────────────────
+  usePresence(profile?.id);
+
+  // ── Local tab-visibility state (source of truth for own status) ──────────
+  // We track this locally so the current user always sees their own status
+  // instantly — no waiting for the DB round-trip.
+  const [isTabVisible, setIsTabVisible] = useState(
+    typeof document !== 'undefined' ? document.visibilityState === 'visible' : true,
+  );
+
+  useEffect(() => {
+    const handler = () => setIsTabVisible(document.visibilityState === 'visible');
+    document.addEventListener('visibilitychange', handler);
+    return () => document.removeEventListener('visibilitychange', handler);
+  }, []);
+
+  // ── Rolling last-active timestamp for current user ────────────────────────
+  // The `now` inside a useMemo freezes at memo evaluation time. If realtime
+  // doesn't deliver the heartbeat DB change, the memo never re-runs and `now`
+  // becomes stale (> 5 min) → status flips to AWAY.
+  // Keeping a dedicated state that ticks every 30 s guarantees the memo always
+  // has a fresh timestamp regardless of realtime delivery.
+  const [myLastActiveAt, setMyLastActiveAt] = useState(() => new Date().toISOString());
+
+  useEffect(() => {
+    if (!isTabVisible) return;
+    setMyLastActiveAt(new Date().toISOString());
+    const interval = setInterval(() => setMyLastActiveAt(new Date().toISOString()), 30_000);
+    return () => clearInterval(interval);
+  }, [isTabVisible]);
+
+  // ── Realtime: sync presence changes from other members ───────────────────
+  // Keep a ref of current member IDs so the subscription callback always has
+  // the latest list without needing to re-subscribe on every members change.
+  const memberIdsRef = useRef<string[]>([]);
+  useEffect(() => {
+    memberIdsRef.current = members.map((m) => m.userId);
+  }, [members]);
+
+  useEffect(() => {
+    if (!workspace?.id) return;
+
+    const supabase = createClient();
+
+    const presenceChannel = supabase
+      .channel(`presence-sync-${workspace.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'users' },
+        (payload: any) => {
+          const updated = payload.new as {
+            id: string;
+            is_online: boolean;
+            last_active_at: string | null;
+          };
+          // Only update members who belong to this workspace
+          if (!memberIdsRef.current.includes(updated.id)) return;
+
+          setMembers((prev) =>
+            prev.map((m) =>
+              m.userId === updated.id
+                ? {
+                    ...m,
+                    isOnline: updated.is_online ?? false,
+                    lastActiveAt: updated.last_active_at,
+                  }
+                : m,
+            ),
+          );
+        },
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Presence] realtime subscribed for workspace', workspace.id);
+        }
+      });
+
+    return () => {
+      void supabase.removeChannel(presenceChannel);
+    };
+  }, [workspace?.id]); // subscribe once per workspace, memberIdsRef handles fresh IDs
 
   const saveCompanyInfo = useCallback(
     async (payload: { name: string; supportEmail: string; websiteUrl: string }) => {
@@ -811,6 +899,26 @@ export function DashboardProvider({ children, initialState }: { children: React.
     [profile, refresh, workspace],
   );
 
+  // ── Merge local tab-visibility into members for current user ─────────────
+  // For the current user: derive isOnline + lastActiveAt from local state so
+  // status is always instant and accurate regardless of DB round-trip timing.
+  // For other members: use DB data updated via realtime subscription.
+  const membersWithPresence = useMemo<WorkspaceMember[]>(() => {
+    if (!profile?.id) return members;
+    return members.map((m) =>
+      m.userId === profile.id
+        ? {
+            ...m,
+            isOnline: isTabVisible,
+            // Always use local tracking — myLastActiveAt holds the last time the tab
+            // was visible, so even when the tab is hidden the timestamp stays meaningful
+            // instead of falling back to a potentially-null DB value.
+            lastActiveAt: myLastActiveAt,
+          }
+        : m,
+    );
+  }, [members, profile?.id, isTabVisible, myLastActiveAt]);
+
   const roleSummary = useMemo<RoleSummary[]>(() => {
     const grouped = members.reduce<Record<string, number>>((acc, member) => {
       const key = member.role?.trim() || 'member';
@@ -823,6 +931,11 @@ export function DashboardProvider({ children, initialState }: { children: React.
       .sort((a, b) => a.role.localeCompare(b.role));
   }, [members]);
 
+  const myPermissions = useMemo(
+    () => resolvePermissions(myRole, customRoles),
+    [myRole, customRoles]
+  );
+
   const value = useMemo(
     () => ({
       loading,
@@ -831,7 +944,8 @@ export function DashboardProvider({ children, initialState }: { children: React.
       profile,
       workspace,
       myRole,
-      members,
+      myPermissions,
+      members: membersWithPresence,
       roleSummary,
       customRoles,
       refresh,
@@ -857,7 +971,8 @@ export function DashboardProvider({ children, initialState }: { children: React.
       error,
       inviteMember,
       loading,
-      members,
+      membersWithPresence,
+      myPermissions,
       myRole,
       profile,
       refresh,

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import { AppToastRegion } from "./components/ui/AppToast";
+import { SessionTimeout } from "./components/auth/SessionTimeout";
 import "./globals.css";
 
 const inter = Inter({
@@ -27,8 +28,20 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${inter.variable} ${spaceGrotesk.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      {/* Prevent dark-mode flash: apply stored theme before first paint.
+          suppressHydrationWarning on <html> tells React that data-theme may
+          differ between server and client — this mismatch is intentional. */}
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
+        <SessionTimeout />
         {children}
         <AppToastRegion />
       </body>

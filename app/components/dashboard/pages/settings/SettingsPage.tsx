@@ -1,15 +1,14 @@
 'use client';
 
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import DashboardLayout from '../../layout/DashboardLayout';
 import Card from '../../ui/Card';
 import Button from '../../ui/Button';
 import Avatar from '../../ui/Avatar';
 import Badge from '../../ui/Badge';
 import ActionConfirmation from '../../ui/ActionConfirmation';
+import FilterDropdown from '../../ui/FilterDropdown';
 import InviteMemberModal from '../../modals/InviteMemberModal';
-import EditRoleModal from '../../modals/EditRoleModal';
 import CreateCustomRoleModal from '../../modals/CreateCustomRoleModal';
 import { toastError, toastInfo, toastSuccess, toastWarning } from '../../../ui/AppToast';
 import {
@@ -32,25 +31,57 @@ type RoleRow = {
   roleId?: string;
 };
 
-function formatLastActive(lastActiveAt: string | null) {
-  if (!lastActiveAt) return 'Offline';
-  const date = new Date(lastActiveAt);
-  return new Intl.DateTimeFormat('id-ID', {
-    timeZone: 'Asia/Jakarta',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(date) + ' WIB';
+function formatLastActive(lastActiveAt: string | null): string {
+  if (!lastActiveAt) return '—';
+  const diffSec = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 1000);
+  if (diffSec < 60) return 'now';
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)} min ago`;
+  if (diffSec < 86400) {
+    const h = Math.floor(diffSec / 3600);
+    return `${h} ${h === 1 ? 'hour' : 'hours'} ago`;
+  }
+  const d = Math.floor(diffSec / 86400);
+  return `${d} ${d === 1 ? 'day' : 'days'} ago`;
+}
+
+type MemberStatusVariant = 'active' | 'pending' | 'default';
+
+/**
+ * Status logic:
+ *  ONLINE  — is_online=true AND heartbeat fresh (< 2 min)
+ *  AWAY    — is_online=true AND heartbeat stale (2 min – 1 hr): tab is hidden
+ *  OFFLINE — is_online=false (explicit logout) OR heartbeat dead > 1 hr (browser crash)
+ *            OR no activity record
+ *
+ * Tab-hide does NOT set is_online=false — only logout does. This lets us use
+ * is_online as a reliable OFFLINE signal while heartbeat staleness drives AWAY.
+ */
+function getMemberStatus(
+  isOnline: boolean,
+  lastActiveAt: string | null,
+): { label: string; variant: MemberStatusVariant } {
+  if (!lastActiveAt) return { label: 'OFFLINE', variant: 'default' };
+
+  // Explicit logout → OFFLINE immediately
+  if (!isOnline) return { label: 'OFFLINE', variant: 'default' };
+
+  const diffSec = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 1000);
+
+  // Heartbeat fresh → ONLINE
+  if (diffSec < 120) return { label: 'ONLINE', variant: 'active' };
+
+  // Heartbeat stale but within 1 hr → AWAY (tab hidden)
+  if (diffSec < 3600) return { label: 'AWAY', variant: 'pending' };
+
+  // is_online=true but dead for 1+ hr → browser crash / killed; treat as OFFLINE
+  return { label: 'OFFLINE', variant: 'default' };
 }
 
 const inputCls =
-  'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition-all bg-white placeholder:text-gray-300';
+  'w-full border border-[var(--b2)] rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--t2)] transition-all bg-[var(--surf)] text-[var(--t)] placeholder:text-[var(--t3)]';
 const disabledInputCls =
-  'w-full border border-gray-100 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400 cursor-not-allowed font-mono text-xs';
-const labelCls = 'block text-xs font-medium text-gray-500 mb-1';
+  'w-full border border-[var(--b)] rounded-lg px-3 py-2 text-sm bg-[var(--bg1)] text-[var(--t3)] cursor-not-allowed font-mono text-xs';
+const labelCls = 'block text-xs font-medium text-[var(--t2)] mb-1';
 
 // Default roles (hardcoded)
 const DEFAULT_ROLES = ['admin', 'members'];
@@ -60,16 +91,16 @@ const VALID_TABS: TabType[] = ['profile', 'company', 'appearance', 'members'];
 
 export default function SettingsPage() {
   return (
-    <DashboardLayout page="Settings">
+    <Suspense fallback={null}>
       <SettingsContent />
-    </DashboardLayout>
+    </Suspense>
   );
 }
 
 function SettingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   // Ambil tab dari URL, default ke 'profile' jika tidak ada atau tidak valid
   const tabFromUrl = searchParams.get('tab');
   const getInitialTab = (): TabType => {
@@ -78,12 +109,14 @@ function SettingsContent() {
     }
     return 'profile';
   };
-  
+
   const {
     loading,
     actionLoading,
     profile,
     workspace,
+    myRole,
+    myPermissions,
     members,
     roleSummary,
     customRoles,
@@ -101,12 +134,42 @@ function SettingsContent() {
     deleteCustomRole,
   } = useDashboardContext();
 
-  const [isDark, setIsDark] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [activeTab, setActiveTab] = useState<TabType>(getInitialTab);
+  const [mounted, setMounted] = useState(false);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    setMounted(true);
+    const updateTheme = () => {
+      const stored = localStorage.getItem('theme') as 'light' | 'dark' | null;
+      const initial = stored || (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
+      setTheme(initial);
+    };
+
+    updateTheme();
+    window.addEventListener('themechange', updateTheme);
+    return () => {
+      window.removeEventListener('themechange', updateTheme);
+    };
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const normalizedMyRole = (myRole ?? '').trim().toLowerCase();
+  const hasAdminRole = normalizedMyRole === 'admin';
+
+  // isAdmin is only evaluated after client mount to avoid SSR/client hydration mismatch
+  const isAdmin = mounted && hasAdminRole;
+  // Permission flags derived from user's assigned role permissions
+  const canManageMembers = mounted && (hasAdminRole || myPermissions.includes('manage_members'));
+  const canManageSettings = mounted && (hasAdminRole || myPermissions.includes('manage_settings'));
 
   // Modal states
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [editRoleModalOpen, setEditRoleModalOpen] = useState(false);
   const [createRoleModalOpen, setCreateRoleModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
@@ -117,9 +180,8 @@ function SettingsContent() {
     permissions: string[];
   } | null>(null);
 
-  // Edit role state
-  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
-  const [editingMemberRole, setEditingMemberRole] = useState('');
+  // Inline role-change loading per member
+  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
 
   // Company state
   const [companyName, setCompanyName] = useState('');
@@ -163,6 +225,13 @@ function SettingsContent() {
     router.push(`?${params.toString()}`, { scroll: false });
   };
 
+  const handleThemeChange = (nextTheme: 'light' | 'dark') => {
+    setTheme(nextTheme);
+    document.documentElement.setAttribute('data-theme', nextTheme);
+    localStorage.setItem('theme', nextTheme);
+    window.dispatchEvent(new Event('themechange'));
+  };
+
   const roleRows = useMemo<RoleRow[]>(
     () => {
       // Built-in roles from members
@@ -204,9 +273,9 @@ function SettingsContent() {
     const result = await saveUserProfile({ fullName: fullName.trim() });
     setSavingProfile(false);
     if (result.error) {
-      toastError('Gagal menyimpan profile', result.error);
+      toastError('Failed to update profile', result.error);
     } else {
-      toastSuccess('Profile berhasil diperbarui');
+      toastSuccess('Profile updated');
     }
     setProfileStatus(result.error ?? 'Profile updated successfully.');
   };
@@ -217,9 +286,9 @@ function SettingsContent() {
     setProfileStatus('');
     const result = await uploadUserAvatar(file);
     if (result.error) {
-      toastError('Gagal upload foto profile', result.error);
+      toastError('Failed to update profile photo', result.error);
     } else {
-      toastSuccess('Foto profile diperbarui');
+      toastSuccess('Profile photo updated');
     }
     setProfileStatus(result.error ?? 'Profile photo updated.');
   };
@@ -234,9 +303,9 @@ function SettingsContent() {
     });
     setSaving(false);
     if (result.error) {
-      toastError('Gagal menyimpan company info', result.error);
+      toastError('Failed to update company info', result.error);
     } else {
-      toastSuccess('Company information diperbarui');
+      toastSuccess('Company information updated');
     }
     setCompanyStatus(result.error ?? 'Company information updated.');
   };
@@ -247,9 +316,9 @@ function SettingsContent() {
     setCompanyStatus('');
     const result = await uploadCompanyLogo(file);
     if (result.error) {
-      toastError('Gagal upload logo', result.error);
+      toastError('Failed to upload logo', result.error);
     } else {
-      toastSuccess('Logo company diperbarui');
+      toastSuccess('Company logo updated');
     }
     setCompanyStatus(result.error ?? 'Company logo updated.');
   };
@@ -258,9 +327,9 @@ function SettingsContent() {
     setCompanyStatus('');
     const result = await removeCompanyLogo();
     if (result.error) {
-      toastError('Gagal menghapus logo', result.error);
+      toastError('Failed to remove logo', result.error);
     } else {
-      toastInfo('Logo company dihapus');
+      toastInfo('Company logo removed');
     }
     setCompanyStatus(result.error ?? 'Company logo removed.');
   };
@@ -272,37 +341,32 @@ function SettingsContent() {
   const handleSubmitInvite = async (email: string, role: string) => {
     const result = await inviteMember({ invitedEmail: email, roleToAssign: role });
     if (result.error) {
-      toastError('Undangan gagal dikirim', result.error);
+      toastError('Failed to send invitation', result.error);
       setCompanyStatus(result.error);
       throw new Error(result.error);
     }
-    toastSuccess('Invitation sent', `${email} diundang sebagai ${formatRoleLabel(role)}`);
+    toastSuccess('Invitation sent', `${email} invited as ${formatRoleLabel(role)}`);
     setCompanyStatus('Invitation sent successfully.');
   };
 
-  const handleEditMemberRole = async (memberUserId: string, currentRole: string) => {
-    setEditingMemberId(memberUserId);
-    setEditingMemberRole(currentRole);
-    setEditRoleModalOpen(true);
-  };
-
-  const handleSubmitEditRole = async (newRole: string) => {
-    if (!editingMemberId) return;
-    const result = await updateMemberRole({ memberUserId: editingMemberId, newRole });
+  const handleInlineRoleChange = async (memberUserId: string, newRole: string) => {
+    if (updatingRoleId) return;
+    setUpdatingRoleId(memberUserId);
+    const result = await updateMemberRole({ memberUserId, newRole });
     if (result.error) {
-      toastError('Gagal mengubah role member', result.error);
+      toastError('Failed to update member role', result.error);
       setCompanyStatus(result.error);
-      throw new Error(result.error);
+    } else {
+      toastSuccess('Role updated');
+      setCompanyStatus('Member role updated.');
     }
-    toastSuccess('Role member diperbarui');
-    setCompanyStatus('Member role updated.');
-    setEditingMemberId(null);
+    setUpdatingRoleId(null);
   };
 
   const handleDeleteMember = (memberUserId: string, memberName: string) => {
     if (profile?.id === memberUserId) {
-      toastWarning('Aksi ditolak', 'Kamu tidak bisa menghapus akun sendiri.');
-      setCompanyStatus('Kamu tidak bisa menghapus akun sendiri.');
+      toastWarning('Action denied', 'You cannot delete your own account.');
+      setCompanyStatus('You cannot delete your own account.');
       return;
     }
     setDeleteTarget({ type: 'member', id: memberUserId, name: memberName });
@@ -312,7 +376,7 @@ function SettingsContent() {
   const handleEditCustomRole = (roleId: string) => {
     const targetRole = customRoles.find((role) => role.id === roleId);
     if (!targetRole) {
-      toastError('Role tidak ditemukan');
+      toastError('Role not found');
       return;
     }
 
@@ -327,7 +391,7 @@ function SettingsContent() {
 
   const handleDeleteRole = (roleId: string, roleName: string, users: number) => {
     if (users > 0) {
-      toastWarning('Role masih dipakai', 'Pindahkan semua member dari role ini sebelum menghapus.');
+      toastWarning('Role is still used', 'Move all members from this role before deleting.');
       return;
     }
 
@@ -341,24 +405,24 @@ function SettingsContent() {
     if (deleteTarget.type === 'member') {
       const result = await deleteMember({ memberUserId: deleteTarget.id });
       if (result.error) {
-        toastError('Gagal menghapus member', result.error);
+        toastError('Failed to delete member', result.error);
         setCompanyStatus(result.error);
         throw new Error(result.error);
       }
 
-      toastSuccess('Member dihapus', `${deleteTarget.name} telah dihapus dari workspace.`);
+      toastSuccess('Member deleted', `${deleteTarget.name} has been deleted from workspace.`);
       setCompanyStatus('Member deleted.');
     }
 
     if (deleteTarget.type === 'role') {
       const result = await deleteCustomRole({ roleId: deleteTarget.id });
       if (result.error) {
-        toastError('Gagal menghapus role', result.error);
+        toastError('Failed to delete role', result.error);
         setCompanyStatus(result.error);
         throw new Error(result.error);
       }
 
-      toastSuccess('Role dihapus', `${deleteTarget.name} berhasil dihapus.`);
+      toastSuccess('Role deleted', `${deleteTarget.name} has been deleted.`);
       setCompanyStatus('Role deleted.');
     }
 
@@ -368,16 +432,16 @@ function SettingsContent() {
   const handleSubmitCustomRole = async (roleData: { name: string; description: string; permissions: string[] }) => {
     const result = editingCustomRole
       ? await updateCustomRole({
-          roleId: editingCustomRole.id,
-          name: roleData.name,
-          description: roleData.description,
-          permissions: roleData.permissions,
-        })
+        roleId: editingCustomRole.id,
+        name: roleData.name,
+        description: roleData.description,
+        permissions: roleData.permissions,
+      })
       : await createCustomRole({
-          name: roleData.name,
-          description: roleData.description,
-          permissions: roleData.permissions,
-        });
+        name: roleData.name,
+        description: roleData.description,
+        permissions: roleData.permissions,
+      });
 
     if (result.error) {
       toastError(editingCustomRole ? 'Failed to update role' : 'Failed to create role', result.error);
@@ -386,60 +450,61 @@ function SettingsContent() {
     }
 
     toastSuccess(
-      editingCustomRole ? 'Role updated successfully' : 'Role created successfully',
+      editingCustomRole ? 'Permission updated' : 'Role created',
       roleData.name,
     );
-    setCompanyStatus(editingCustomRole ? 'Role updated successfully.' : 'Role created successfully.');
+    setCompanyStatus(editingCustomRole ? 'Permission updated' : 'Permission created');
     setEditingCustomRole(null);
     setCreateRoleModalOpen(false);
   };
 
   return (
-    <div className="grid grid-cols-12 gap-5">
+    <div className="grid grid-cols-12 gap-5" suppressHydrationWarning>
 
       {/* ── LEFT NAV PANEL ── */}
       <div className="col-span-3 flex flex-col gap-3">
 
         {/* User identity card */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3">
+        <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)] p-4 flex items-center gap-3">
           <div className="relative shrink-0">
-            <label className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
+            <label className="w-12 h-12 rounded-full bg-[var(--bg2)] flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
               {profile?.avatarUrl ? (
                 <img src={profile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-base font-bold text-gray-500">
+                <span className="text-base font-bold text-[var(--t2)]">
                   {getInitials(profile?.fullName || 'U')}
                 </span>
               )}
               <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
             </label>
-            <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-gray-900 rounded-full flex items-center justify-center pointer-events-none">
-              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-[var(--t)] rounded-full flex items-center justify-center pointer-events-none">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="var(--inv-t)" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
               </svg>
             </span>
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-900 truncate">{profile?.fullName || '—'}</p>
-            <p className="text-xs text-gray-400 truncate">{profile?.email || '—'}</p>
+            <p className="text-sm font-semibold text-[var(--t)] truncate">{profile?.fullName || '—'}</p>
+            <p className="text-xs text-[var(--t3)] truncate">{profile?.email || '—'}</p>
           </div>
         </div>
 
         {/* Nav menu */}
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div className="px-3 py-3 border-b border-gray-50">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-1">Account</p>
+        <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)] overflow-hidden">
+          <div className="px-3 py-3 border-b border-[var(--b)]">
+            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-widest px-1">Account</p>
           </div>
           {[
             {
               key: 'profile' as TabType,
               label: 'My Profile',
               sub: 'Name, photo, Arka ID',
+              show: true,
               icon: (
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                  <circle cx="12" cy="7" r="4"/>
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
                 </svg>
               ),
             },
@@ -447,10 +512,13 @@ function SettingsContent() {
               key: 'company' as TabType,
               label: 'Company',
               sub: 'Name, logo, website',
+              // Temporarily hidden until backend/RLS supports permission-based workspace updates.
+              // Showing this tab to non-admin users leads to a save path that will be rejected.
+              show: false,
               icon: (
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <rect x="2" y="7" width="20" height="14" rx="2"/>
-                  <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+                  <rect x="2" y="7" width="20" height="14" rx="2" />
+                  <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
                 </svg>
               ),
             },
@@ -458,36 +526,36 @@ function SettingsContent() {
               key: 'appearance' as TabType,
               label: 'Appearance',
               sub: 'Light / dark mode',
+              show: true,
               icon: (
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <circle cx="12" cy="12" r="5"/>
-                  <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                  <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
                 </svg>
               ),
             },
-          ].map(item => (
+          ].filter(item => item.show).map(item => (
             <button
               key={item.key}
               onClick={() => handleTabChange(item.key)}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-l-2 ${
-                activeTab === item.key
-                  ? 'bg-gray-50 border-gray-900 text-gray-900'
-                  : 'border-transparent text-gray-500 hover:bg-gray-50/60 hover:text-gray-700'
-              }`}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-l-2 ${activeTab === item.key
+                ? 'bg-[var(--bg1)] border-[var(--t)] text-[var(--t)]'
+                : 'border-transparent text-[var(--t2)] hover:bg-[var(--bg2)]/60 hover:text-[var(--t)]'
+                }`}
             >
-              <span className={activeTab === item.key ? 'text-gray-900' : 'text-gray-400'}>{item.icon}</span>
+              <span className={activeTab === item.key ? 'text-[var(--t)]' : 'text-[var(--t3)]'}>{item.icon}</span>
               <div>
                 <p className="text-xs font-semibold leading-tight">{item.label}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{item.sub}</p>
+                <p className="text-[10px] text-[var(--t3)] mt-0.5 leading-tight">{item.sub}</p>
               </div>
             </button>
           ))}
 
-          <div className="px-3 py-3 border-t border-b border-gray-50 mt-1">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-1">Workspace</p>
+          <div className="px-3 py-3 border-t border-b border-[var(--b)] mt-1">
+            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-widest px-1">Workspace</p>
           </div>
           {[
             {
@@ -496,10 +564,10 @@ function SettingsContent() {
               sub: `${members.length} member${members.length !== 1 ? 's' : ''}`,
               icon: (
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                  <circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                 </svg>
               ),
             },
@@ -507,16 +575,15 @@ function SettingsContent() {
             <button
               key={item.key}
               onClick={() => handleTabChange(item.key)}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-l-2 ${
-                activeTab === item.key
-                  ? 'bg-gray-50 border-gray-900 text-gray-900'
-                  : 'border-transparent text-gray-500 hover:bg-gray-50/60 hover:text-gray-700'
-              }`}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-l-2 ${activeTab === item.key
+                ? 'bg-[var(--bg1)] border-[var(--t)] text-[var(--t)]'
+                : 'border-transparent text-[var(--t2)] hover:bg-[var(--bg2)]/60 hover:text-[var(--t)]'
+                }`}
             >
-              <span className={activeTab === item.key ? 'text-gray-900' : 'text-gray-400'}>{item.icon}</span>
+              <span className={activeTab === item.key ? 'text-[var(--t)]' : 'text-[var(--t3)]'}>{item.icon}</span>
               <div>
                 <p className="text-xs font-semibold leading-tight">{item.label}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5 leading-tight">{item.sub}</p>
+                <p className="text-[10px] text-[var(--t3)] mt-0.5 leading-tight">{item.sub}</p>
               </div>
             </button>
           ))}
@@ -529,34 +596,34 @@ function SettingsContent() {
         {/* Profile tab */}
         {activeTab === 'profile' && (
           <>
-            <div className="bg-white rounded-2xl border border-gray-100">
-              <div className="px-6 py-5 border-b border-gray-100">
-                <h2 className="text-sm font-semibold text-gray-900">My Profile</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Manage your personal information</p>
+            <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)]">
+              <div className="px-6 py-5 border-b border-[var(--b)]">
+                <h2 className="text-sm font-semibold text-[var(--t)]">My Profile</h2>
+                <p className="text-xs text-[var(--t3)] mt-0.5">Manage your personal information</p>
               </div>
               <div className="p-6">
                 {/* Avatar section */}
-                <div className="flex items-center gap-5 pb-6 border-b border-gray-100">
+                <div className="flex items-center gap-5 pb-6 border-b border-[var(--b)]">
                   <div className="relative">
-                    <label className="w-20 h-20 rounded-2xl bg-gray-100 flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
+                    <label className="w-20 h-20 rounded-2xl bg-[var(--bg2)] flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
                       {profile?.avatarUrl ? (
                         <img src={profile.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                       ) : (
-                        <span className="text-2xl font-bold text-gray-400">{getInitials(profile?.fullName || 'U')}</span>
+                        <span className="text-2xl font-bold text-[var(--t3)]">{getInitials(profile?.fullName || 'U')}</span>
                       )}
                       <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
                     </label>
-                    <span className="absolute -bottom-1 -right-1 w-6 h-6 bg-gray-900 rounded-full flex items-center justify-center pointer-events-none shadow-sm">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    <span className="absolute -bottom-1 -right-1 w-6 h-6 bg-[var(--t)] rounded-full flex items-center justify-center pointer-events-none shadow-sm">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--inv-t)" strokeWidth="2.5" strokeLinecap="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                       </svg>
                     </span>
                   </div>
                   <div>
-                    <p className="text-base font-semibold text-gray-900">{profile?.fullName || '—'}</p>
-                    <p className="text-sm text-gray-400 mt-0.5">{profile?.email || '—'}</p>
-                    <p className="text-xs text-gray-300 mt-1">Click photo to upload a new one</p>
+                    <p className="text-base font-semibold text-[var(--t)]">{profile?.fullName || '—'}</p>
+                    <p className="text-sm text-[var(--t3)] mt-0.5">{profile?.email || '—'}</p>
+                    <p className="text-xs text-[var(--t3)] mt-1">Click photo to upload a new one</p>
                   </div>
                 </div>
 
@@ -567,12 +634,12 @@ function SettingsContent() {
                     <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your full name" className={inputCls} />
                   </div>
                   <div className="col-span-2 sm:col-span-1">
-                    <label className={labelCls}>Email <span className="text-gray-300 font-normal">(read-only)</span></label>
+                    <label className={labelCls}>Email <span className="text-[var(--t3)] font-normal">(read-only)</span></label>
                     <input value={profile?.email || ''} readOnly disabled className={disabledInputCls} />
                   </div>
                   {profile?.arkaId && (
                     <div className="col-span-2 sm:col-span-1">
-                      <label className={labelCls}>Arka ID <span className="text-gray-300 font-normal">(read-only)</span></label>
+                      <label className={labelCls}>Arka ID <span className="text-[var(--t3)] font-normal">(read-only)</span></label>
                       <input value={profile.arkaId} readOnly disabled className={disabledInputCls} />
                     </div>
                   )}
@@ -582,12 +649,12 @@ function SettingsContent() {
                   </div>
                 </div>
               </div>
-              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl flex items-center justify-between">
+              <div className="px-6 py-4 border-t border-[var(--b)] bg-[var(--bg1)]/50 rounded-b-2xl flex items-center justify-between">
                 {profileStatus ? (
-                  <p className="text-xs text-gray-500">{profileStatus}</p>
+                  <p className="text-xs text-[var(--t2)]">{profileStatus}</p>
                 ) : <span />}
-                <Button onClick={handleSaveProfile} size="sm" disabled={savingProfile}>
-                  {savingProfile ? 'Saving…' : 'Save Profile'}
+                <Button onClick={handleSaveProfile} isLoading={savingProfile}>
+                  Save Profile
                 </Button>
               </div>
             </div>
@@ -596,32 +663,32 @@ function SettingsContent() {
 
         {/* Company tab */}
         {activeTab === 'company' && (
-          <div className="bg-white rounded-2xl border border-gray-100">
-            <div className="px-6 py-5 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-900">Company Information</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Manage your workspace details</p>
+          <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)]">
+            <div className="px-6 py-5 border-b border-[var(--b)]">
+              <h2 className="text-sm font-semibold text-[var(--t)]">Company Information</h2>
+              <p className="text-xs text-[var(--t3)] mt-0.5">Manage your workspace details</p>
             </div>
             <div className="p-6">
               {/* Logo section */}
-              <div className="flex items-center gap-5 pb-6 border-b border-gray-100">
-                <label className="w-20 h-20 shrink-0 bg-gray-100 rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-gray-200 cursor-pointer hover:border-gray-400 transition-colors overflow-hidden">
+              <div className="flex items-center gap-5 pb-6 border-b border-[var(--b)]">
+                <label className="w-20 h-20 shrink-0 bg-[var(--bg2)] rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-[var(--b2)] cursor-pointer hover:border-[var(--t3)] transition-colors overflow-hidden">
                   {workspace?.logoUrl ? (
                     <img src={workspace.logoUrl} alt="Company logo" className="w-full h-full object-cover" />
                   ) : (
                     <>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" strokeLinecap="round">
-                        <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
-                        <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="1.5" strokeLinecap="round">
+                        <polyline points="16 16 12 12 8 16" /><line x1="12" y1="12" x2="12" y2="21" />
+                        <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
                       </svg>
-                      <p className="text-[9px] text-gray-300 mt-1">Upload</p>
+                      <p className="text-[9px] text-[var(--t3)] mt-1">Upload</p>
                     </>
                   )}
                   <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
                 </label>
                 <div>
-                  <p className="text-base font-semibold text-gray-900">{workspace?.name || 'Your Company'}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{workspace?.websiteUrl || 'No website set'}</p>
-                  <button onClick={handleRemoveLogo} className="text-xs text-red-400 hover:text-red-600 transition-colors mt-1.5">
+                  <p className="text-base font-semibold text-[var(--t)]">{workspace?.name || 'Your Company'}</p>
+                  <p className="text-xs text-[var(--t3)] mt-0.5">{workspace?.websiteUrl || 'No website set'}</p>
+                  <button onClick={handleRemoveLogo} className="text-xs text-[var(--d)] hover:underline mt-1.5">
                     Remove logo
                   </button>
                 </div>
@@ -642,12 +709,12 @@ function SettingsContent() {
                 </div>
               </div>
             </div>
-            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl flex items-center justify-between">
+            <div className="px-6 py-4 border-t border-[var(--b)] bg-[var(--bg1)]/50 rounded-b-2xl flex items-center justify-between">
               {(companyStatus || error) ? (
-                <p className="text-xs text-gray-500">{companyStatus || error}</p>
+                <p className="text-xs text-[var(--t2)]">{companyStatus || error}</p>
               ) : <span />}
-              <Button onClick={handleSaveCompany} size="sm" disabled={saving}>
-                {saving ? 'Saving…' : 'Save Changes'}
+              <Button onClick={handleSaveCompany} isLoading={saving}>
+                Save Changes
               </Button>
             </div>
           </div>
@@ -655,26 +722,25 @@ function SettingsContent() {
 
         {/* Appearance tab */}
         {activeTab === 'appearance' && (
-          <div className="bg-white rounded-2xl border border-gray-100">
-            <div className="px-6 py-5 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-900">Appearance</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Choose how the dashboard looks for you</p>
+          <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)]">
+            <div className="px-6 py-5 border-b border-[var(--b)]">
+              <h2 className="text-sm font-semibold text-[var(--t)]">Appearance</h2>
+              <p className="text-xs text-[var(--t3)] mt-0.5">Choose how the dashboard looks for you</p>
             </div>
             <div className="p-6">
               <p className={labelCls}>Theme</p>
               <div className="flex gap-3 mt-2">
                 {[
-                  { val: false, label: 'Light', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg> },
-                  { val: true, label: 'Dark', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> },
+                  { val: 'light' as const, label: 'Light', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" /></svg> },
+                  { val: 'dark' as const, label: 'Dark', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" /></svg> },
                 ].map(({ val, label, icon }) => (
                   <button
                     key={label}
-                    onClick={() => setIsDark(val)}
-                    className={`flex items-center gap-2.5 px-5 py-3 rounded-xl border text-sm font-medium transition-all ${
-                      isDark === val
-                        ? 'border-gray-900 bg-gray-900 text-white shadow-sm'
-                        : 'border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                    }`}
+                    onClick={() => handleThemeChange(val)}
+                    className={`flex items-center gap-2.5 px-5 py-3 rounded-xl border text-sm font-medium transition-all ${theme === val
+                      ? 'border-[var(--t)] bg-[var(--t)] text-[var(--inv-t)] shadow-sm'
+                      : 'border-[var(--b2)] text-[var(--t2)] hover:border-[var(--b3)] hover:text-[var(--t)] bg-[var(--surf)]'
+                      }`}
                   >
                     {icon}
                     {label}
@@ -688,154 +754,180 @@ function SettingsContent() {
         {/* Members tab (always shown, or via nav) */}
         {activeTab === 'members' && (
           <>
-            <div className="bg-white rounded-2xl border border-gray-100">
-              <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+            <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)]">
+              <div className="px-6 py-5 border-b border-[var(--b)] flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-semibold text-gray-900">Team Members</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Manage user access and permissions</p>
+                  <h2 className="text-sm font-semibold text-[var(--t)]">Team Members</h2>
+                  <p className="text-xs text-[var(--t3)] mt-0.5">Manage user access and permissions</p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={handleInviteMember}
-                  disabled={actionLoading}
-                  icon={
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                    </svg>
-                  }
-                >
-                  Invite Member
-                </Button>
+                {canManageMembers && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleInviteMember}
+                    disabled={actionLoading}
+                    icon={
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                    }
+                  >
+                    Invite Member
+                  </Button>
+                )}
               </div>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/60">
-                    {['Member', 'Email', 'Role', 'Status', 'Last Active', 'Actions'].map((h, i) => (
-                      <th key={i} className="px-5 py-3 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {members.map(m => (
-                    <tr key={m.userId} className="hover:bg-gray-50/60 transition-colors group">
-                      <td className="px-5 py-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-2.5">
-                          <Avatar initials={getInitials(m.fullName)} src={m.avatarUrl || undefined} size="sm" />
-                          <span className="text-sm font-medium text-gray-900">{m.fullName}</span>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-gray-500">{m.email || <span className="text-gray-300 italic text-xs">Hidden</span>}</td>
-                      <td className="px-5 py-3.5">
-                        <span className="inline-flex px-2 py-0.5 rounded-md bg-gray-100 text-xs font-medium text-gray-600">
-                          {formatRoleLabel(m.role)}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5"><Badge label="Active" variant="active" /></td>
-                      <td className="px-5 py-3.5 text-xs text-gray-400 whitespace-nowrap">{formatLastActive(m.lastActiveAt)}</td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <button className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors disabled:opacity-40"
-                            onClick={() => { void handleEditMemberRole(m.userId, m.role); }} disabled={actionLoading}>
-                            Edit role
-                          </button>
-                          <button className="text-red-300 hover:text-red-500 transition-colors disabled:opacity-40"
-                            onClick={() => handleDeleteMember(m.userId, m.fullName)} disabled={actionLoading}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                              <polyline points="3 6 5 6 21 6"/>
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px]">
+                  <thead>
+                    <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/60">
+                      {['Member', 'Email', 'Role', 'Status', 'Last Active'].map((h, i) => (
+                        <th key={i} className="px-5 py-3 text-left text-[11px] font-medium text-[var(--t3)] uppercase tracking-wider whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
+                      {isAdmin && (
+                        <th className="px-5 py-3 text-left text-[11px] font-medium text-[var(--t3)] uppercase tracking-wider whitespace-nowrap">
+                          Actions
+                        </th>
+                      )}
                     </tr>
-                  ))}
-                  {!loading && members.length === 0 && (
-                    <tr><td colSpan={6} className="px-5 py-10 text-sm text-gray-400 text-center">No members found.</td></tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--b)]">
+                    {members.map(m => {
+                      const memberStatus = getMemberStatus(m.isOnline, m.lastActiveAt);
+                      return (
+                      <tr key={m.userId} className="hover:bg-[var(--bg2)]/60 transition-colors group">
+                        <td className="px-5 py-3.5 whitespace-nowrap">
+                          <div className="flex items-center gap-2.5">
+                            <Avatar initials={getInitials(m.fullName)} src={m.avatarUrl || undefined} size="sm" />
+                            <span className="text-sm font-medium text-[var(--t)]">{m.fullName}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3.5 text-sm text-[var(--t2)] whitespace-nowrap">{m.email || <span className="text-[var(--t3)] italic text-xs">Hidden</span>}</td>
+                        <td className="px-5 py-3.5 whitespace-nowrap">
+                          {isAdmin ? (
+                            <FilterDropdown
+                              size="sm"
+                              value={m.role}
+                              onChange={newRole => { void handleInlineRoleChange(m.userId, newRole); }}
+                              disabled={updatingRoleId === m.userId || actionLoading}
+                              options={availableRoles.map(r => ({ label: formatRoleLabel(r), value: r }))}
+                            />
+                          ) : (
+                            <Badge label={formatRoleLabel(m.role)} variant="default" />
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 whitespace-nowrap"><Badge label={memberStatus.label} variant={memberStatus.variant} /></td>
+                        <td className="px-5 py-3.5 text-xs text-[var(--t2)] whitespace-nowrap font-medium">{formatLastActive(m.lastActiveAt)}</td>
+                        {isAdmin && (
+                          <td className="px-5 py-3.5 whitespace-nowrap">
+                            <button
+                              className="text-[var(--t3)] hover:text-[var(--d)] opacity-75 hover:opacity-100 transition-colors disabled:opacity-40"
+                              onClick={() => handleDeleteMember(m.userId, m.fullName)}
+                              disabled={actionLoading}
+                              title="Remove member"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                              </svg>
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                      );
+                    })}
+                    {!loading && members.length === 0 && (
+                      <tr><td colSpan={isAdmin ? 6 : 5} className="px-5 py-10 text-sm text-[var(--t3)] text-center">No members found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* Roles & Permissions */}
-            <div className="bg-white rounded-2xl border border-gray-100">
-              <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-900">Roles & Permissions</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Access levels for each role in this workspace</p>
+            {isAdmin && (
+              <div className="bg-[var(--surf)] rounded-2xl border border-[var(--b)]">
+                <div className="px-6 py-5 border-b border-[var(--b)] flex items-center justify-between">
+                  <div>
+                    <h2 className="text-sm font-semibold text-[var(--t)]">Roles & Permissions</h2>
+                    <p className="text-xs text-[var(--t3)] mt-0.5">Access levels for each role in this workspace</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setCreateRoleModalOpen(true)}
+                    icon={
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                        <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                    }
+                  >
+                    Create Role
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setCreateRoleModalOpen(true)}
-                  icon={
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                    </svg>
-                  }
-                >
-                  Create Role
-                </Button>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[560px]">
+                    <thead>
+                      <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/60">
+                        {['Role', 'Description', 'Permissions', 'Members', 'Actions'].map((h, i) => (
+                          <th key={i} className="px-5 py-3 text-left text-[11px] font-medium text-[var(--t3)] uppercase tracking-wider whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--b)]">
+                      {roleRows.map(r => (
+                        <tr key={r.role} className="hover:bg-[var(--bg2)]/60 transition-colors group">
+                          <td className="px-5 py-3.5 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-[var(--t)]">{r.role}</span>
+                              {r.isCustom && <Badge label="Custom" variant="scheduled" />}
+                            </div>
+                          </td>
+                          <td className="px-5 py-3.5 text-sm text-[var(--t2)] whitespace-nowrap">{r.desc || '-'}</td>
+                          <td className="px-5 py-3.5 text-sm text-[var(--t2)]">
+                            <span className="block max-w-[200px] truncate" title={r.perms}>{r.perms || '-'}</span>
+                          </td>
+                          <td className="px-5 py-3.5 whitespace-nowrap">
+                            <Badge label={`${r.users} users`} variant="default" />
+                          </td>
+                          <td className="px-5 py-3.5 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              {!r.isCustom ? (
+                                <button disabled className="text-xs font-medium text-[var(--t4)] cursor-not-allowed">Edit</button>
+                              ) : (
+                                <button
+                                  className="text-xs font-medium text-[var(--t2)] hover:text-[var(--t)] transition-colors disabled:opacity-40"
+                                  onClick={() => r.roleId && handleEditCustomRole(r.roleId)}
+                                  disabled={actionLoading}
+                                >
+                                  Edit
+                                </button>
+                              )}
+                              {r.isCustom && (
+                                <button
+                                  className="text-[var(--d)] opacity-75 hover:opacity-100 transition-colors disabled:opacity-40"
+                                  onClick={() => r.roleId && handleDeleteRole(r.roleId, r.role, r.users)}
+                                  disabled={actionLoading}
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                    <polyline points="3 6 5 6 21 6" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {!loading && roleRows.length === 0 && (
+                        <tr><td colSpan={5} className="px-5 py-10 text-sm text-[var(--t3)] text-center">No roles available.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100 bg-gray-50/60">
-                    {['Role', 'Description', 'Permissions', 'Members', 'Actions'].map((h, i) => (
-                      <th key={i} className="px-5 py-3 text-left text-[11px] font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {roleRows.map(r => (
-                    <tr key={r.role} className="hover:bg-gray-50/60 transition-colors group">
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-gray-900">{r.role}</span>
-                          {r.isCustom && <span className="inline-block px-1.5 py-0.5 text-xs font-medium text-blue-600 bg-blue-50 rounded">Custom</span>}
-                        </div>
-                      </td>
-                      <td className="px-5 py-3.5 text-sm text-gray-500">{r.desc || '-'}</td>
-                      <td className="px-5 py-3.5 text-sm text-gray-500 max-w-xs truncate">{r.perms || '-'}</td>
-                      <td className="px-5 py-3.5">
-                        <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">{r.users} users</span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          {!r.isCustom ? (
-                            <button disabled className="text-xs font-medium text-gray-300 cursor-not-allowed">Edit</button>
-                          ) : (
-                            <button
-                              className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors disabled:opacity-40"
-                              onClick={() => r.roleId && handleEditCustomRole(r.roleId)}
-                              disabled={actionLoading}
-                            >
-                              Edit
-                            </button>
-                          )}
-                          {r.isCustom && (
-                            <button
-                              className="text-red-300 hover:text-red-500 transition-colors disabled:opacity-40"
-                              onClick={() => r.roleId && handleDeleteRole(r.roleId, r.role, r.users)}
-                              disabled={actionLoading}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                                <polyline points="3 6 5 6 21 6"/>
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                              </svg>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {!loading && roleRows.length === 0 && (
-                    <tr><td colSpan={5} className="px-5 py-10 text-sm text-gray-400 text-center">No roles available.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            )}
           </>
         )}
 
@@ -850,14 +942,6 @@ function SettingsContent() {
         roles={availableRoles}
       />
 
-      <EditRoleModal
-        isOpen={editRoleModalOpen}
-        onClose={() => setEditRoleModalOpen(false)}
-        onSubmit={handleSubmitEditRole}
-        currentRole={editingMemberRole}
-        availableRoles={availableRoles}
-        isLoading={actionLoading}
-      />
 
       <CreateCustomRoleModal
         isOpen={createRoleModalOpen}

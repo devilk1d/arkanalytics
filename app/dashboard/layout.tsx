@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { DashboardProvider } from '../components/dashboard/context/DashboardContext';
+import DashboardShell from '../components/dashboard/layout/DashboardLayout';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -101,7 +102,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         myRole: activeMembership?.role || '',
       }}
     >
-      {children}
+      <DashboardShell>
+        {children}
+      </DashboardShell>
     </DashboardProvider>
   );
 }

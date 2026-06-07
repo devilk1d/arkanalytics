@@ -1,82 +1,109 @@
 'use client';
 
-import { useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import Tabs from '../ui/Tabs';
-
-const data = {
-  Day: [
-    { date: 'May 5', retention: 320, churn: 110 },
-    { date: 'May 6', retention: 340, churn: 130 },
-    { date: 'May 7', retention: 330, churn: 120 },
-    { date: 'May 8', retention: 360, churn: 140 },
-    { date: 'May 9', retention: 276, churn: 160 },
-    { date: 'May 10', retention: 310, churn: 130 },
-    { date: 'May 11', retention: 290, churn: 120 },
-    { date: 'May 12', retention: 305, churn: 115 },
-    { date: 'May 13', retention: 315, churn: 105 },
-    { date: 'May 14', retention: 295, churn: 100 },
-  ],
-  Week: [
-    { date: 'W1', retention: 1200, churn: 420 },
-    { date: 'W2', retention: 1350, churn: 380 },
-    { date: 'W3', retention: 1280, churn: 450 },
-    { date: 'W4', retention: 1420, churn: 390 },
-  ],
-  Month: [
-    { date: 'Jan', retention: 5200, churn: 1800 },
-    { date: 'Feb', retention: 5500, churn: 1600 },
-    { date: 'Mar', retention: 5800, churn: 1900 },
-    { date: 'Apr', retention: 6100, churn: 1700 },
-    { date: 'May', retention: 6400, churn: 1500 },
-  ],
-};
+import { useState, useEffect, memo, useId } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload?.length) {
+  if (active && payload && payload.length) {
+    const d = payload[0];
     return (
-      <div className="bg-gray-900 text-white rounded-xl px-3 py-2 text-xs shadow-xl">
-        <p className="font-bold text-white mb-1">{payload[0]?.value}</p>
-        <p className="text-gray-400">{label}</p>
+      <div className="bg-[var(--t)] text-[var(--inv-t)] rounded-xl px-3 py-2.5 text-[10px] shadow-2xl border border-[var(--b3)] backdrop-blur-md opacity-95">
+        <p className="font-bold mb-1" style={{ color: d.payload.color }}>{d.payload.name}</p>
+        <div className="flex items-center justify-between gap-4 mt-1">
+          <span className="opacity-70">Customers</span>
+          <span className="font-black text-[var(--inv-t)]">{d.value?.toLocaleString('en-US')}</span>
+        </div>
+        <div className="flex items-center justify-between gap-4 mt-0.5">
+          <span className="opacity-70">Weight</span>
+          <span className="font-black text-[var(--inv-t)]">{d.payload.pct}%</span>
+        </div>
       </div>
     );
   }
   return null;
 };
 
-export default function ChurnTrendChart() {
-  const [period, setPeriod] = useState('Day');
-  const chartData = data[period as keyof typeof data];
+const ChurnTrendChart = ({ data }: { data?: any[] }) => {
+  const [isMounted, setIsMounted] = useState(false);
+  const gradLowId = useId();
+  const gradMedId = useId();
+  const gradHighId = useId();
+  
+  useEffect(() => setIsMounted(true), []);
+
+  const chartData = data && data.length > 0 ? data : [];
+  const total = chartData.reduce((sum: number, d: any) => sum + (d.value || 0), 0);
+  const enriched = chartData.map(d => ({ ...d, pct: total > 0 ? ((d.value / total) * 100).toFixed(1) : '0' }));
+
+  if (!isMounted) return <div className="h-full min-h-[190px]" />;
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-black">Churn Trend</h3>
-        <Tabs
-          tabs={[{ label: 'Day', value: 'Day' }, { label: 'Week', value: 'Week' }, { label: 'Month', value: 'Month' }]}
-          active={period}
-          onChange={setPeriod}
-          variant="pill"
-        />
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h3 className="text-[13px] font-bold text-[var(--t)]">Risk Level Distribution</h3>
+          <p className="text-[11px] text-[var(--t3)] mt-0.5">Customer churn risk breakdown</p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-[10px] text-[var(--t3)] uppercase tracking-wider">Total</p>
+          <p className="text-sm font-black text-[var(--t)]">{total.toLocaleString('en-US')}</p>
+        </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={210}>
-        <LineChart data={chartData} margin={{ top: 8, right: 6, bottom: 0, left: -14 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-          <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-          <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} width={32} />
-          <Tooltip content={<CustomTooltip />} cursor={false} />
-          <Line type="monotone" dataKey="retention" stroke="#22c55e" strokeWidth={2.5} dot={false}
-            activeDot={{ r: 5, fill: '#22c55e', stroke: 'white', strokeWidth: 2 }} />
-          <Line type="monotone" dataKey="churn" stroke="#eab308" strokeWidth={2.5} dot={false}
-            activeDot={{ r: 5, fill: '#eab308', stroke: 'white', strokeWidth: 2 }} />
-        </LineChart>
-      </ResponsiveContainer>
+      <div className="flex-1 min-h-[190px] overflow-hidden">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} debounce={350}>
+          <BarChart data={enriched} margin={{ top: 10, right: 0, bottom: 0, left: 0 }} barSize={54}>
+            <defs>
+              <linearGradient id={gradLowId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#10b981" stopOpacity={1}/>
+                <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
+              </linearGradient>
+              <linearGradient id={gradMedId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/>
+                <stop offset="100%" stopColor="#d97706" stopOpacity={0.8}/>
+              </linearGradient>
+              <linearGradient id={gradHighId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ef4444" stopOpacity={1}/>
+                <stop offset="100%" stopColor="#b91c1c" stopOpacity={0.8}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="0" stroke="var(--b)" vertical={false} opacity={0.5} />
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 10, fill: 'var(--t3)', fontWeight: 500 }}
+              axisLine={false}
+              tickLine={false}
+              dy={8}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: 'var(--t3)', fontWeight: 500 }}
+              axisLine={false}
+              tickLine={false}
+              width={45}
+            />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--bg1)', radius: 8, opacity: 0.4 }} />
+            <Bar dataKey="value" radius={[8, 8, 2, 2]}>
+              {enriched.map((entry: any, index: number) => {
+                const gradId = entry.name.toLowerCase().includes('low') ? `url(#${gradLowId})` : 
+                              entry.name.toLowerCase().includes('med') ? `url(#${gradMedId})` : `url(#${gradHighId})`;
+                return <Cell key={`cell-${index}`} fill={gradId} />;
+              })}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
 
-      <div className="flex items-center gap-4 mt-2">
-        <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" /><span className="text-xs text-gray-500">Retention</span></div>
-        <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block" /><span className="text-xs text-gray-500">Churn</span></div>
+      <div className="flex items-center gap-5 mt-4 flex-wrap">
+        {enriched.map((d: any) => (
+          <div key={d.name} className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
+            <span className="text-[11px] font-bold text-[var(--t2)] uppercase tracking-wider">{d.name}</span>
+            <span className="text-[11px] font-black text-[var(--t)] opacity-60">{d.pct}%</span>
+          </div>
+        ))}
       </div>
     </div>
   );
-}
+};
+
+export default memo(ChurnTrendChart);

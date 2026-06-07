@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import AuthInput from '../../components/auth/AuthInput';
 import AuthButton from '../../components/auth/AuthButton';
 import { createClient } from '@/lib/supabase/client';
+import { PasswordStrengthHint, usePasswordValidation } from '../../components/auth/PasswordStrengthHint';
 
 type InviteContext = {
   invitationId: string;
@@ -124,6 +125,8 @@ function InviteRegisterForm({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const { isValid: passwordValid } = usePasswordValidation(password);
+
   const handleSubmit = async () => {
     setError('');
     setSuccess('');
@@ -133,8 +136,8 @@ function InviteRegisterForm({
       return;
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
+    if (!passwordValid) {
+      setError('Password must meet all requirements.');
       return;
     }
 
@@ -271,7 +274,7 @@ function InviteRegisterForm({
               placeholder="••••••••••"
               value={password}
               onChange={setPassword}
-              hint="Must be at least 8 characters"
+              hint={<PasswordStrengthHint password={password} />}
             />
             <AuthInput
               label="Confirm Password"
@@ -279,7 +282,6 @@ function InviteRegisterForm({
               placeholder="••••••••••"
               value={confirmPassword}
               onChange={setConfirmPassword}
-              hint="Must be at least 8 characters"
             />
           </div>
 
@@ -401,6 +403,10 @@ export default function InvitePage() {
     if (data?.success === false) {
       return data.error || 'Failed to accept invitation.';
     }
+
+    await supabase.from('users')
+      .update({ is_online: true, last_active_at: new Date().toISOString() })
+      .eq('id', user.id);
 
     router.push('/dashboard/overview');
     router.refresh();

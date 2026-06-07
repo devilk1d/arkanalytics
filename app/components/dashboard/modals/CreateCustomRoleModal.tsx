@@ -93,35 +93,45 @@ export default function CreateCustomRoleModal({
     <Modal open={isOpen} onClose={onClose} title={title} width="lg">
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Role Name</label>
+          <label className="block text-xs font-medium mb-1" style={{ color: 'var(--t3)' }}>Role Name</label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g., CRM Team, Sales Lead"
             disabled={isLoading}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition-all disabled:bg-gray-50"
+            className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none transition-all disabled:opacity-50"
+            style={{ background: 'var(--bg2)', border: '1px solid var(--b2)', color: 'var(--t)' }}
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Description <span className="text-gray-400 font-normal">(optional)</span></label>
+          <label className="block text-xs font-medium mb-1" style={{ color: 'var(--t3)' }}>
+            Description <span className="font-normal" style={{ color: 'var(--t4)' }}>(optional)</span>
+          </label>
           <input
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="e.g., Team members who manage CRM operations"
             disabled={isLoading}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition-all disabled:bg-gray-50"
+            className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none transition-all disabled:opacity-50"
+            style={{ background: 'var(--bg2)', border: '1px solid var(--b2)', color: 'var(--t)' }}
           />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-3">Permissions</label>
-          <p className="text-xs text-gray-400 mb-3">Select which features this role can access</p>
+          <label className="block text-xs font-semibold mb-3" style={{ color: 'var(--t2)' }}>Permissions</label>
+          <p className="text-xs mb-3" style={{ color: 'var(--t4)' }}>Select which features this role can access</p>
           <div className="space-y-2">
             {availablePermissions.map((perm) => (
-              <label key={perm.id} className="flex items-start gap-3 p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors">
+              <label
+                key={perm.id}
+                className="flex items-start gap-3 p-2.5 rounded-lg cursor-pointer transition-colors"
+                style={{ border: '1px solid var(--b)' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg2)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
                 <input
                   type="checkbox"
                   checked={permissions.includes(perm.id)}
@@ -130,27 +140,29 @@ export default function CreateCustomRoleModal({
                   className="mt-0.5 w-4 h-4 cursor-pointer"
                 />
                 <div>
-                  <p className="text-xs font-medium text-gray-900">{perm.label}</p>
-                  <p className="text-[11px] text-gray-400">{perm.description}</p>
+                  <p className="text-xs font-medium" style={{ color: 'var(--t)' }}>{perm.label}</p>
+                  <p className="text-[11px]" style={{ color: 'var(--t4)' }}>{perm.description}</p>
                 </div>
               </label>
             ))}
           </div>
         </div>
 
-        {error && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+        {error && <p className="text-xs text-red-500 px-3 py-2 rounded-lg" style={{ background: 'var(--d-bg)' }}>{error}</p>}
 
         <div className="flex items-center justify-end gap-3 pt-2">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={onClose}
             disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
             Cancel
-          </button>
-          <Button type="submit" size="sm" disabled={isLoading}>
-            {isLoading ? 'Saving…' : submitLabel}
+          </Button>
+          <Button 
+            type="submit" 
+            isLoading={isLoading}
+          >
+            {submitLabel}
           </Button>
         </div>
       </form>

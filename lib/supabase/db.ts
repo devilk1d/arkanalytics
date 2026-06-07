@@ -50,7 +50,9 @@ export async function getDatasets(userId: string) {
  */
 export async function savePredictions(datasetId: string, predictions: CustomerPrediction[]) {
     const supabase = await createClient()
-    const rows = predictions.map(p => ({
+
+    // Cast ke unknown agar bisa akses field v2.3 yang belum ada di type CustomerPrediction
+    const rows = (predictions as unknown as Record<string, unknown>[]).map(p => ({
         dataset_id: datasetId,
         customer_id: p.customer_id,
         plan_type: p.plan_type,
@@ -58,16 +60,20 @@ export async function savePredictions(datasetId: string, predictions: CustomerPr
         churn_score: p.churn_score,
         churn_proba: p.churn_proba,
         tabular_proba: p.tabular_proba,
-        nlp_proba: p.nlp_proba,
+        nlp_proba: p.nlp_proba ?? null,
         risk_level: p.risk_level,
-        shap_top5: p.shap_top5,        // jsonb
-        sentiment: p.sentiment,         // jsonb
-        nlp_red_flag: p.nlp_red_flag,
+        shap_top5: p.shap_top5,             // jsonb
+        sentiment: p.sentiment,              // jsonb
+        nlp_red_flag: (p.nlp_red_flag as number) ?? 0,
+        // ── v2.3: field baru ───────────────────────────────────────────
+        loyalty_risk_flag: (p.loyalty_risk_flag as number) ?? 0,
+        has_nps_data: (p.has_nps_data as number) ?? 1,
+        // ──────────────────────────────────────────────────────────────
         segment_label: p.segment_label,
         segment_cluster: p.segment_cluster,
-        segment_rfm_context: p.segment_rfm_context, // jsonb
-        xai_churn_explanation: p.xai_churn_explanation,
-        xai_segment_explanation: p.xai_segment_explanation,
+        segment_rfm_context: p.segment_rfm_context,   // jsonb
+        xai_churn_explanation: (p.xai_churn_explanation as string | null) ?? null,
+        xai_segment_explanation: (p.xai_segment_explanation as string | null) ?? null,
     }))
 
     const { error } = await supabase
@@ -128,7 +134,11 @@ export async function updateXaiNarrative(
 
 // ── Segments ──────────────────────────────────────────────────────────────────
 
-export async function saveSegments(datasetId: string, predictions: CustomerPrediction[]) {
+export async function saveSegments(
+    datasetId: string,
+    predictions: CustomerPrediction[],
+    cohortXai?: Record<string, unknown>
+) {
     const supabase = await createClient()
 
     // Aggregate per segment dari predictions
@@ -156,22 +166,42 @@ export async function saveSegments(datasetId: string, predictions: CustomerPredi
     const avg = (arr: number[]) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0
     const pct = (arr: string[], val: string) => (arr.filter(v => v === val).length / arr.length) * 100
 
-    const rows = Object.entries(segmentMap).map(([label, s]) => ({
-        dataset_id: datasetId,
-        segment_label: label,
-        segment_cluster: s.cluster,
-        total_customers: s.scores.length,
-        avg_churn_score: Math.round(avg(s.scores) * 10) / 10,
-        pct_high_risk: Math.round(pct(s.risks, 'High') * 10) / 10,
-        avg_revenue: Math.round(avg(s.revenues) * 100) / 100,
-        avg_usage_hrs: Math.round(avg(s.usages) * 100) / 100,
-        avg_nps: Math.round(avg(s.npss) * 100) / 100,
-        segment_actions: s.actions,
-    }))
+    const now = new Date().toISOString()
+
+    const rows = Object.entries(segmentMap).map(([label, s]) => {
+        const xai = cohortXai?.[label]
+        return {
+            dataset_id: datasetId,
+            segment_label: label,
+            segment_cluster: s.cluster,
+            total_customers: s.scores.length,
+            avg_churn_score: Math.round(avg(s.scores) * 10) / 10,
+            pct_high_risk: Math.round(pct(s.risks, 'High') * 10) / 10,
+            avg_revenue: Math.round(avg(s.revenues) * 100) / 100,
+            avg_usage_hrs: Math.round(avg(s.usages) * 100) / 100,
+            avg_nps: Math.round(avg(s.npss) * 100) / 100,
+            segment_actions: s.actions,
+            ...(xai ? { xai_cohort: xai, xai_cohort_generated_at: now } : {}),
+        }
+    })
 
     const { error } = await supabase
         .from('segments')
         .upsert(rows, { onConflict: 'dataset_id,segment_label' })
+    if (error) throw error
+}
+
+export async function updateSegmentCohortXai(
+    datasetId: string,
+    segmentLabel: string,
+    xaiCohort: unknown
+) {
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('segments')
+        .update({ xai_cohort: xaiCohort, xai_cohort_generated_at: new Date().toISOString() })
+        .eq('dataset_id', datasetId)
+        .eq('segment_label', segmentLabel)
     if (error) throw error
 }
 
@@ -196,4 +226,124 @@ export async function getCustomersBySegment(datasetId: string, segmentLabel: str
         .order('churn_score', { ascending: false })
     if (error) throw error
     return data
+}
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+export async function getReports(workspaceId: string) {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('reports')
+        .select('*')
+        .eq('workspace_id', workspaceId)
+        .order('created_at', { ascending: false })
+    if (error) throw error
+    return data
+}
+
+export async function createReport(reportData: {
+    workspace_id: string,
+    user_id: string,
+    dataset_id?: string,
+    name: string,
+    type: 'pdf' | 'csv' | 'xlsx',
+    status: 'pending' | 'ready' | 'error'
+}) {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('reports')
+        .insert(reportData)
+        .select()
+        .single()
+    if (error) throw error
+    return data
+}
+
+export async function updateReport(reportId: string, updates: {
+    status?: 'pending' | 'ready' | 'error',
+    storage_path?: string,
+    file_size?: number,
+    error_message?: string
+}) {
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('reports')
+        .update(updates)
+        .eq('id', reportId)
+    if (error) throw error
+}
+
+export async function deleteReport(reportId: string) {
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('reports')
+        .delete()
+        .eq('id', reportId)
+    if (error) throw error
+}
+
+// ── Scheduled Reports ─────────────────────────────────────────────────────────
+
+export async function getScheduledReports(workspaceId: string) {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('scheduled_reports')
+        .select('*')
+        .eq('workspace_id', workspaceId)
+        .order('created_at', { ascending: false })
+    if (error) throw error
+    return data
+}
+
+export async function createScheduledReport(scheduleData: {
+    workspace_id: string,
+    user_id: string,
+    name: string,
+    frequency: 'daily' | 'weekly' | 'monthly',
+    report_category: 'churn' | 'segmentation' | 'forecast',
+    export_type: 'pdf' | 'csv' | 'xlsx',
+    include_segments: string,
+    recipients: string[],
+    time_of_day?: string,
+    day_of_week?: number | null,
+    day_of_month?: number | null,
+    next_run_at: string
+}) {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('scheduled_reports')
+        .insert(scheduleData)
+        .select()
+        .single()
+    if (error) throw error
+    return data
+}
+
+export async function deleteScheduledReport(scheduleId: string) {
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('scheduled_reports')
+        .delete()
+        .eq('id', scheduleId)
+    if (error) throw error
+}
+
+export async function getDueScheduledReports() {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('scheduled_reports')
+        .select('*')
+        .eq('is_active', true)
+        .lte('next_run_at', new Date().toISOString())
+    if (error) throw error
+    return data
+}
+
+export async function updateScheduledReportNextRun(scheduleId: string, nextRunAt: string, lastRunAt: string) {
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('scheduled_reports')
+        .update({ next_run_at: nextRunAt, last_run_at: lastRunAt })
+        .eq('id', scheduleId)
+    if (error) throw error
 }

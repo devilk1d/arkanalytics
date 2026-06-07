@@ -7,6 +7,7 @@ import AuthLogo from '../../../components/auth/AuthLogo';
 import AuthInput from '../../../components/auth/AuthInput';
 import AuthButton from '../../../components/auth/AuthButton';
 import QuoteSidebar from '../../../components/auth/QuoteSidebar';
+import { PasswordStrengthHint, usePasswordValidation } from '../../../components/auth/PasswordStrengthHint';
 import { createClient } from '@/lib/supabase/client';
 
 export default function CreateArkaIDPage() {
@@ -20,34 +21,8 @@ export default function CreateArkaIDPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  const hasLength = password.length >= 8;
-  const hasUpper = /[A-Z]/.test(password);
-  const hasLower = /[a-z]/.test(password);
-  const hasNumber = /[0-9]/.test(password);
-
-  const reqs = [
-    { label: '8+ characters', met: hasLength },
-    { label: 'Uppercase letter', met: hasUpper },
-    { label: 'Lowercase letter', met: hasLower },
-    { label: 'Number', met: hasNumber },
-  ];
-
-  const passwordHint = (
-    <ul className="mt-1.5 space-y-1">
-      {reqs.map((req, i) => (
-        <li key={i} className={`flex items-center gap-1.5 ${req.met ? 'text-green-600 font-medium' : 'text-gray-400'}`}>
-          {req.met ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          ) : (
-             <span className="w-3.5 h-3.5 rounded-full border border-gray-400" />
-          )}
-          {req.label}
-        </li>
-      ))}
-    </ul>
-  );
+  const { hasLength, hasUpper, hasLower, hasNumber, isValid: passwordValid } = usePasswordValidation(password);
+  const passwordHint = <PasswordStrengthHint password={password} />;
 
   const handleSubmit = async () => {
     setErrorMessage('');
@@ -58,7 +33,7 @@ export default function CreateArkaIDPage() {
       return;
     }
 
-    if (!hasLength || !hasUpper || !hasLower || !hasNumber) {
+    if (!passwordValid) {
       setErrorMessage('Password must meet all requirements.');
       return;
     }

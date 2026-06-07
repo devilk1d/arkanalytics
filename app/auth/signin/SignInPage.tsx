@@ -79,6 +79,12 @@ export default function SignInPage() {
       }
     }
 
+    if (signedInUserId) {
+      await supabase.from('users')
+        .update({ is_online: true, last_active_at: new Date().toISOString() })
+        .eq('id', signedInUserId);
+    }
+
     setLoading(false);
 
     router.push(safeRedirectTo || '/dashboard/overview');
@@ -123,7 +129,7 @@ export default function SignInPage() {
                     Password
                   </label>
                   <Link
-                    href="#"
+                    href="/auth/forgot-password"
                     className="font-display text-xs font-semibold tracking-widest uppercase text-gray-400 hover:text-black transition-colors duration-200"
                   >
                     Forgot ?

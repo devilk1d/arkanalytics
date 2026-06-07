@@ -9,6 +9,7 @@ import AuthSelect from '../../../components/auth/AuthDropdown';
 import AuthButton from '../../../components/auth/AuthButton';
 import StepIndicator from '../../../components/auth/StepIndicator';
 import { createClient } from '@/lib/supabase/client';
+import { PasswordStrengthHint, usePasswordValidation } from '../../../components/auth/PasswordStrengthHint';
 
 type WorkspaceDraft = {
   company: string;
@@ -135,6 +136,8 @@ function ArkaIDStep({
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  const { isValid: passwordValid } = usePasswordValidation(password);
+
   const handleSubmit = async () => {
     setErrorMessage('');
     setSuccessMessage('');
@@ -144,8 +147,8 @@ function ArkaIDStep({
       return;
     }
 
-    if (password.length < 8) {
-      setErrorMessage('Password must be at least 8 characters.');
+    if (!passwordValid) {
+      setErrorMessage('Password must meet all requirements.');
       return;
     }
 
@@ -242,9 +245,9 @@ function ArkaIDStep({
 
       <div className="grid grid-cols-2 gap-x-4 gap-y-5 mb-5">
         <AuthInput label="Full Name" placeholder="Your name" value={name} onChange={setName} />
-        <AuthInput label="Password" type="password" placeholder="••••••••••" value={password} onChange={setPassword} hint="Must be at least 8 characters" />
+        <AuthInput label="Password" type="password" placeholder="••••••••••" value={password} onChange={setPassword} hint={<PasswordStrengthHint password={password} />} />
         <AuthInput label="Email Address" type="email" placeholder="john@company.com" value={email} onChange={setEmail} />
-        <AuthInput label="Confirm Password" type="password" placeholder="••••••••••" value={confirmPassword} onChange={setConfirmPassword} hint="Must be at least 8 characters" />
+        <AuthInput label="Confirm Password" type="password" placeholder="••••••••••" value={confirmPassword} onChange={setConfirmPassword} />
       </div>
 
       {/* Terms — right side aligned like design */}

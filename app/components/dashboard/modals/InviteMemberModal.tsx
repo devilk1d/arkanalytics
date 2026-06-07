@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
-import AuthDropdown from '../../auth/AuthDropdown';
+import FilterDropdown from '../ui/FilterDropdown';
 
 interface InviteMemberModalProps {
   isOpen: boolean;
@@ -59,21 +59,27 @@ export default function InviteMemberModal({
     <Modal open={isOpen} onClose={handleClose} title="Invite Team Member" width="md">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Email Address</label>
+          <label className="block text-xs font-medium mb-1" style={{ color: 'var(--t3)' }}>Email Address</label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="member@company.com"
             disabled={isLoading}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 transition-all disabled:bg-gray-50"
+            className="w-full px-3 py-2 rounded-lg text-sm focus:outline-none transition-all disabled:opacity-50"
+            style={{
+              background: 'var(--bg2)',
+              border: '1px solid var(--b2)',
+              color: 'var(--t)',
+            }}
           />
         </div>
 
         <div>
-          <AuthDropdown
+          <FilterDropdown
             label="Assign Role"
             placeholder="Select a role"
+            size="md"
             value={role}
             onChange={setRole}
             disabled={isLoading}
@@ -84,19 +90,21 @@ export default function InviteMemberModal({
           />
         </div>
 
-        {error && <p className="text-xs text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+        {error && <p className="text-xs text-red-500 px-3 py-2 rounded-lg" style={{ background: 'var(--d-bg)' }}>{error}</p>}
 
         <div className="flex items-center justify-end gap-3 pt-2">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={handleClose}
             disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
             Cancel
-          </button>
-          <Button type="submit" size="sm" disabled={isLoading} onClick={() => {}}>
-            {isLoading ? 'Sending…' : 'Send Invitation'}
+          </Button>
+          <Button 
+            type="submit" 
+            isLoading={isLoading}
+          >
+            Send Invitation
           </Button>
         </div>
       </form>

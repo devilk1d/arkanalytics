@@ -38,16 +38,16 @@ export default function ChatResizeDivider({ onDrag }: ChatResizeDividerProps) {
   return (
     <div
       onMouseDown={onMouseDown}
-      className="group relative w-1 shrink-0 cursor-col-resize bg-gray-100 hover:bg-blue-200 transition-colors duration-150"
+      className="group relative w-px shrink-0 cursor-col-resize bg-[var(--b)] hover:bg-[var(--accent)] transition-colors duration-150"
       style={{ zIndex: 10 }}
     >
       {/* Invisible wider hit area */}
       <div className="absolute inset-y-0 -left-1.5 -right-1.5" />
       {/* Visual dots indicator */}
       <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <div className="w-1 h-1 rounded-full bg-blue-400" />
-        <div className="w-1 h-1 rounded-full bg-blue-400" />
-        <div className="w-1 h-1 rounded-full bg-blue-400" />
+        <div className="w-1 h-1 rounded-full bg-[var(--accent)]" />
+        <div className="w-1 h-1 rounded-full bg-[var(--accent)]" />
+        <div className="w-1 h-1 rounded-full bg-[var(--accent)]" />
       </div>
     </div>
   );
