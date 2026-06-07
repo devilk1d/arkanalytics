@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, memo } from 'react';
+import { useMemo, memo } from 'react';
 import Link from 'next/link';
 import CustomerFlowChart from '../../charts/CustomerFlowChart';
 import DonutChart from '../../charts/DonutChart';
@@ -109,12 +109,7 @@ const OverviewPage = ({
   trajectorySummary?: { avg: string; best: string; trend: string };
   trajectoryData?: { label: string; value: number }[];
 }) => {
-  const [isMounted, setIsMounted] = useState(false);
   const { workspace } = useDashboardContext();
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   const data = useMemo(() => stats || {
     totalCustomers: 0,
@@ -180,23 +175,6 @@ const OverviewPage = ({
       href: '/dashboard/chat',
     }
   ], [data]);
-
-  if (!isMounted) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-20 bg-[var(--bg2)] rounded-2xl" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-32 bg-[var(--bg2)] rounded-2xl" />
-          ))}
-        </div>
-        <div className="grid grid-cols-12 gap-4">
-          <div className="col-span-12 xl:col-span-8 h-96 bg-[var(--bg2)] rounded-2xl" />
-          <div className="col-span-12 xl:col-span-4 h-96 bg-[var(--bg2)] rounded-2xl" />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="fade-in">
