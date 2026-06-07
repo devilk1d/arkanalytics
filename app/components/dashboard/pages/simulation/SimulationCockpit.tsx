@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import SimulationChart from './SimulationChart';
 import Badge from '../../ui/Badge';
 import { CustomerPicker } from './CustomerPickerView';
@@ -326,6 +326,74 @@ export function SimulationCockpit(props: SimulationCockpitProps) {
     : 0;
 
   const narrativeLines = dispNarrative ? dispNarrative.split('\n\n').filter(Boolean) : [];
+
+  // Fullscreen toggle for the Q&A chat panel
+  const [chatFullscreen, setChatFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!chatFullscreen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setChatFullscreen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [chatFullscreen]);
+
+  // Shared chat body — reused inline (triple column) and in the fullscreen overlay.
+  // `attachRef` makes sure the scroll anchor lives on whichever copy is visible.
+  const renderChatBody = (fullscreen: boolean, attachRef: boolean) => {
+    const railStyle: React.CSSProperties = fullscreen
+      ? { width: '100%', maxWidth: 760, margin: '0 auto' }
+      : {};
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', gap: 10 }}>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
+          <div style={{ ...railStyle, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {chatMsgs.length === 0 && (
+              <div className="text-[12px] font-medium text-[var(--t2)] leading-relaxed py-5">
+                Ask anything about this customer — the AI answers based on the latest simulation run and won&apos;t change the chart.
+              </div>
+            )}
+            {chatMsgs.map(m => (
+              <div key={m.id} className={m.role === 'user' ? 'chat-msg-user' : 'chat-msg-ai'}>
+                {m.content
+                  ? m.role === 'ai'
+                    ? <>{renderMd(filterThinkTags(m.content))}{m.streaming && <span className="caret-blink" />}</>
+                    : m.content
+                  : <span className="dot-pulse" />}
+              </div>
+            ))}
+            {attachRef && <div ref={chatEndRef} />}
+          </div>
+        </div>
+        <div className="scenario-input" style={{ flexShrink: 0, ...railStyle }}>
+          <Icons.Chat />
+          <input
+            value={chatInput}
+            onChange={e => onSetChatInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') onSendChat(); }}
+            placeholder={hasResults ? 'Ask a question…' : 'Run a simulation first'}
+            disabled={!hasResults || phase === 'asking'}
+          />
+          <button
+            className="btn btn-primary btn-sm h-[30px]"
+            onClick={onSendChat}
+            disabled={!chatInput.trim() || !hasResults || phase === 'asking'}
+          >
+            <Icons.Send /> Send
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const ExpandIcon = ({ collapse }: { collapse?: boolean }) => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      {collapse ? (
+        <><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" /></>
+      ) : (
+        <><polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" /></>
+      )}
+    </svg>
+  );
 
   return (
     <div className="page-cockpit fade-in" key={customer.customer_id}>
@@ -657,6 +725,17 @@ export function SimulationCockpit(props: SimulationCockpitProps) {
                   Ask AI{chatMsgs.length > 0 && ` (${chatMsgs.filter(m => m.role === 'user').length})`}
                 </button>
               </div>
+              {thirdTab === 'chat' && (
+                <button
+                  onClick={() => { onSetThirdTab('chat'); setChatFullscreen(true); }}
+                  title="Expand chat to full screen"
+                  aria-label="Expand chat to full screen"
+                  style={{ color: 'var(--t3)', lineHeight: 1, display: 'inline-flex' }}
+                  className="hover:text-[var(--t)] transition-colors"
+                >
+                  <ExpandIcon />
+                </button>
+              )}
             </div>
 
             {thirdTab === 'playbook' && (
@@ -699,44 +778,49 @@ export function SimulationCockpit(props: SimulationCockpitProps) {
               </div>
             )}
 
-            {thirdTab === 'chat' && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', gap: 10 }}>
-                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {chatMsgs.length === 0 && (
-                    <div className="text-[12px] font-medium text-[var(--t2)] leading-relaxed py-5">
-                      Ask anything about this customer — the AI answers based on the latest simulation run and won't change the chart.
-                    </div>
-                  )}
-                  {chatMsgs.map(m => (
-                    <div key={m.id} className={m.role === 'user' ? 'chat-msg-user' : 'chat-msg-ai'}>
-                      {m.content
-                        ? m.role === 'ai'
-                          ? <>{renderMd(filterThinkTags(m.content))}{m.streaming && <span className="caret-blink" />}</>
-                          : m.content
-                        : <span className="dot-pulse" />}
-                    </div>
-                  ))}
-                  <div ref={chatEndRef} />
-                </div>
-                <div className="scenario-input" style={{ flexShrink: 0 }}>
-                  <Icons.Chat />
-                  <input
-                    value={chatInput}
-                    onChange={e => onSetChatInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') onSendChat(); }}
-                    placeholder={hasResults ? 'Ask a question…' : 'Run a simulation first'}
-                    disabled={!hasResults || phase === 'asking'}
-                  />
-                  <button
-                    className="btn btn-primary btn-sm h-[30px]"
-                    onClick={onSendChat}
-                    disabled={!chatInput.trim() || !hasResults || phase === 'asking'}
-                  >
-                    <Icons.Send /> Send
-                  </button>
-                </div>
-              </div>
-            )}
+            {thirdTab === 'chat' && renderChatBody(false, !chatFullscreen)}
+          </div>
+        </div>
+      )}
+
+      {/* ── Fullscreen Q&A Chat ───────────────────────────────────────── */}
+      {chatFullscreen && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 60,
+            background: 'var(--bg)', display: 'flex', flexDirection: 'column',
+          }}
+          className="fade-in"
+        >
+          {/* Header */}
+          <div
+            style={{ padding: '16px 24px' }}
+            className="flex items-center gap-3 border-b border-[var(--b)] flex-shrink-0"
+          >
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--t3)]">04</span>
+            <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--accent)]">Q&amp;A Chat</span>
+            <span className="text-[11px] text-[var(--t3)] font-mono truncate">· {customer.customer_id}</span>
+            <span className="flex-1" />
+            <button
+              onClick={() => setChatFullscreen(false)}
+              title="Exit full screen (Esc)"
+              aria-label="Exit full screen"
+              style={{ color: 'var(--t3)', lineHeight: 1, display: 'inline-flex' }}
+              className="hover:text-[var(--t)] transition-colors"
+            >
+              <ExpandIcon collapse />
+            </button>
+            <button
+              onClick={() => setChatFullscreen(false)}
+              className="text-[var(--t3)] hover:text-[var(--t)] transition-colors"
+              aria-label="Close"
+            >
+              <Icons.X />
+            </button>
+          </div>
+          {/* Body */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', padding: '20px 24px' }}>
+            {renderChatBody(true, chatFullscreen)}
           </div>
         </div>
       )}
