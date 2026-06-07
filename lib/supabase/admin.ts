@@ -1,6 +1,10 @@
-import { createClient } from '@supabase/supabase-js'
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
-let _admin: ReturnType<typeof createClient> | null = null
+// ReturnType<typeof createClient> resolves to SupabaseClient<unknown,...> in TS5,
+// making .update() accept `never`. Explicit <any,any,any> keeps Schema = any.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _admin: SupabaseClient<any, any, any> | null = null
 
 export function createAdminClient() {
   if (_admin) return _admin

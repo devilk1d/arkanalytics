@@ -27,8 +27,7 @@ export async function updateDatasetStatus(
     const supabase = createAdminClient()
     const { error } = await supabase
         .from('datasets')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .update({ status, analyzed_at: status === 'done' ? new Date().toISOString() : null, ...extra } as any)
+        .update({ status, analyzed_at: status === 'done' ? new Date().toISOString() : null, ...extra })
         .eq('id', datasetId)
     if (error) throw error
 }
