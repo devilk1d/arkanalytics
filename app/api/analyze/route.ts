@@ -2,6 +2,10 @@
 // Dipanggil dari halaman Customer Analytics / Segmentation
 // Kirim 5 CSV ke Railway → simpan hasil ke Supabase
 
+// Vercel Hobby max = 60 s; Pro = 300 s.
+// Full-batch predict + LLM XAI can take several minutes on large datasets.
+export const maxDuration = 60
+
 import { NextRequest, NextResponse } from 'next/server'
 import { savePredictions, saveSegments, updateDatasetStatus } from '@/lib/supabase/db'
 import { CustomerPrediction } from '@/types/churn'

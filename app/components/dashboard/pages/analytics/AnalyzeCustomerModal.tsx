@@ -159,45 +159,6 @@ function XaiPanel({ raw, onRetry, isRetrying = false }: { raw: string | null; on
   );
 }
 
-const datasetFileCache = new Map<string, Map<string, Blob>>();
-const FILE_KEYS = [
-  'customer_accounts', 'monthly_usage_metrics', 'billing_data',
-  'support_tickets', 'nps_surveys_with_feedback',
-] as const;
-
-async function buildFormData(
-  dsId: string,
-  setStage: (s: 'db' | 'downloading' | 'predicting') => void,
-  setProgress: (p: number) => void,
-  supabaseClient: ReturnType<typeof createClient>
-): Promise<FormData | null> {
-  const form = new FormData();
-  const cached = datasetFileCache.get(dsId);
-  if (cached && cached.size === FILE_KEYS.length) {
-    for (const key of FILE_KEYS) {
-      form.append(key, new File([cached.get(key)!], `${key}.csv`, { type: 'text/csv' }));
-    }
-    return form;
-  }
-
-  setStage('downloading');
-  const { data: ds } = await supabaseClient.from('datasets').select('storage_path').eq('id', dsId).single();
-  if (!ds) return null;
-
-  const fileBlobs = new Map<string, Blob>();
-  for (let i = 0; i < FILE_KEYS.length; i++) {
-    const key = FILE_KEYS[i];
-    const { data: blob, error: dlErr } = await supabaseClient.storage.from('files')
-      .download(`${ds.storage_path}/${key}.csv`);
-    if (dlErr || !blob) return null;
-    fileBlobs.set(key, blob);
-    form.append(key, new File([blob], `${key}.csv`, { type: 'text/csv' }));
-    setProgress(Math.round(((i + 1) / FILE_KEYS.length) * 100));
-  }
-  datasetFileCache.set(dsId, fileBlobs);
-  return form;
-}
-
 interface AnalyzeCustomerModalProps {
   customerId: string;
   datasetId: string;
@@ -206,22 +167,20 @@ interface AnalyzeCustomerModalProps {
 }
 
 export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: AnalyzeCustomerModalProps) {
-  const [data, setData] = useState<CustomerPrediction | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [loadingStage, setLoadingStage] = useState<'db' | 'downloading' | 'predicting'>('db');
-  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [data,          setData]          = useState<CustomerPrediction | null>(null);
+  const [loading,       setLoading]       = useState(false);
+  const [loadingStage,  setLoadingStage]  = useState<'db' | 'predicting'>('db');
   const [xaiGenerating, setXaiGenerating] = useState(false);
-  const [error, setError] = useState('');
+  const [error,         setError]         = useState('');
 
   const supabase = createClient();
 
-  // Use abort controller to cancel in-flight loads when modal closes or customer changes
-  const abortRef = useRef<AbortController | null>(null);
-  const loadedKeyRef = useRef<string>('');
+  const abortRef      = useRef<AbortController | null>(null);
+  const loadedKeyRef  = useRef<string>('');
 
   /* ─── Animation ─── */
-  const [mounted, setMounted] = useState(false);
-  const [visible, setVisible] = useState(false);
+  const [mounted,  setMounted]  = useState(false);
+  const [visible,  setVisible]  = useState(false);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -248,26 +207,21 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
     if (!open || !customerId || !datasetId) return;
 
     const loadKey = `${datasetId}:${customerId}`;
-
-    // Skip if already loaded for this exact customer+dataset
     if (loadedKeyRef.current === loadKey && data !== null) return;
 
-    // Cancel any previous in-flight request
     if (abortRef.current) abortRef.current.abort();
     const abort = new AbortController();
     abortRef.current = abort;
 
-    // Reset state for new load
     setLoading(true);
     setError('');
     setData(null);
     setLoadingStage('db');
-    setDownloadProgress(0);
     setXaiGenerating(false);
 
     async function load() {
       try {
-        // 1. Check DB first
+        // 1. Check DB first — instant return if prediction exists
         const { data: existing } = await supabase
           .from('predictions').select('*')
           .eq('dataset_id', datasetId).eq('customer_id', customerId)
@@ -276,8 +230,6 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
         if (abort.signal.aborted) return;
 
         if (existing) {
-          // Always set data first so UI renders immediately
-          // Normalize: ensure sentiment object is never undefined
           const normalized = {
             ...existing,
             sentiment: existing.sentiment ?? {
@@ -291,26 +243,22 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
           setLoading(false);
           loadedKeyRef.current = loadKey;
 
-          // If XAI missing, generate it in background
+          // If XAI missing, generate it in the background (server fetches files)
           if (!existing.xai_churn_explanation) {
             setXaiGenerating(true);
-            const form = await buildFormData(datasetId, setLoadingStage, setDownloadProgress, supabase);
-            if (abort.signal.aborted || !form) { setXaiGenerating(false); return; }
-
             setLoadingStage('predicting');
             try {
               const xaiRes = await window.fetch(
                 `/api/predict-single?customer_id=${encodeURIComponent(customerId)}&dataset_id=${datasetId}`,
-                { method: 'POST', body: form, signal: abort.signal }
+                { method: 'POST', signal: abort.signal },
               );
               if (!abort.signal.aborted) {
                 if (xaiRes.ok) {
                   const updated = await xaiRes.json();
                   setData(updated as CustomerPrediction);
                 } else {
-                  // Railway returned error — show it via XaiPanel so user can retry
                   const errBody = await xaiRes.json().catch(() => ({})) as Record<string, unknown>;
-                  const errMsg = (errBody?.error ?? errBody?.detail ?? `AI generation failed (HTTP ${xaiRes.status})`) as string;
+                  const errMsg  = (errBody?.error ?? errBody?.detail ?? `AI generation failed (HTTP ${xaiRes.status})`) as string;
                   setData(prev => prev ? { ...prev, xai_churn_explanation: JSON.stringify({ error: errMsg }) } as CustomerPrediction : prev);
                 }
               }
@@ -325,28 +273,18 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
           return;
         }
 
-        // 2. No DB record — full prediction
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setError('Not authenticated'); setLoading(false); return; }
-
-        const form = await buildFormData(datasetId, setLoadingStage, setDownloadProgress, supabase);
-        if (abort.signal.aborted || !form) {
-          setError('Failed to load dataset files');
-          setLoading(false);
-          return;
-        }
-
+        // 2. No DB record — run full prediction (server fetches dataset files)
         setLoadingStage('predicting');
         const res = await window.fetch(
           `/api/predict-single?customer_id=${encodeURIComponent(customerId)}&dataset_id=${datasetId}`,
-          { method: 'POST', body: form, signal: abort.signal }
+          { method: 'POST', signal: abort.signal },
         );
 
         if (abort.signal.aborted) return;
 
         if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          setError(errBody?.error ?? 'Prediction failed');
+          const errBody = await res.json().catch(() => ({})) as Record<string, unknown>;
+          setError((errBody?.error ?? 'Prediction failed') as string);
           setLoading(false);
           return;
         }
@@ -356,15 +294,14 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
         setLoading(false);
         loadedKeyRef.current = loadKey;
 
-      } catch (err: any) {
-        if (err?.name === 'AbortError') return; // Expected — modal closed
+      } catch (err: unknown) {
+        if ((err as Error)?.name === 'AbortError') return;
         setError('Unexpected error occurred');
         setLoading(false);
       }
     }
 
     load();
-
     return () => { abort.abort(); };
   }, [open, customerId, datasetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -379,19 +316,17 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
   const handleManualXaiRetry = useCallback(async () => {
     if (!data || xaiGenerating) return;
     setXaiGenerating(true);
+    setLoadingStage('predicting');
     try {
-      const form = await buildFormData(datasetId, setLoadingStage, setDownloadProgress, supabase);
-      if (!form) return;
-      setLoadingStage('predicting');
       const xaiRes = await window.fetch(
         `/api/predict-single?customer_id=${encodeURIComponent(customerId)}&dataset_id=${datasetId}&force=true`,
-        { method: 'POST', body: form }
+        { method: 'POST' },
       );
       if (xaiRes.ok) {
         setData(await xaiRes.json() as CustomerPrediction);
       } else {
         const errBody = await xaiRes.json().catch(() => ({})) as Record<string, unknown>;
-        const errMsg = (errBody?.error ?? errBody?.detail ?? `Retry failed (HTTP ${xaiRes.status})`) as string;
+        const errMsg  = (errBody?.error ?? errBody?.detail ?? `Retry failed (HTTP ${xaiRes.status})`) as string;
         setData(prev => prev ? { ...prev, xai_churn_explanation: JSON.stringify({ error: errMsg }) } as CustomerPrediction : prev);
       }
     } catch (err) {
@@ -400,7 +335,7 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
     } finally {
       setXaiGenerating(false);
     }
-  }, [data, xaiGenerating, datasetId, customerId, supabase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data, xaiGenerating, datasetId, customerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!mounted) return null;
 
@@ -437,15 +372,7 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
               <svg className="animate-spin text-[var(--t3)]" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 12a9 9 0 1 1-6.219-8.56" />
               </svg>
-              {loadingStage === 'downloading' ? (
-                <div className="flex flex-col items-center gap-2 w-52">
-                  <p className="text-xs text-[var(--t2)] font-medium">Downloading dataset files…</p>
-                  <div className="w-full h-1 bg-[var(--bg3)] rounded-full overflow-hidden">
-                    <div className="h-1 bg-[var(--t)] rounded-full transition-all duration-300" style={{ width: `${downloadProgress}%` }} />
-                  </div>
-                  <p className="text-[11px] text-[var(--t3)]">{downloadProgress}% — cached for next analyze</p>
-                </div>
-              ) : loadingStage === 'predicting' ? (
+              {loadingStage === 'predicting' ? (
                 <div className="flex flex-col items-center gap-1">
                   <p className="text-xs text-[var(--t2)] font-medium">Running prediction model…</p>
                   <p className="text-[11px] text-[var(--t3)]">Generating AI explanation</p>
