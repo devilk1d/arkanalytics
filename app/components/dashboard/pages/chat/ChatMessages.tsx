@@ -29,6 +29,7 @@ interface ChatMessagesProps {
   onInvite: () => void;
   groupInviteCandidates: WorkspaceMember[];
   onFileUpload: (file: File, kind: 'image' | 'video' | 'document') => void;
+  onDeleteMessage?: (id: string) => void;
   showRightPanel?: boolean;
   onToggleRightPanel?: () => void;
 }
@@ -227,6 +228,7 @@ export default function ChatMessages({
   onSelectMention,
   getReadReceipt,
   onFileUpload,
+  onDeleteMessage,
   showRightPanel = false,
   onToggleRightPanel,
 }: ChatMessagesProps) {
@@ -235,6 +237,12 @@ export default function ChatMessages({
   const [previewMedia, setPreviewMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const [visibleDate, setVisibleDate] = useState<string>('');
   const [showFloatingDate, setShowFloatingDate] = useState(false);
+  // Right-click context menu
+  const [contextMenu, setContextMenu] = useState<{
+    msgId: string; x: number; y: number; isMe: boolean; flipX: boolean; flipY: boolean;
+  } | null>(null);
+  // Delete confirmation popup
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -355,9 +363,10 @@ export default function ChatMessages({
           </div>
         )}
 
-        <div 
+        <div
           ref={scrollRef}
           onScroll={handleScroll}
+          onClick={() => setContextMenu(null)}
           className="h-full overflow-y-auto px-5 py-4 flex flex-col gap-4"
         >
           {messages.map((m, idx) => {
@@ -379,6 +388,17 @@ export default function ChatMessages({
                 <div
                   id={`msg-${m.id}`}
                   data-msg-date={m.createdAt}
+                  onContextMenu={e => {
+                    e.preventDefault();
+                    setContextMenu({
+                      msgId: m.id,
+                      x: e.clientX,
+                      y: e.clientY,
+                      isMe,
+                      flipX: e.clientX > window.innerWidth / 2,
+                      flipY: e.clientY > window.innerHeight * 0.65,
+                    });
+                  }}
                   className={`group relative flex items-start gap-3 ${isMe ? 'flex-row-reverse' : ''}`}
                 >
                   <Avatar initials={getInitials(m.senderName)} size="sm" src={m.senderAvatar || undefined} />
@@ -452,7 +472,7 @@ export default function ChatMessages({
                       );
                     })()}
 
-                    <div className="flex items-center gap-2.5 mt-0.5 px-1 font-mono">
+                    <div className="flex items-center gap-2 mt-0.5 px-1 font-mono select-none">
                       <p className="text-[9px] font-bold text-[var(--t3)] uppercase">
                         {formatTime(m.createdAt)}
                       </p>
@@ -461,12 +481,7 @@ export default function ChatMessages({
                           {getReadReceipt(m)}
                         </span>
                       )}
-                      <button
-                        onClick={() => onReply(m)}
-                        className="text-[9px] font-black text-[var(--t3)] hover:text-[var(--accent)] uppercase transition-colors cursor-pointer"
-                      >
-                        Reply
-                      </button>
+                      
                     </div>
                   </div>
                 </div>
@@ -678,12 +693,127 @@ export default function ChatMessages({
         </div>
       </div>
 
-      <MediaLightbox 
+      <MediaLightbox
         isOpen={!!previewMedia}
         onClose={() => setPreviewMedia(null)}
         url={previewMedia?.url || ''}
         type={previewMedia?.type || 'image'}
       />
+
+      {/* ── Right-click context menu ── */}
+      {contextMenu && (
+        <div
+          className="fixed inset-0 z-[60]"
+          onClick={() => setContextMenu(null)}
+          onContextMenu={e => { e.preventDefault(); setContextMenu(null); }}
+        >
+          <div
+            className="absolute bg-[var(--bg1)] border border-[var(--b)] rounded-xl shadow-2xl py-1.5 min-w-[168px] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            style={{
+              left:   contextMenu.flipX ? 'auto' : contextMenu.x,
+              right:  contextMenu.flipX ? window.innerWidth  - contextMenu.x : 'auto',
+              top:    contextMenu.flipY ? 'auto' : contextMenu.y,
+              bottom: contextMenu.flipY ? window.innerHeight - contextMenu.y : 'auto',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Reply */}
+            <button
+              onClick={() => {
+                const msg = messages.find(m => m.id === contextMenu.msgId);
+                if (msg) onReply(msg);
+                setContextMenu(null);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-[var(--bg2)] transition-colors cursor-pointer"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--t3)] shrink-0">
+                <polyline points="9 17 4 12 9 7" /><path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+              </svg>
+              <span className="text-xs font-bold text-[var(--t)]">Reply</span>
+            </button>
+
+            {/* Delete — own messages only */}
+            {contextMenu.isMe && onDeleteMessage && (
+              <>
+                <div className="h-px bg-[var(--b)] mx-2 my-1" />
+                <button
+                  onClick={() => { setConfirmDeleteId(contextMenu.msgId); setContextMenu(null); }}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-red-500/10 transition-colors cursor-pointer"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f87171" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6M14 11v6" />
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                  </svg>
+                  <span className="text-xs font-bold text-red-400">Delete message</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete confirmation modal ── */}
+      {confirmDeleteId && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setConfirmDeleteId(null)}
+        >
+          <div
+            className="bg-[var(--bg1)] border border-[var(--b)] rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3.5 px-5 pt-5 pb-4">
+              <div className="w-11 h-11 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-[var(--t)]">Delete message?</h3>
+                <p className="text-[11px] text-[var(--t3)] mt-0.5 font-medium">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            {/* Message preview */}
+            {(() => {
+              const msg = messages.find(m => m.id === confirmDeleteId);
+              if (!msg) return null;
+              const preview = msg.messageType === 'attachment'
+                ? `📎 ${msg.metadata?.file_name || 'Attachment'}`
+                : msg.body;
+              return (
+                <div className="mx-5 mb-4 px-3.5 py-2.5 bg-[var(--bg2)] border border-[var(--b)] rounded-xl">
+                  <p className="text-[11px] text-[var(--t3)] line-clamp-3 font-medium italic leading-relaxed">
+                    "{preview}"
+                  </p>
+                </div>
+              );
+            })()}
+
+            {/* Action buttons */}
+            <div className="flex gap-2.5 px-5 pb-5">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 py-2.5 rounded-xl border border-[var(--b)] bg-[var(--bg2)] text-xs font-bold text-[var(--t2)] hover:bg-[var(--bg3)] transition-all cursor-pointer active:scale-[0.98]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { onDeleteMessage?.(confirmDeleteId!); setConfirmDeleteId(null); }}
+                className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-xs font-bold text-white transition-all cursor-pointer active:scale-[0.98] shadow-sm"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

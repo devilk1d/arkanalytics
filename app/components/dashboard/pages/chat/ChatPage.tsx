@@ -667,6 +667,26 @@ export default function ChatPage() {
     await fetchActionsAndFiles();
   }, [fetchActionsAndFiles, profile, supabase]);
 
+  const deleteMessage = useCallback(async (id: string) => {
+    await supabase.from('workspace_messages').delete().eq('id', id);
+    await fetchMessages();
+    await fetchConversations(); // refresh last-message snippet in sidebar
+  }, [fetchConversations, fetchMessages, supabase]);
+
+  const deleteConversation = useCallback(async (id: string) => {
+    // Delete children first to avoid FK constraint errors (cascade may not be set up)
+    await supabase.from('workspace_messages').delete().eq('conversation_id', id);
+    await supabase.from('workspace_conversation_reads').delete().eq('conversation_id', id);
+    await supabase.from('workspace_conversation_members').delete().eq('conversation_id', id);
+    await supabase.from('workspace_conversations').delete().eq('id', id);
+    // Deselect if this was the open conversation
+    if (activeConvo === id) {
+      setActiveConvo('');
+      setMessages([]);
+    }
+    await fetchConversations();
+  }, [activeConvo, fetchConversations, supabase]);
+
   const handleFileUpload = useCallback(async (file: File, kind: 'image' | 'video' | 'document') => {
     if (!activeConvo || !workspace?.id || !profile?.id) return;
 
@@ -800,6 +820,7 @@ export default function ChatPage() {
                 filtered={filtered}
                 activeConvo={activeConvo}
                 onSelectConvo={handleSelectConversation}
+                onDeleteConvo={(id) => { void deleteConversation(id); }}
                 search={search}
                 onSearchChange={setSearch}
                 chatFilter={chatFilter}
@@ -843,6 +864,7 @@ export default function ChatPage() {
                 onInvite={() => { void inviteToGroup(); }}
                 groupInviteCandidates={groupInviteCandidates}
                 onFileUpload={handleFileUpload}
+                onDeleteMessage={(id) => { void deleteMessage(id); }}
                 showRightPanel={showRightPanel}
                 onToggleRightPanel={() => setShowRightPanel(p => !p)}
               />

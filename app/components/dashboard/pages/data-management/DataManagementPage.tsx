@@ -404,7 +404,7 @@ function DataManagementPageContent() {
         {/* ── Page Header ── */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-[var(--b)] pb-5">
           <div>
-            <p className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.14em] mb-1 font-mono">
+            <p className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.14em] mb-1 font-mono">
               Workspace · Data Sources
             </p>
             <h1 className="font-display text-2xl font-black text-[var(--t)] leading-tight tracking-tight">
@@ -479,7 +479,7 @@ function DataManagementPageContent() {
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
               </svg>
               <p className="text-sm font-semibold text-[var(--t)]">Click or drop files here</p>
-              <p className="text-[10px] text-[var(--t3)] mt-1 font-mono">Upload the 5 required CSV files</p>
+              <p className="text-[11px] text-[var(--t3)] mt-1 font-mono">Upload the 5 required CSV files</p>
             </div>
 
             {/* List selected files */}
@@ -504,10 +504,10 @@ function DataManagementPageContent() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-[var(--t)] truncate">{file.name}</p>
-                        <p className="text-[10px] text-[var(--t3)] truncate font-mono">{formatFileSize(file.size)}</p>
+                        <p className="text-[11px] text-[var(--t3)] truncate font-mono">{formatFileSize(file.size)}</p>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <button onClick={e => { e.stopPropagation(); openPreview(key); }} className="text-[10px] font-bold text-[var(--p)] hover:underline px-1.5 py-0.5 font-sans">Preview</button>
+                        <button onClick={e => { e.stopPropagation(); openPreview(key); }} className="text-[11px] font-bold text-[var(--p)] hover:underline px-1.5 py-0.5 font-sans">Preview</button>
                         <button onClick={e => { e.stopPropagation(); setFiles(prev => { const n = { ...prev }; delete n[key]; return n; }); }} className="text-[var(--t3)] hover:text-[var(--d)] transition-colors">
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                         </button>
@@ -555,12 +555,12 @@ function DataManagementPageContent() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-[var(--b)]">
-                    <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Dataset ID</th>
-                    <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Uploaded</th>
-                    <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Status</th>
-                    <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Customers</th>
-                    <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">High Risk %</th>
-                    <th className="px-4 py-3 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Actions</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Dataset ID</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Uploaded</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Status</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Customers</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">High Risk %</th>
+                    <th className="px-4 py-3 text-left text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.05em]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--b)]/50">
@@ -642,20 +642,20 @@ function DataManagementPageContent() {
                               </button>
                             </div>
                             {ds.status === 'error' && (
-                              <span className="block mt-1 text-[10px] text-[var(--d)] max-w-[120px] line-clamp-2" title={ds.error_message || ''}>{ds.error_message}</span>
+                              <span className="block mt-1 text-[11px] text-[var(--d)] max-w-[120px] line-clamp-2" title={ds.error_message || ''}>{ds.error_message}</span>
                             )}
                           </td>
                         </tr>
                         {expandedDataset === ds.id && (
                           <tr className="bg-[var(--bg1)]">
                             <td colSpan={6} className="px-5 py-3 border-t border-[var(--b)]">
-                              <p className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.1em] mb-2 font-mono">Dataset Files</p>
+                              <p className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.1em] mb-2 font-mono">Dataset Files</p>
                               <div className="flex flex-wrap gap-1.5">
                                 {(Object.keys(REQUIRED_FILES) as FileKey[]).map(k => (
                                   <button
                                     key={k}
                                     onClick={() => openRemotePreview(ds.id, ds.storage_path, k)}
-                                    className="text-[10px] font-semibold text-[var(--t2)] bg-[var(--surf)] border border-[var(--b)] px-2.5 py-1 rounded-lg hover:border-[var(--t3)] hover:text-[var(--t)] transition-colors cursor-pointer"
+                                    className="text-[11px] font-semibold text-[var(--t2)] bg-[var(--surf)] border border-[var(--b)] px-2.5 py-1 rounded-lg hover:border-[var(--t3)] hover:text-[var(--t)] transition-colors cursor-pointer"
                                   >
                                     {REQUIRED_FILES[k].label}
                                   </button>
@@ -750,7 +750,7 @@ function DataManagementPageContent() {
                       <button
                         key={k}
                         onClick={() => previewOptions?.source === 'remote' ? openRemotePreview(previewOptions.datasetId!, previewOptions.datasetPath!, k) : openPreview(k)}
-                        className={`text-[10px] font-semibold px-2.5 py-1 rounded-lg border transition-all font-sans cursor-pointer
+                        className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all font-sans cursor-pointer
                           ${previewKey === k 
                             ? 'border-[var(--t)] bg-[var(--t)] text-[var(--inv-t)]' 
                             : 'border-[var(--b)] text-[var(--t2)] hover:border-[var(--b3)] hover:bg-[var(--bg2)]'}`}
@@ -776,7 +776,7 @@ function DataManagementPageContent() {
                 <thead>
                   <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/40">
                     {previewData.headers.map(h => (
-                      <th key={h} className="px-4 py-2.5 text-left text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono whitespace-nowrap">{h}</th>
+                      <th key={h} className="px-4 py-2.5 text-left text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -836,4 +836,4 @@ export default function DataManagementPage() {
       <DataManagementPageContent />
     </PermissionGate>
   );
-}
+}
