@@ -10,18 +10,21 @@ export interface CustomerListItem {
 
 export interface ShapFactor {
   feature_label: string;
-  shap_value:    number;
+  impact_score:  number;
   direction:     string;
   importance:    number;
 }
 
 export interface SentimentData {
-  label:            string;
-  vader_compound:   number;
-  urgency_level:    string;
-  urgency_score:    number;
-  dominant_topic:   string;
-  feedback_preview: string;
+  label:                 string;
+  tone_score:            number;
+  negative_feedback_pct: number;
+  dissatisfaction_score: number;
+  urgency_level:         string;
+  urgency_score:         number;
+  dominant_topic:        string;
+  feedback_preview:      string;
+  feedback_texts?:       string[];
 }
 
 export interface RfmContext {

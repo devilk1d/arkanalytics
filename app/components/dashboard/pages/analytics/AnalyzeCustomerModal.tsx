@@ -233,8 +233,8 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
           const normalized = {
             ...existing,
             sentiment: existing.sentiment ?? {
-              label: 'neutral', vader_compound: 0, vader_neg: 0,
-              pct_negative_sent: 0, urgency_level: 'low', urgency_score: 0,
+              label: 'neutral', tone_score: 0, negative_feedback_pct: 0,
+              dissatisfaction_score: 0, urgency_level: 'low', urgency_score: 0,
               dominant_topic: 'Unknown', topic_strength: 0, feedback_preview: '',
             },
           } as unknown as CustomerPrediction;
@@ -483,10 +483,11 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
               <div className="border-t border-[var(--b)] my-5" />
 
               {/* SHAP */}
-              <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-widest mb-3">Top Churn Factors (SHAP)</p>
+              <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-widest mb-3">Top Risk Factors</p>
               <div className="flex flex-col gap-2 mb-5">
                 {data.shap_top5?.map((factor: any, i: number) => {
-                  const isIncrease = factor.direction === 'increases_churn';
+                  const isIncrease = factor.direction === 'raises_risk' || factor.direction === 'increases_churn';
+                  const impact = factor.impact_score ?? factor.shap_value ?? 0;
                   const maxVal = Math.max(...data.shap_top5.map((f: any) => f.importance));
                   const pct = maxVal > 0 ? (factor.importance / maxVal) * 100 : 0;
                   return (
@@ -498,7 +499,7 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
                           style={{ width: `${pct}%` }} />
                       </div>
                       <span className={`text-[10px] font-semibold w-14 text-right shrink-0 tabular-nums ${isIncrease ? 'text-[var(--r)]' : 'text-[var(--g)]'}`}>
-                        {isIncrease ? '+' : ''}{factor.shap_value.toFixed(3)}
+                        {isIncrease ? '+' : ''}{(impact).toFixed(3)}
                       </span>
                     </div>
                   );
@@ -529,8 +530,8 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
                           {
                             label: 'Overall Sentiment',
                             value: data.sentiment.label,
-                            sub: `VADER: ${data.sentiment.vader_compound.toFixed(3)}`,
-                            color: data.sentiment.label === 'negative' ? 'text-[var(--r)]' : data.sentiment.label === 'positive' ? 'text-[var(--g)]' : 'text-[var(--o)]',
+                            sub: `Tone: ${((data.sentiment as any).tone_score ?? (data.sentiment as any).vader_compound ?? 0).toFixed(3)}`,
+                            color: data.sentiment.label === 'negative' || data.sentiment.label?.toLowerCase().includes('dissatisfied') ? 'text-[var(--r)]' : data.sentiment.label === 'positive' || data.sentiment.label?.toLowerCase().includes('satisfied') ? 'text-[var(--g)]' : 'text-[var(--o)]',
                           },
                           {
                             label: 'Urgency Level',
@@ -541,7 +542,7 @@ export function AnalyzeCustomerModal({ customerId, datasetId, open, onClose }: A
                           {
                             label: 'Main Topic',
                             value: data.sentiment.dominant_topic,
-                            sub: `${(data.sentiment.pct_negative_sent).toFixed(0)}% neg sentences`,
+                            sub: `${((data.sentiment as any).negative_feedback_pct ?? (data.sentiment as any).pct_negative_sent ?? 0).toFixed(0)}% negative feedback`,
                             color: 'text-[var(--t)]',
                           },
                         ].map((item) => (
