@@ -3,16 +3,16 @@
 export interface ShapFactor {
   feature: string
   feature_label: string        // human-readable: "Dunning Count"
-  shap_value: number
-  direction: 'increases_churn' | 'decreases_churn'
+  impact_score: number
+  direction: 'raises_risk' | 'lowers_risk'
   importance: number
 }
 
 export interface SentimentProfile {
-  label: 'positive' | 'negative' | 'neutral'
-  vader_compound: number   // -1 to +1
-  vader_neg: number   // 0 to 1
-  pct_negative_sent: number   // % kalimat negatif (0-100)
+  label: 'positive' | 'negative' | 'neutral' | string
+  tone_score: number           // -1 to +1 (renamed from vader_compound)
+  negative_feedback_pct: number  // % feedback negatif 0-100 (renamed from pct_negative_sent)
+  dissatisfaction_score: number  // 0-1
   urgency_level: 'low' | 'medium' | 'high'
   urgency_score: number
   dominant_topic: string   // e.g. "Billing & Account"

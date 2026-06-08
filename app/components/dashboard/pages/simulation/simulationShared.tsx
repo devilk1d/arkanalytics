@@ -177,7 +177,7 @@ export function renderMd(text: string): React.ReactNode {
 export function FactorBar({ label, importance, direction, impactRatio = 0 }: {
   label: string; importance: number; direction: string; impactRatio?: number;
 }) {
-  const isUp = direction.includes('increases');
+  const isUp = direction === 'raises_risk' || direction.includes('increases');
   const color = isUp ? 'var(--danger)' : 'var(--accent)';
   const basePct = Math.min(100, Math.round(importance * 100));
   // When a scenario reduces churn, shrink the "increases churn" bars proportionally
