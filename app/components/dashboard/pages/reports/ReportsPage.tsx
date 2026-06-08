@@ -150,6 +150,21 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
   // UI state
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'pdf' | 'csv' | 'xlsx'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'churn' | 'segmentation' | 'forecast'>('all');
+  const [reportPage, setReportPage] = useState(1);
+  const reportPageSize = 10;
+  const [mainTab, setMainTab] = useState<'reports' | 'schedules'>('reports');
+  // Scheduled logs filters + pagination
+  const [schedSearch, setSchedSearch] = useState('');
+  const [schedFreqFilter, setSchedFreqFilter] = useState<'all' | 'daily' | 'weekly' | 'monthly'>('all');
+  const [schedCatFilter, setSchedCatFilter] = useState<'all' | 'churn' | 'segmentation' | 'forecast'>('all');
+  const [schedFmtFilter, setSchedFmtFilter] = useState<'all' | 'pdf' | 'csv' | 'xlsx'>('all');
+  const [schedStatusFilter, setSchedStatusFilter] = useState<'all' | 'active' | 'paused'>('all');
+  const [schedPage, setSchedPage] = useState(1);
+  const schedPageSize = 10;
+  const [templatesOpen, setTemplatesOpen] = useState(true);
+  const [schedulesOpen, setSchedulesOpen] = useState(true);
   const [showNewReportModal, setShowNewReportModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
@@ -514,12 +529,32 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
   const totalStorageBytes = reports.reduce((acc, r) => acc + (r.file_size || 0), 0);
   const formattedStorage = formatSize(totalStorageBytes);
 
-  // Search filter implementation
-  const filteredReports = reports.filter(r =>
-    r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (r.report_category && r.report_category.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  // Search + filter implementation
+  const filteredReports = reports.filter(r => {
+    const matchesSearch =
+      r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (r.report_category && r.report_category.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesType = typeFilter === 'all' || r.type === typeFilter;
+    const matchesCategory = categoryFilter === 'all' || r.report_category === categoryFilter;
+    return matchesSearch && matchesType && matchesCategory;
+  });
+
+  const totalReportPages = Math.ceil(filteredReports.length / reportPageSize);
+  const paginatedReports = filteredReports.slice((reportPage - 1) * reportPageSize, reportPage * reportPageSize);
+
+  // Scheduled logs filter + pagination
+  const filteredSchedules = schedules.filter(s => {
+    const matchesSearch = s.name.toLowerCase().includes(schedSearch.toLowerCase());
+    const matchesFreq = schedFreqFilter === 'all' || s.frequency === schedFreqFilter;
+    const matchesCat  = schedCatFilter  === 'all' || s.report_category === schedCatFilter;
+    const matchesFmt  = schedFmtFilter  === 'all' || s.export_type === schedFmtFilter;
+    const matchesStatus = schedStatusFilter === 'all' || (schedStatusFilter === 'active' ? s.is_active : !s.is_active);
+    return matchesSearch && matchesFreq && matchesCat && matchesFmt && matchesStatus;
+  });
+  const totalSchedPages = Math.ceil(filteredSchedules.length / schedPageSize);
+  const paginatedSchedules = filteredSchedules.slice((schedPage - 1) * schedPageSize, schedPage * schedPageSize);
+  const hasSchedFilters = schedSearch || schedFreqFilter !== 'all' || schedCatFilter !== 'all' || schedFmtFilter !== 'all' || schedStatusFilter !== 'all';
 
   // Upcoming schedules calculations
   const activeSchedules = schedules.filter(s => s.is_active);
@@ -542,7 +577,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
         {/* ── Page Header ── */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 border-b border-[var(--b)] pb-5">
           <div>
-            <p className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.14em] mb-1 font-mono">
+            <p className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.14em] mb-1 font-mono">
               Workspace · Deliverables
             </p>
             <h1 className="font-display text-2xl font-black text-[var(--t)] leading-tight tracking-tight">
@@ -587,67 +622,98 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
         {/* ── KPI Row (4 cards) ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[120px] transition-all hover:shadow-sm">
-            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Reports this month</p>
+            <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Reports this month</p>
             <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">{reportsThisMonth}</p>
-            <p className={`text-[10px] font-semibold font-mono mt-3 ${deltaResult.isUp ? 'text-[var(--s)]' : 'text-[var(--d)]'}`}>
+            <p className={`text-[11px] font-semibold font-mono mt-3 ${deltaResult.isUp ? 'text-[var(--s)]' : 'text-[var(--d)]'}`}>
               {deltaResult.val} vs. last month
             </p>
           </div>
 
           <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[120px] transition-all hover:shadow-sm">
-            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Auto-delivered</p>
+            <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Auto-delivered</p>
             <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">{activeSchedulesCount}</p>
-            <p className="text-[10px] font-semibold text-[var(--t3)] font-mono mt-3">Active recurring schedules</p>
+            <p className="text-[11px] font-semibold text-[var(--t3)] font-mono mt-3">Active recurring schedules</p>
           </div>
 
           <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[120px] transition-all hover:shadow-sm">
-            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Pending review</p>
+            <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Pending review</p>
             <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">{pendingReportsCount}</p>
-            <p className="text-[10px] font-semibold text-[var(--t3)] font-mono mt-3">Awaiting document completion</p>
+            <p className="text-[11px] font-semibold text-[var(--t3)] font-mono mt-3">Awaiting document completion</p>
           </div>
 
           <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[120px] transition-all hover:shadow-sm">
-            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Storage Used</p>
+            <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Storage Used</p>
             <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">{formattedStorage}</p>
-            <p className="text-[10px] font-semibold text-[var(--t3)] font-mono mt-3">Total files payload size</p>
+            <p className="text-[11px] font-semibold text-[var(--t3)] font-mono mt-3">Total files payload size</p>
           </div>
         </div>
 
         {/* ── Main Layout Split ── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-          {/* Left Column: Generated Reports (8/12 span) */}
+          {/* Left Column: Reports / Schedules (8/12 span) */}
           <div className="lg:col-span-8">
             <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl overflow-hidden">
-              
+
+              {/* ── Tab Bar ── */}
+              <div className="flex items-end gap-0 px-5 pt-4 border-b border-[var(--b)] overflow-x-auto">
+                {([
+                  { key: 'reports',   label: 'Generated reports', count: reports.length },
+                  { key: 'schedules', label: 'All scheduled logs', count: schedules.length },
+                ] as const).map(tab => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setMainTab(tab.key)}
+                    className={`flex items-center gap-1.5 pb-3 px-1 mr-6 text-[13px] font-bold border-b-2 whitespace-nowrap transition-all ${
+                      mainTab === tab.key
+                        ? 'border-[var(--t)] text-[var(--t)]'
+                        : 'border-transparent text-[var(--t3)] hover:text-[var(--t2)]'
+                    }`}
+                  >
+                    {tab.label}
+                    <span className={`text-[11px] font-semibold font-mono ${mainTab === tab.key ? 'text-[var(--t2)]' : 'text-[var(--t4)]'}`}>
+                      {tab.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {mainTab === 'reports' && (<>
               {/* List Header & Filters */}
               <div className="p-5 border-b border-[var(--b)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-[13px] font-bold text-[var(--t)]">Generated reports</h3>
-                  <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">{filteredReports.length} files · sorted by date</p>
+                  <p className="text-[11px] text-[var(--t3)] font-mono">{filteredReports.length} files · sorted by date</p>
+                  {(typeFilter !== 'all' || categoryFilter !== 'all') && (
+                    <button
+                      onClick={() => { setTypeFilter('all'); setCategoryFilter('all'); setReportPage(1); }}
+                      className="text-[10px] text-[var(--p)] font-mono hover:underline mt-0.5"
+                    >
+                      Clear filters
+                    </button>
+                  )}
                 </div>
                 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   {/* List / Grid Toggle */}
-                  <div className="flex bg-[var(--bg2)] rounded-lg p-1 border border-[var(--b)] shrink-0">
+                  <div className="flex bg-[var(--bg2)] rounded-xl border border-[var(--b)] shrink-0 items-center px-1.5" style={{ height: '34px' }}>
                     <button
-                      onClick={() => setView('list')}
-                      className={`p-1.5 rounded-md transition-all ${view === 'list' ? 'bg-[var(--surf)] text-[var(--t)] shadow-sm' : 'text-[var(--t3)] hover:text-[var(--t2)]'}`}
-                      title="List View"
-                    >
-                      <ListIcon />
-                    </button>
-                    <button
-                      onClick={() => setView('grid')}
-                      className={`p-1.5 rounded-md transition-all ${view === 'grid' ? 'bg-[var(--surf)] text-[var(--t)] shadow-sm' : 'text-[var(--t3)] hover:text-[var(--t2)]'}`}
-                      title="Grid View"
-                    >
-                      <GridIcon />
-                    </button>
+                    onClick={() => setView('list')}
+                    className={`px-1.5 py-1 rounded-md transition-all ${view === 'list' ? 'bg-[var(--surf)] text-[var(--t)] shadow-sm' : 'text-[var(--t3)] hover:text-[var(--t2)]'}`}
+                    title="List View"
+                      >
+                    <ListIcon />
+                  </button>
+                  <button
+                    onClick={() => setView('grid')}
+                    className={`px-1.5 py-1 rounded-md transition-all ${view === 'grid' ? 'bg-[var(--surf)] text-[var(--t)] shadow-sm' : 'text-[var(--t3)] hover:text-[var(--t2)]'}`}
+                    title="Grid View"
+                      >
+                    <GridIcon />
+                  </button>
                   </div>
 
                   {/* Search Bar */}
-                  <div className="relative flex items-center w-full sm:w-48">
+                  <div className="relative flex items-center w-full sm:w-40">
                     <div className="absolute left-3 text-[var(--t3)] pointer-events-none">
                       <SearchIcon />
                     </div>
@@ -655,10 +721,40 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                       type="text"
                       placeholder="Search reports..."
                       value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
+                      onChange={e => { setSearchQuery(e.target.value); setReportPage(1); }}
                       className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl pl-8 pr-3 py-1.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors font-sans"
                     />
                   </div>
+
+                  {/* Format Filter */}
+                  <FilterDropdown
+                    options={[
+                      { label: 'All formats', value: 'all' },
+                      { label: 'PDF', value: 'pdf' },
+                      { label: 'CSV', value: 'csv' },
+                      { label: 'Excel', value: 'xlsx' },
+                    ]}
+                    value={typeFilter}
+                    onChange={v => { setTypeFilter(v as typeof typeFilter); setReportPage(1); }}
+                    placeholder="All formats"
+                    size="sm"
+                    showIcon={true}
+                  />
+
+                  {/* Category Filter */}
+                  <FilterDropdown
+                    options={[
+                      { label: 'All categories', value: 'all' },
+                      { label: 'Churn', value: 'churn' },
+                      { label: 'Segmentation', value: 'segmentation' },
+                      { label: 'Forecast', value: 'forecast' },
+                    ]}
+                    value={categoryFilter}
+                    onChange={v => { setCategoryFilter(v as typeof categoryFilter); setReportPage(1); }}
+                    placeholder="All categories"
+                    size="sm"
+                    showIcon={true}
+                  />
                 </div>
               </div>
 
@@ -672,110 +768,166 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                 </div>
               ) : filteredReports.length === 0 ? (
                 <div className="py-24 text-center text-xs font-mono text-[var(--t3)]">
-                  No documents found. {searchQuery ? 'Try redefining search filter.' : 'Generate a report to start.'}
+                  No documents found. {searchQuery || typeFilter !== 'all' || categoryFilter !== 'all' ? 'Try redefining search filter.' : 'Generate a report to start.'}
                 </div>
               ) : view === 'list' ? (
                 /* List Layout */
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/40">
-                        <th className="px-5 py-3.5 text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Report</th>
-                        <th className="px-5 py-3.5 text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Category</th>
-                        <th className="px-5 py-3.5 text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Format</th>
-                        <th className="px-5 py-3.5 text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Size</th>
-                        <th className="px-5 py-3.5 text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Status</th>
-                        <th className="px-5 py-3.5 text-right text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--b)]">
-                      {filteredReports.map(r => {
-                        const isSched = getIsReportScheduled(r);
-                        return (
-                          <tr key={r.id} className="hover:bg-[var(--bg1)]/50 transition-colors">
-                            <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-3">
-                                {/* Thumbnail Mockup */}
-                                <div className={`w-8 h-10 border rounded flex flex-col items-center justify-center font-mono text-[8px] font-bold select-none shrink-0 ${
-                                  r.type === 'pdf'
-                                    ? 'bg-[var(--d-bg)] border-[var(--d-b)] text-[var(--d)]'
-                                    : r.type === 'csv'
-                                      ? 'bg-[var(--s-bg)] border-[var(--s-b)] text-[var(--s)]'
-                                      : 'bg-[var(--p-bg)] border-[var(--p-b)] text-[var(--p)]'
-                                }`}>
-                                  {r.type.toUpperCase()}
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="text-[13px] font-semibold text-[var(--t)] truncate flex items-center gap-1.5">
-                                    {r.name}
-                                    {isSched && (
-                                      <span className="text-[var(--p)]" title="Auto-generated schedule">
-                                        <CalendarIcon />
-                                      </span>
-                                    )}
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/40">
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Report</th>
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Category</th>
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Format</th>
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Size</th>
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Status</th>
+                          <th className="px-5 py-3.5 text-right text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--b)]">
+                        {paginatedReports.map(r => {
+                          const isSched = getIsReportScheduled(r);
+                          return (
+                            <tr key={r.id} className="hover:bg-[var(--bg1)]/50 transition-colors">
+                              <td className="px-5 py-3.5">
+                                <div className="flex items-center gap-3">
+                                  {/* Thumbnail Mockup */}
+                                  <div className={`w-8 h-10 border rounded flex flex-col items-center justify-center font-mono text-[8px] font-bold select-none shrink-0 ${
+                                    r.type === 'pdf'
+                                      ? 'bg-[var(--d-bg)] border-[var(--d-b)] text-[var(--d)]'
+                                      : r.type === 'csv'
+                                        ? 'bg-[var(--s-bg)] border-[var(--s-b)] text-[var(--s)]'
+                                        : 'bg-[var(--p-bg)] border-[var(--p-b)] text-[var(--p)]'
+                                  }`}>
+                                    {r.type.toUpperCase()}
                                   </div>
-                                  <div className="text-[10px] text-[var(--t3)] font-mono mt-0.5 truncate">
-                                    RPT-{r.id.slice(0, 6).toUpperCase()} · by {getCreatorName(r.user_id)} · {new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  <div className="min-w-0">
+                                    <div className="text-[13px] font-semibold text-[var(--t)] truncate flex items-center gap-1.5">
+                                      {r.name}
+                                      {isSched && (
+                                        <span className="text-[var(--p)]" title="Auto-generated schedule">
+                                          <CalendarIcon />
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="text-[11px] text-[var(--t3)] font-mono mt-0.5 truncate">
+                                      RPT-{r.id.slice(0, 6).toUpperCase()} · by {getCreatorName(r.user_id)} · {new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="px-5 py-3.5">
-                              <span className="text-[11px] font-semibold capitalize text-[var(--t2)] font-sans">
-                                {r.report_category ? (r.report_category === 'churn' ? 'churn analysis' : r.report_category) : 'On demand'}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3.5">
-                              <Badge label={r.type} variant={r.type as 'pdf' | 'csv' | 'xlsx'} />
-                            </td>
-                            <td className="px-5 py-3.5 text-xs text-[var(--t2)] font-mono">
-                              {formatSize(r.file_size)}
-                            </td>
-                            <td className="px-5 py-3.5">
-                              <Badge
-                                label={r.status}
-                                variant={r.status as 'ready' | 'pending' | 'error'}
-                                loading={r.status === 'pending'}
-                              />
-                            </td>
-                            <td className="px-5 py-3.5 text-right">
-                              <div className="flex items-center justify-end gap-2.5">
-                                <button
-                                  disabled={r.status !== 'ready'}
-                                  onClick={() => handleDownload(r)}
-                                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-[var(--b2)] text-[var(--t2)] hover:border-[var(--t)] hover:bg-[var(--t)] hover:text-[var(--inv-t)] transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--t2)] disabled:hover:border-[var(--b2)]"
-                                  title="Download Signed Document"
-                                >
-                                  <DownloadIcon />
-                                </button>
-                                {isAdmin && (
+                              </td>
+                              <td className="px-5 py-3.5">
+                                <span className="text-[11px] font-semibold capitalize text-[var(--t2)] font-sans">
+                                  {r.report_category ? (r.report_category === 'churn' ? 'churn analysis' : r.report_category) : 'On demand'}
+                                </span>
+                              </td>
+                              <td className="px-5 py-3.5">
+                                <Badge label={r.type} variant={r.type as 'pdf' | 'csv' | 'xlsx'} />
+                              </td>
+                              <td className="px-5 py-3.5 text-xs text-[var(--t2)] font-mono">
+                                {formatSize(r.file_size)}
+                              </td>
+                              <td className="px-5 py-3.5">
+                                <Badge
+                                  label={r.status}
+                                  variant={r.status as 'ready' | 'pending' | 'error'}
+                                  loading={r.status === 'pending'}
+                                />
+                              </td>
+                              <td className="px-5 py-3.5 text-right">
+                                <div className="flex items-center justify-end gap-2.5">
                                   <button
-                                    disabled={deletingId === r.id}
-                                    onClick={() => setReportToDelete(r)}
-                                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-[var(--b2)] text-[var(--t3)] hover:border-[var(--d)] hover:bg-[var(--d)] hover:text-white transition-all disabled:opacity-30"
-                                    title="Delete Report"
+                                    disabled={r.status !== 'ready'}
+                                    onClick={() => handleDownload(r)}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg border border-[var(--b2)] text-[var(--t2)] hover:border-[var(--t)] hover:bg-[var(--t)] hover:text-[var(--inv-t)] transition-all disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-[var(--t2)] disabled:hover:border-[var(--b2)]"
+                                    title="Download Signed Document"
                                   >
-                                    {deletingId === r.id ? (
-                                      <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                        <path d="M21 12a9 9 0 11-6.219-8.56" />
-                                      </svg>
-                                    ) : (
-                                      <TrashIcon />
-                                    )}
+                                    <DownloadIcon />
                                   </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
+                                  {isAdmin && (
+                                    <button
+                                      disabled={deletingId === r.id}
+                                      onClick={() => setReportToDelete(r)}
+                                      className="w-7 h-7 flex items-center justify-center rounded-lg border border-[var(--b2)] text-[var(--t3)] hover:border-[var(--d)] hover:bg-[var(--d)] hover:text-white transition-all disabled:opacity-30"
+                                      title="Delete Report"
+                                    >
+                                      {deletingId === r.id ? (
+                                        <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                          <path d="M21 12a9 9 0 11-6.219-8.56" />
+                                        </svg>
+                                      ) : (
+                                        <TrashIcon />
+                                      )}
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination Footer */}
+                  <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--b)] text-[11px] text-[var(--t3)] font-mono">
+                    <span>
+                      Showing {filteredReports.length === 0 ? 0 : `${(reportPage - 1) * reportPageSize + 1}–${Math.min(filteredReports.length, reportPage * reportPageSize)}`} of {filteredReports.length}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        disabled={reportPage === 1}
+                        onClick={() => setReportPage(p => Math.max(1, p - 1))}
+                        className="h-7 w-7 flex items-center justify-center rounded-lg border border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      >
+                        <ReportChevronLeftIcon />
+                      </button>
+                      {(() => {
+                        const total = totalReportPages;
+                        const current = reportPage;
+                        let pages: (number | string)[];
+                        if (total <= 5) {
+                          pages = Array.from({ length: total }, (_, i) => i + 1);
+                        } else if (current <= 3) {
+                          pages = [1, 2, 3, 4, '...', total];
+                        } else if (current >= total - 2) {
+                          pages = [1, '...', total - 3, total - 2, total - 1, total];
+                        } else {
+                          pages = [1, '...', current - 1, current, current + 1, '...', total];
+                        }
+                        return pages.map((pg, idx) =>
+                          pg === '...' ? (
+                            <span key={idx} className="px-1.5 self-center">…</span>
+                          ) : (
+                            <button
+                              key={idx}
+                              onClick={() => setReportPage(pg as number)}
+                              className={`h-7 min-w-[28px] px-1.5 rounded-lg border text-[11px] transition-all ${
+                                reportPage === pg
+                                  ? 'bg-[var(--t)] text-[var(--inv-t)] border-[var(--t)]'
+                                  : 'border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)]'
+                              }`}
+                            >
+                              {pg}
+                            </button>
+                          )
                         );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                      })()}
+                      <button
+                        disabled={reportPage === totalReportPages || totalReportPages === 0}
+                        onClick={() => setReportPage(p => Math.min(totalReportPages, p + 1))}
+                        className="h-7 w-7 flex items-center justify-center rounded-lg border border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                      >
+                        <ReportChevronRightIcon />
+                      </button>
+                    </div>
+                  </div>
+                </>
               ) : (
                 /* Grid Layout */
                 <div className="p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {filteredReports.map(r => {
+                  {paginatedReports.map(r => {
                     const isSched = getIsReportScheduled(r);
                     return (
                       <div
@@ -794,7 +946,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                           }`}>
                             {r.type.toUpperCase()}
                           </div>
-                          
+
                           <Badge
                             label={r.status}
                             variant={r.status as 'ready' | 'pending' | 'error'}
@@ -813,7 +965,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                         </div>
 
                         {/* Bottom Row */}
-                        <div className="flex items-center justify-between border-t border-[var(--b)] pt-2.5 mt-2 text-[10px] font-mono text-[var(--t2)]">
+                        <div className="flex items-center justify-between border-t border-[var(--b)] pt-2.5 mt-2 text-[11px] font-mono text-[var(--t2)]">
                           <span className="truncate max-w-[100px] capitalize">
                             {r.report_category || 'On demand'}
                           </span>
@@ -831,6 +983,240 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                   })}
                 </div>
               )}
+              </>)}
+
+              {/* ── All Scheduled Logs Tab ── */}
+              {mainTab === 'schedules' && (loadingSchedules ? (
+                <div className="py-20 text-center text-xs font-mono text-[var(--t3)]">
+                  <svg className="animate-spin inline-block mr-2" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M21 12a9 9 0 11-6.219-8.56" />
+                  </svg>
+                  Loading schedules...
+                </div>
+              ) : (<>
+                {/* Filter bar */}
+                <div className="p-4 border-b border-[var(--b)] flex flex-wrap items-center gap-2">
+                  {/* Search */}
+                  <div className="relative flex items-center w-40 shrink-0">
+                    <div className="absolute left-3 text-[var(--t3)] pointer-events-none">
+                      <SearchIcon />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Search..."
+                      value={schedSearch}
+                      onChange={e => { setSchedSearch(e.target.value); setSchedPage(1); }}
+                      className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl pl-8 pr-3 py-1.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors font-sans"
+                    />
+                  </div>
+                  <FilterDropdown
+                    options={[
+                      { label: 'All frequencies', value: 'all' },
+                      { label: 'Daily',   value: 'daily' },
+                      { label: 'Weekly',  value: 'weekly' },
+                      { label: 'Monthly', value: 'monthly' },
+                    ]}
+                    value={schedFreqFilter}
+                    onChange={v => { setSchedFreqFilter(v as typeof schedFreqFilter); setSchedPage(1); }}
+                    placeholder="All frequencies"
+                    size="sm"
+                    showIcon={true}
+                  />
+                  <FilterDropdown
+                    options={[
+                      { label: 'All categories',  value: 'all' },
+                      { label: 'Churn',         value: 'churn' },
+                      { label: 'Segmentation',  value: 'segmentation' },
+                      { label: 'Forecast',      value: 'forecast' },
+                    ]}
+                    value={schedCatFilter}
+                    onChange={v => { setSchedCatFilter(v as typeof schedCatFilter); setSchedPage(1); }}
+                    placeholder="All categories"
+                    size="sm"
+                    showIcon={true}
+                  />
+                  <FilterDropdown
+                    options={[
+                      { label: 'All formats', value: 'all' },
+                      { label: 'PDF',   value: 'pdf' },
+                      { label: 'CSV',   value: 'csv' },
+                      { label: 'Excel', value: 'xlsx' },
+                    ]}
+                    value={schedFmtFilter}
+                    onChange={v => { setSchedFmtFilter(v as typeof schedFmtFilter); setSchedPage(1); }}
+                    placeholder="All formats"
+                    size="sm"
+                    showIcon={true}
+                  />
+                  <FilterDropdown
+                    options={[
+                      { label: 'All statuses', value: 'all' },
+                      { label: 'Active', value: 'active' },
+                      { label: 'Paused', value: 'paused' },
+                    ]}
+                    value={schedStatusFilter}
+                    onChange={v => { setSchedStatusFilter(v as typeof schedStatusFilter); setSchedPage(1); }}
+                    placeholder="All statuses"
+                    size="sm"
+                    showIcon={true}
+                  />
+                  {hasSchedFilters && (
+                    <button
+                      onClick={() => {
+                        setSchedSearch(''); setSchedFreqFilter('all');
+                        setSchedCatFilter('all'); setSchedFmtFilter('all');
+                        setSchedStatusFilter('all'); setSchedPage(1);
+                      }}
+                      className="text-[11px] font-mono font-bold text-[var(--p)] hover:underline ml-1"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <span className="ml-auto text-[11px] font-mono text-[var(--t3)]">{filteredSchedules.length} schedules</span>
+                </div>
+
+                {/* Table */}
+                {filteredSchedules.length === 0 ? (
+                  <div className="py-24 text-center text-xs font-mono text-[var(--t3)]">
+                    No schedules match the current filters.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/40">
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Schedule</th>
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Frequency</th>
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Category</th>
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Format</th>
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Next run</th>
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Recipients</th>
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Status</th>
+                          {isAdmin && <th className="px-5 py-3.5 text-right text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Actions</th>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--b)]">
+                        {paginatedSchedules.map(sched => (
+                          <tr key={sched.id} className="hover:bg-[var(--bg1)]/50 transition-colors">
+                            {/* Name */}
+                            <td className="px-5 py-3.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-[var(--p-bg)] border border-[var(--p-b)] flex items-center justify-center shrink-0 text-[var(--p)]">
+                                  <CalendarIcon />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="text-[13px] font-semibold text-[var(--t)] truncate">{sched.name}</div>
+                                  <div className="text-[10px] text-[var(--t3)] font-mono mt-0.5">at {sched.time_of_day}</div>
+                                </div>
+                              </div>
+                            </td>
+                            {/* Frequency */}
+                            <td className="px-5 py-3.5">
+                              <span className="text-[11px] font-semibold capitalize text-[var(--t2)]">{sched.frequency}</span>
+                            </td>
+                            {/* Category */}
+                            <td className="px-5 py-3.5">
+                              <span className="text-[11px] font-semibold capitalize text-[var(--t2)]">{sched.report_category}</span>
+                            </td>
+                            {/* Format */}
+                            <td className="px-5 py-3.5">
+                              <Badge label={sched.export_type} variant={sched.export_type as 'pdf' | 'csv' | 'xlsx'} />
+                            </td>
+                            {/* Next run */}
+                            <td className="px-5 py-3.5 text-xs font-mono text-[var(--t2)]">
+                              {new Date(sched.next_run_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </td>
+                            {/* Recipients */}
+                            <td className="px-5 py-3.5">
+                              <span className="text-xs font-mono text-[var(--t2)]">{sched.recipients?.length || 0}</span>
+                            </td>
+                            {/* Status */}
+                            <td className="px-5 py-3.5">
+                              <Badge
+                                label={sched.is_active ? 'active' : 'paused'}
+                                variant={sched.is_active ? 'ready' : 'pending'}
+                              />
+                            </td>
+                            {/* Actions */}
+                            {isAdmin && (
+                              <td className="px-5 py-3.5 text-right">
+                                <button
+                                  disabled={deletingSchedId === sched.id}
+                                  onClick={() => setSchedToDelete(sched)}
+                                  className="w-7 h-7 inline-flex items-center justify-center rounded-lg border border-[var(--b2)] text-[var(--t3)] hover:border-[var(--d)] hover:bg-[var(--d)] hover:text-white transition-all disabled:opacity-30"
+                                  title="Remove Schedule"
+                                >
+                                  {deletingSchedId === sched.id ? (
+                                    <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                      <path d="M21 12a9 9 0 11-6.219-8.56" />
+                                    </svg>
+                                  ) : (
+                                    <TrashIcon />
+                                  )}
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Pagination Footer */}
+                <div className="flex items-center justify-between px-5 py-3 border-t border-[var(--b)] text-[11px] text-[var(--t3)] font-mono">
+                  <span>
+                    Showing {filteredSchedules.length === 0 ? 0 : `${(schedPage - 1) * schedPageSize + 1}–${Math.min(filteredSchedules.length, schedPage * schedPageSize)}`} of {filteredSchedules.length}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      disabled={schedPage === 1}
+                      onClick={() => setSchedPage(p => Math.max(1, p - 1))}
+                      className="h-7 w-7 flex items-center justify-center rounded-lg border border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ReportChevronLeftIcon />
+                    </button>
+                    {(() => {
+                      const total = totalSchedPages;
+                      const current = schedPage;
+                      let pages: (number | string)[];
+                      if (total <= 5) {
+                        pages = Array.from({ length: total }, (_, i) => i + 1);
+                      } else if (current <= 3) {
+                        pages = [1, 2, 3, 4, '...', total];
+                      } else if (current >= total - 2) {
+                        pages = [1, '...', total - 3, total - 2, total - 1, total];
+                      } else {
+                        pages = [1, '...', current - 1, current, current + 1, '...', total];
+                      }
+                      return pages.map((pg, idx) =>
+                        pg === '...' ? (
+                          <span key={idx} className="px-1.5 self-center">…</span>
+                        ) : (
+                          <button
+                            key={idx}
+                            onClick={() => setSchedPage(pg as number)}
+                            className={`h-7 min-w-[28px] px-1.5 rounded-lg border text-[11px] transition-all ${
+                              schedPage === pg
+                                ? 'bg-[var(--t)] text-[var(--inv-t)] border-[var(--t)]'
+                                : 'border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)]'
+                            }`}
+                          >
+                            {pg}
+                          </button>
+                        )
+                      );
+                    })()}
+                    <button
+                      disabled={schedPage === totalSchedPages || totalSchedPages === 0}
+                      onClick={() => setSchedPage(p => Math.min(totalSchedPages, p + 1))}
+                      className="h-7 w-7 flex items-center justify-center rounded-lg border border-[var(--b)] text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    >
+                      <ReportChevronRightIcon />
+                    </button>
+                  </div>
+                </div>
+              </>))}
             </div>
           </div>
 
@@ -838,70 +1224,94 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
           <div className="lg:col-span-4 flex flex-col gap-6">
 
             {/* Quick Templates Card */}
-            <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--b)]">
+            <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl overflow-hidden">
+              <button
+                onClick={() => setTemplatesOpen(o => !o)}
+                className="w-full flex items-center justify-between p-5 pb-4 border-b border-[var(--b)] text-left hover:bg-[var(--bg1)]/30 transition-colors"
+              >
                 <div>
                   <h3 className="text-[13px] font-bold text-[var(--t)]">Quick templates</h3>
                   <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">Pre-built report parameters</p>
                 </div>
-              </div>
+                <svg
+                  width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  className={`shrink-0 text-[var(--t3)] transition-transform duration-200 ${templatesOpen ? 'rotate-0' : '-rotate-90'}`}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
 
-              <div className="flex flex-col gap-2.5">
-                {[
-                  { name: 'Weekly Churn Pulse', desc: 'High-risk customers, weekly delta, and top movers.', cadence: 'Weekly · Fri 9:00' },
-                  { name: 'Monthly Retention', desc: 'Cohort retention matrices, NRR, and contraction.', cadence: 'Monthly · 1st' },
-                  { name: 'Segment Snapshot', desc: 'Summary of all behavioral segment traits and metrics.', cadence: 'On-demand' },
-                  { name: 'Quarterly Business Review', desc: 'Full business scope, revenue loss forecast, and segment LTV.', cadence: 'Quarterly' }
-                ].map((tmpl, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleTemplateClick(tmpl.name)}
-                    className="flex items-start gap-3 p-3 border border-[var(--b)] hover:border-[var(--b3)] hover:bg-[var(--bg1)]/30 rounded-xl text-left transition-all group cursor-pointer"
-                  >
-                    <div className="w-8 h-8 rounded-lg bg-[var(--bg2)] flex items-center justify-center shrink-0 text-[var(--p)] group-hover:bg-[var(--p)] group-hover:text-[var(--inv-t)] transition-colors">
-                      <DocIcon />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[12px] font-bold text-[var(--t)] leading-snug group-hover:text-[var(--p)] transition-colors">{tmpl.name}</div>
-                      <div className="text-[10px] text-[var(--t3)] leading-relaxed mt-1 line-clamp-2">{tmpl.desc}</div>
-                      <div className="text-[9px] font-bold text-[var(--t2)] font-mono uppercase tracking-wider mt-2.5">{tmpl.cadence}</div>
-                    </div>
-                    <div className="text-[var(--t3)] shrink-0 self-center group-hover:translate-x-0.5 transition-transform">
-                      <ChevronRIcon />
-                    </div>
-                  </button>
-                ))}
-              </div>
+              {templatesOpen && (
+                <div className="p-5 flex flex-col gap-2.5">
+                  {[
+                    { name: 'Weekly Churn Pulse', desc: 'High-risk customers, weekly delta, and top movers.', cadence: 'Weekly · Fri 9:00' },
+                    { name: 'Monthly Retention', desc: 'Cohort retention matrices, NRR, and contraction.', cadence: 'Monthly · 1st' },
+                    { name: 'Segment Snapshot', desc: 'Summary of all behavioral segment traits and metrics.', cadence: 'On-demand' },
+                    { name: 'Quarterly Business Review', desc: 'Full business scope, revenue loss forecast, and segment LTV.', cadence: 'Quarterly' }
+                  ].map((tmpl, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleTemplateClick(tmpl.name)}
+                      className="flex items-start gap-3 p-3 border border-[var(--b)] hover:border-[var(--b3)] hover:bg-[var(--bg1)]/30 rounded-xl text-left transition-all group cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-[var(--bg2)] flex items-center justify-center shrink-0 text-[var(--p)] group-hover:bg-[var(--p)] group-hover:text-[var(--inv-t)] transition-colors">
+                        <DocIcon />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12px] font-bold text-[var(--t)] leading-snug group-hover:text-[var(--p)] transition-colors">{tmpl.name}</div>
+                        <div className="text-[11px] text-[var(--t3)] leading-relaxed mt-1 line-clamp-2">{tmpl.desc}</div>
+                        <div className="text-[11px] font-bold text-[var(--t2)] font-mono uppercase tracking-wider mt-2.5">{tmpl.cadence}</div>
+                      </div>
+                      <div className="text-[var(--t3)] shrink-0 self-center group-hover:translate-x-0.5 transition-transform">
+                        <ChevronRIcon />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Next Scheduled Delivery Card */}
-            <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-[var(--b)]">
-                <div>
-                  <h3 className="text-[13px] font-bold text-[var(--t)]">Next scheduled</h3>
-                  <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">Automated cron deliveries</p>
-                </div>
-                {isAdmin && (
-                  <button
-                    onClick={handleTriggerScheduler}
-                    disabled={runningScheduler}
-                    className="text-[10px] font-mono font-bold text-[var(--t2)] bg-[var(--bg2)] border border-[var(--b2)] hover:border-[var(--t)] hover:bg-[var(--bg3)] rounded-md px-2 py-1 flex items-center gap-1 transition-all disabled:opacity-50 shrink-0"
-                    title="Simulate Cron Trigger Now"
+            <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl overflow-hidden">
+              <div className="flex items-center gap-2 border-b border-[var(--b)]">
+                <button
+                  onClick={() => setSchedulesOpen(o => !o)}
+                  className="flex-1 flex items-center justify-between p-5 pb-4 text-left hover:bg-[var(--bg1)]/30 transition-colors"
+                >
+                  <div>
+                    <h3 className="text-[13px] font-bold text-[var(--t)]">Next scheduled</h3>
+                    <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">Automated cron deliveries</p>
+                  </div>
+                  <svg
+                    width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    className={`shrink-0 text-[var(--t3)] transition-transform duration-200 ${schedulesOpen ? 'rotate-0' : '-rotate-90'}`}
                   >
-                    <svg className={`shrink-0 ${runningScheduler ? 'animate-spin' : ''}`} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <polyline points="23 4 23 10 17 10" />
-                      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-                    </svg>
-                    Simulate
-                  </button>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                {isAdmin && (
+                  <div className="pr-4 shrink-0">
+                    <button
+                      onClick={handleTriggerScheduler}
+                      disabled={runningScheduler}
+                      className="text-[11px] font-mono font-bold text-[var(--t2)] bg-[var(--bg2)] border border-[var(--b2)] hover:border-[var(--t)] hover:bg-[var(--bg3)] rounded-md px-2 py-1 flex items-center gap-1 transition-all disabled:opacity-50"
+                      title="Simulate Cron Trigger Now"
+                    >
+                      <svg className={`shrink-0 ${runningScheduler ? 'animate-spin' : ''}`} width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polyline points="23 4 23 10 17 10" />
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                      </svg>
+                      Simulate
+                    </button>
+                  </div>
                 )}
               </div>
 
-              {nextSchedule ? (
-                <div className="space-y-4">
+              {schedulesOpen && (nextSchedule ? (
+                <div className="p-5 space-y-4">
                   {/* Highlight Next Delivery */}
                   <div className="p-3.5 bg-[var(--p-bg)] border border-[var(--p-b)] rounded-xl">
-                    <div className="flex items-center gap-2 text-[var(--p)] font-semibold font-mono text-[9px] uppercase tracking-wider mb-2">
+                    <div className="flex items-center gap-2 text-[var(--p)] font-semibold font-mono text-[11px] uppercase tracking-wider mb-2">
                       <CalendarIcon />
                       <span>
                         {new Date(nextSchedule.next_run_at).toLocaleString('en-US', {
@@ -915,7 +1325,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                       </span>
                     </div>
                     <div className="text-[13px] font-bold text-[var(--t)] leading-tight">{nextSchedule.name}</div>
-                    <div className="text-[10px] text-[var(--t3)] font-mono mt-1.5 flex items-center justify-between">
+                    <div className="text-[11px] text-[var(--t3)] font-mono mt-1.5 flex items-center justify-between">
                       <span className="capitalize">{nextSchedule.frequency} · {nextSchedule.export_type.toUpperCase()}</span>
                       <span className="text-[var(--t2)]">{nextSchedule.recipients?.length || 0} recipients</span>
                     </div>
@@ -925,13 +1335,13 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                   {upcomingSchedulesList.length > 0 && (
                     <div>
                       <div className="h-px bg-[var(--b)] my-4" />
-                      <div className="text-[10px] font-bold font-mono text-[var(--t3)] uppercase tracking-wider mb-2.5">Upcoming Deliveries</div>
+                      <div className="text-[11px] font-bold font-mono text-[var(--t3)] uppercase tracking-wider mb-2.5">Upcoming Deliveries</div>
                       <div className="divide-y divide-[var(--b)]">
                         {upcomingSchedulesList.map((sched, idx) => (
                           <div key={sched.id} className="py-2.5 flex items-center justify-between gap-3 text-xs last:pb-0">
                             <div className="min-w-0">
                               <div className="font-bold text-[var(--t)] truncate">{sched.name}</div>
-                              <div className="text-[10px] text-[var(--t3)] font-mono mt-0.5">
+                              <div className="text-[11px] text-[var(--t3)] font-mono mt-0.5">
                                 {new Date(sched.next_run_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {sched.recipients?.length || 0} recipients
                               </div>
                             </div>
@@ -951,40 +1361,21 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                     </div>
                   )}
 
-                  {/* Complete schedule management table toggle or button */}
+                  {/* View all → switch to schedules tab */}
                   {schedules.length > 0 && (
-                    <div className="pt-2">
-                      <div className="h-px bg-[var(--b)] mb-3" />
-                      <div className="text-[10px] font-bold font-mono text-[var(--t3)] uppercase tracking-wider mb-2">All Scheduled Logs</div>
-                      <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
-                        {schedules.map(sched => (
-                          <div key={sched.id} className="p-2 border border-[var(--b)] rounded-lg flex items-center justify-between gap-3 bg-[var(--bg1)]/40 hover:bg-[var(--bg1)]/90 transition-colors">
-                            <div className="min-w-0">
-                              <div className="text-[11px] font-bold text-[var(--t)] truncate">{sched.name}</div>
-                              <div className="text-[9px] text-[var(--t3)] font-mono mt-0.5">
-                                {sched.frequency} · {sched.time_of_day} · {sched.export_type.toUpperCase()}
-                              </div>
-                            </div>
-                            {isAdmin && (
-                              <button
-                                disabled={deletingSchedId === sched.id}
-                                onClick={() => setSchedToDelete(sched)}
-                                className="text-[var(--t3)] hover:text-[var(--d)] p-1 rounded hover:bg-[var(--bg3)] transition-colors shrink-0"
-                              >
-                                <TrashIcon />
-                              </button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <button
+                      onClick={() => setMainTab('schedules')}
+                      className="w-full pt-2 text-[11px] font-mono font-bold text-[var(--p)] hover:underline text-left"
+                    >
+                      View all {schedules.length} scheduled logs →
+                    </button>
                   )}
                 </div>
               ) : (
                 <div className="py-8 text-center text-xs font-mono text-[var(--t3)]">
                   No automated schedules active.
                 </div>
-              )}
+              ))}
             </div>
           </div>
         </div>
@@ -1009,7 +1400,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
 
             <div className="p-5 space-y-4 font-sans">
               <div>
-                <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Report Name <span className="normal-case text-[var(--t4)] font-normal">(optional)</span></label>
+                <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Report Name <span className="normal-case text-[var(--t4)] font-normal">(optional)</span></label>
                 <input
                   type="text"
                   placeholder={`e.g. Q4 Growth Audit - ${new Date().toLocaleDateString('en-US')}`}
@@ -1132,7 +1523,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
               )}
 
               <div>
-                <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Schedule Name</label>
+                <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Schedule Name</label>
                 <input
                   type="text"
                   required
@@ -1183,7 +1574,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Execution Time</label>
+                  <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Execution Time</label>
                   <input
                     type="time"
                     required
@@ -1223,7 +1614,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                   />
                 ) : (
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Day Schedule</label>
+                    <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Day Schedule</label>
                     <div className="w-full border border-[var(--b)] bg-[var(--bg2)] text-[var(--t3)] rounded-lg px-3 h-10 flex items-center text-[11px] font-semibold select-none">
                       Runs Every Day
                     </div>
@@ -1243,7 +1634,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
               />
 
               <div>
-                <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Notification Emails <span className="normal-case text-[var(--d)] font-semibold">(required)</span></label>
+                <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Notification Emails <span className="normal-case text-[var(--d)] font-semibold">(required)</span></label>
                 <input
                   type="text"
                   placeholder="e.g. boss@corp.com, partner@corp.com"
@@ -1251,7 +1642,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                   onChange={e => setSchedRecipients(e.target.value)}
                   className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl px-4 py-2.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors placeholder:text-[var(--t4)]"
                 />
-                <p className="text-[9px] text-[var(--t4)] mt-1.5 leading-normal">Separate multiple emails with commas</p>
+                <p className="text-[11px] text-[var(--t4)] mt-1.5 leading-normal">Separate multiple emails with commas</p>
               </div>
 
               <div className="pt-2 flex gap-3">
@@ -1316,6 +1707,22 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
         onConfirm={handleDeleteSchedule}
       />
     </div>
+  );
+}
+
+function ReportChevronLeftIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="15 18 9 12 15 6" />
+    </svg>
+  );
+}
+
+function ReportChevronRightIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
   );
 }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useDashboardContext } from '../../context/DashboardContext';
 import Card from '../../ui/Card';
@@ -94,6 +94,38 @@ function AnalyticsPageContent() {
 
   const [analyzeId, setAnalyzeId] = useState<string | null>(null);
   const [shareCustomers, setShareCustomers] = useState<PredictionRow[] | null>(null);
+
+  // ── Scroll-collapse for charts ────────────────────────────────────────────
+  // Collapses after the user scrolls DOWN past 280 px.
+  // Re-expands only after a continuous upward drag of ≥ 60 px,
+  // preventing accidental flickers on small scroll jitter.
+  const [chartsCollapsed, setChartsCollapsed] = useState(false);
+  useEffect(() => {
+    const COLLAPSE_AT_PX  = 280; // minimum scrollY before collapse is allowed
+    const EXPAND_DRAG_PX  = 60;  // continuous upward scroll needed to re-expand
+    let lastY = 0;
+    let upAccum = 0;
+
+    const onScroll = () => {
+      const y = window.scrollY;
+      const delta = y - lastY;
+
+      if (delta > 0) {
+        // scrolling down — reset upward accumulator
+        upAccum = 0;
+        if (y > COLLAPSE_AT_PX) setChartsCollapsed(true);
+      } else if (delta < 0) {
+        // scrolling up — accumulate distance
+        upAccum += Math.abs(delta);
+        if (upAccum >= EXPAND_DRAG_PX) setChartsCollapsed(false);
+      }
+
+      lastY = y;
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   const [summaryStats, setSummaryStats] = useState({
     total: 0,
@@ -534,47 +566,86 @@ function AnalyticsPageContent() {
         />
       </div>
 
-      {/* ── Charts Grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-4">
-        <div className="lg:col-span-7 flex flex-col">
-          <Card className="flex-1">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-[var(--t)]">Churn score distribution</h3>
-                <p className="text-[11px] text-[var(--t3)]">Probability bins · all customers</p>
+      {/* ── Charts Grid — collapses on scroll-down, expands on scroll-up ── */}
+      <div
+        className="overflow-hidden transition-[max-height,opacity,margin] duration-500 ease-in-out"
+        style={{ maxHeight: chartsCollapsed ? 0 : 420, opacity: chartsCollapsed ? 0 : 1, marginBottom: chartsCollapsed ? 0 : 16 }}
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* ── Churn Score Distribution ── */}
+          <div className="lg:col-span-7 flex flex-col">
+            <Card className="flex-1 !p-0 overflow-hidden">
+              {/* card header */}
+              <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[var(--b)]">
+                <div>
+                  <h3 className="text-[13px] font-bold text-[var(--t)] leading-tight">Churn score distribution</h3>
+                  <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">Probability bins · all customers</p>
+                </div>
+                <div className="flex items-center gap-3 text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.08em] font-mono">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ background: 'var(--g)' }} />Low
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ background: 'var(--o)' }} />Med
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ background: 'var(--r)' }} />High
+                  </span>
+                </div>
               </div>
-              <div className="flex gap-3 text-[10px] font-semibold text-[var(--t3)] uppercase tracking-wider">
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-1.5 rounded-full bg-[var(--g)]"></span>Low</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-1.5 rounded-full bg-[var(--o)]"></span>Med</span>
-                <span className="flex items-center gap-1.5"><span className="w-2.5 h-1.5 rounded-full bg-[var(--r)]"></span>High</span>
+              <div className="px-4 pt-3 pb-4">
+                {loading ? (
+                  <div className="h-[210px] flex items-center justify-center text-xs text-[var(--t3)] font-mono">
+                    Loading distribution...
+                  </div>
+                ) : (
+                  <BarChart data={churnDist} height={280} uid="dist" />
+                )}
               </div>
-            </div>
-            {loading ? (
-              <div className="h-[240px] flex items-center justify-center text-xs text-[var(--t3)]">
-                Loading distribution...
+            </Card>
+          </div>
+
+          {/* ── Top Churn Drivers ── */}
+          <div className="lg:col-span-5 flex flex-col">
+            <Card className="flex-1 !p-0 overflow-hidden">
+              {/* card header */}
+              <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[var(--b)]">
+                <div>
+                  <h3 className="text-[13px] font-bold text-[var(--t)] leading-tight">Top churn drivers</h3>
+                  <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">Feature importance · SHAP values</p>
+                </div>
+                <span className="text-[10px] font-bold font-mono text-[var(--t3)] uppercase tracking-[0.08em] bg-[var(--bg2)] border border-[var(--b)] rounded-md px-2 py-1">
+                  Top 6
+                </span>
               </div>
-            ) : (
-              <BarChart data={churnDist} height={240} />
-            )}
-          </Card>
+              <div className="px-4 pt-3 pb-4">
+                {loading ? (
+                  <div className="h-[210px] flex items-center justify-center text-xs text-[var(--t3)] font-mono">
+                    Loading drivers...
+                  </div>
+                ) : (
+                  <BarChart horizontal data={churnDrivers} height={280} uid="drv" />
+                )}
+              </div>
+            </Card>
+          </div>
         </div>
-        <div className="lg:col-span-5 flex flex-col">
-          <Card className="flex-1">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-bold text-[var(--t)]">Top churn drivers</h3>
-                <p className="text-[11px] text-[var(--t3)]">Feature importance · SHAP</p>
-              </div>
-            </div>
-            {loading ? (
-              <div className="h-[240px] flex items-center justify-center text-xs text-[var(--t3)]">
-                Loading drivers...
-              </div>
-            ) : (
-              <BarChart horizontal data={churnDrivers} height={240} />
-            )}
-          </Card>
-        </div>
+      </div>
+
+      {/* ── Collapsed strip ── */}
+      <div
+        className="overflow-hidden transition-[max-height,opacity] duration-300 ease-in-out"
+        style={{ maxHeight: chartsCollapsed ? 40 : 0, opacity: chartsCollapsed ? 1 : 0 }}
+      >
+        <button
+          onClick={() => setChartsCollapsed(false)}
+          className="w-full mb-4 flex items-center justify-center gap-2 py-2 text-[11px] font-mono font-bold text-[var(--t3)] bg-[var(--surf)] border border-[var(--b)] rounded-xl hover:text-[var(--t)] hover:border-[var(--b3)] transition-all"
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="18 15 12 9 6 15" />
+          </svg>
+          Charts collapsed · scroll up or click to expand
+        </button>
       </div>
 
       {/* ── Customer Roster Card ── */}
@@ -933,29 +1004,205 @@ interface BarChartProps {
   height?: number;
   color?: string;
   horizontal?: boolean;
+  uid?: string; // unique prefix for gradient IDs (prevents SVG ID conflicts between instances)
 }
 
-function BarChart({ data, height = 220, color = "var(--p)", horizontal = false }: BarChartProps) {
-  const w = 700;
-  const pad = { l: horizontal ? 120 : 40, r: 16, t: 12, b: 28 };
+function BarChart({ data, height = 220, color = "var(--p)", horizontal = false, uid = 'c' }: BarChartProps) {
+  // Measure the real container pixel width via ResizeObserver.
+  // This makes viewBox = "0 0 W height" a 1:1 pixel mapping → no SVG scaling,
+  // no letterboxing, no text distortion at any column width.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(700); // 700 = safe SSR/hydration fallback
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setW(Math.round(el.getBoundingClientRect().width));
+    const ro = new ResizeObserver(entries =>
+      setW(Math.round(entries[0].contentRect.width))
+    );
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const max = Math.max(...data.map(d => d.value), 1);
-  const innerW = w - pad.l - pad.r;
-  const innerH = height - pad.t - pad.b;
+
+  /* ── Horizontal ─────────────────────────────────────────────────── */
+  let chart: React.ReactNode;
 
   if (horizontal) {
-    const rowH = innerH / (data.length || 1);
-    const barH = Math.min(rowH - 6, 22);
-    return (
-      <svg width="100%" height={height} viewBox={`0 0 ${w} ${height}`} className="overflow-visible">
-        {data.map((d, i) => {
-          const y = pad.t + i * rowH + (rowH - barH) / 2;
-          const bw = (d.value / max) * innerW;
+    // pad.l = 165 px — enough for "Days Since Last Payment" (~24 chars × ~6.5px at 11px font ≈ 156px)
+    // Because W now equals the real container width, all values are in actual pixels.
+    const pad = { l: 165, r: 12, t: 10, b: 42 };
+    const innerW = W - pad.l - pad.r;
+    const innerH = height - pad.t - pad.b;
+    const rowH   = innerH / (data.length || 1);
+    const barH   = Math.min(rowH - 14, 30);
+
+    // Round max up to nearest 0.5 so bars never overflow the chart area
+    const maxTick  = Math.max(Math.ceil(max / 0.5) * 0.5, 0.5);
+    const tickStep = maxTick <= 1 ? 0.25 : 0.5;
+    const ticks: number[] = [];
+    for (let t = 0; t <= maxTick + 1e-9; t += tickStep) {
+      ticks.push(parseFloat(t.toFixed(2)));
+    }
+
+    chart = (
+      <svg width={W} height={height} viewBox={`0 0 ${W} ${height}`} style={{ display: 'block' }}>
+        <defs>
+          {data.map((d, i) => {
+            const c = d.color || color;
+            return (
+              <linearGradient key={i} id={`${uid}-hg${i}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%"   stopColor={c} stopOpacity="1" />
+                <stop offset="100%" stopColor={c} stopOpacity="0.72" />
+              </linearGradient>
+            );
+          })}
+        </defs>
+
+        {/* ── Vertical grid lines at each tick ── */}
+        {ticks.map((t, i) => {
+          const x = pad.l + (t / maxTick) * innerW;
+          return (
+            <line key={i}
+              x1={x} x2={x} y1={pad.t} y2={pad.t + innerH}
+              stroke="var(--b)" strokeWidth="1"
+              strokeDasharray={t === 0 ? '' : '3 6'}
+              className="stroke-[var(--b)]"
+            />
+          );
+        })}
+
+        {/* ── X-axis baseline ── */}
+        <line
+          x1={pad.l} x2={W - pad.r}
+          y1={pad.t + innerH} y2={pad.t + innerH}
+          stroke="var(--b)" strokeWidth="1.5"
+          className="stroke-[var(--b)]"
+        />
+
+        {/* ── X-axis tick marks + labels ── */}
+        {ticks.map((t, i) => {
+          const x = pad.l + (t / maxTick) * innerW;
           return (
             <g key={i}>
-              <text x={pad.l - 8} y={y + barH/2 + 3} fontSize="10" fill="var(--t2)" textAnchor="end" fontFamily="var(--font-sans)" className="fill-[var(--t2)]">{d.label}</text>
-              <rect x={pad.l} y={y} width={innerW} height={barH} fill="var(--bg2)" className="fill-[var(--b)]" rx="2" />
-              <rect x={pad.l} y={y} width={bw} height={barH} fill={d.color || color} rx="2" />
-              <text x={pad.l + bw + 6} y={y + barH/2 + 3} fontSize="10" fill="var(--t2)" fontFamily="var(--font-mono)" className="fill-[var(--t2)]">{d.value.toLocaleString()}</text>
+              <line
+                x1={x} x2={x}
+                y1={pad.t + innerH} y2={pad.t + innerH + 5}
+                stroke="var(--b)" strokeWidth="1"
+                className="stroke-[var(--b)]"
+              />
+              <text
+                x={x} y={pad.t + innerH + 18}
+                fontSize="10" textAnchor="middle"
+                fill="var(--t3)" fontFamily="var(--font-mono)"
+                className="fill-[var(--t3)]"
+              >{t.toFixed(1)}</text>
+            </g>
+          );
+        })}
+
+        {/* ── Rows ── */}
+        {data.map((d, i) => {
+          const y  = pad.t + i * rowH + (rowH - barH) / 2;
+          const bw = Math.max((d.value / maxTick) * innerW, 3);
+
+          return (
+            <g key={i}>
+              {/* Feature label — full text, no truncation */}
+              <text
+                x={pad.l - 12} y={y + barH / 2 + 4}
+                fontSize="11" textAnchor="end"
+                fill="var(--t2)" fontFamily="var(--font-sans)"
+                className="fill-[var(--t2)]"
+              >{d.label}</text>
+
+              {/* Track */}
+              <rect
+                x={pad.l} y={y} width={innerW} height={barH} rx="5"
+                fill="var(--bg2)" className="fill-[var(--bg2)]"
+              />
+
+              {/* Filled bar */}
+              <rect
+                x={pad.l} y={y} width={bw} height={barH} rx="5"
+                fill={`url(#${uid}-hg${i})`}
+              />
+            </g>
+          );
+        })}
+      </svg>
+    );
+  } else {
+    /* ── Vertical ─────────────────────────────────────────────────── */
+    const pad    = { l: 24, r: 16, t: 24, b: 30 };
+    const innerW = W - pad.l - pad.r;
+    const innerH = height - pad.t - pad.b;
+    const step   = innerW / (data.length || 1);
+    const barW   = step * 0.56;
+
+    // Grid y-positions: 25 / 50 / 75 / 100 %
+    const gridTicks = [0.25, 0.5, 0.75, 1];
+
+    chart = (
+      <svg width={W} height={height} viewBox={`0 0 ${W} ${height}`}
+        style={{ display: 'block' }} className="overflow-visible">
+        <defs>
+          {data.map((d, i) => {
+            const c = d.color || color;
+            return (
+              <linearGradient key={i} id={`${uid}-vg${i}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor={c} stopOpacity="0.95" />
+                <stop offset="100%" stopColor={c} stopOpacity="0.45" />
+              </linearGradient>
+            );
+          })}
+        </defs>
+
+        {/* Grid lines */}
+        {gridTicks.map((t, i) => {
+          const gy = pad.t + innerH * (1 - t);
+          const isBase = t === 1;
+          return (
+            <line key={i}
+              x1={pad.l} x2={W - pad.r} y1={gy} y2={gy}
+              stroke="var(--b)" strokeWidth={isBase ? 1.5 : 1}
+              strokeDasharray={isBase ? '' : '4 7'}
+              className="stroke-[var(--b)]"
+            />
+          );
+        })}
+
+        {/* Bars */}
+        {data.map((d, i) => {
+          const x  = pad.l + i * step + (step - barW) / 2;
+          const bh = Math.max((d.value / max) * innerH, 2);
+          const y  = pad.t + innerH - bh;
+
+          return (
+            <g key={i}>
+              {/* Value label above bar */}
+              {bh > 18 && (
+                <text
+                  x={x + barW / 2} y={y - 5}
+                  fontSize="10" textAnchor="middle"
+                  fill="var(--t2)" fontFamily="var(--font-mono)"
+                  className="fill-[var(--t2)]"
+                >{d.value}</text>
+              )}
+
+              {/* Bar with gradient + rounded top */}
+              <rect x={x} y={y} width={barW} height={bh} rx="4"
+                fill={`url(#${uid}-vg${i})`} />
+
+              {/* Axis label */}
+              <text
+                x={x + barW / 2} y={pad.t + innerH + 16}
+                fontSize="9" textAnchor="middle"
+                fill="var(--t3)" fontFamily="var(--font-mono)"
+                className="fill-[var(--t3)]"
+              >{d.label}</text>
             </g>
           );
         })}
@@ -963,26 +1210,10 @@ function BarChart({ data, height = 220, color = "var(--p)", horizontal = false }
     );
   }
 
-  const step = innerW / (data.length || 1);
-  const barW = step * 0.6;
   return (
-    <svg width="100%" height={height} viewBox={`0 0 ${w} ${height}`} className="overflow-visible">
-      {[0, 0.5, 1].map((t, i) => (
-        <line key={i} x1={pad.l} x2={w-pad.r} y1={pad.t + innerH - t * innerH} y2={pad.t + innerH - t * innerH} stroke="var(--b)" strokeDasharray={t === 0 ? "" : "2 4"} className="stroke-[var(--b)]" />
-      ))}
-      {data.map((d, i) => {
-        const x = pad.l + i * step + (step - barW) / 2;
-        const bh = (d.value / max) * innerH;
-        const y = pad.t + innerH - bh;
-        return (
-          <g key={i}>
-            <rect x={x} y={y} width={barW} height={bh} fill={d.color || color} rx="2" />
-            <text x={x + barW/2} y={pad.t + innerH + 14} fontSize="9" fill="var(--t4)" textAnchor="middle" fontFamily="var(--font-mono)" className="fill-[var(--t4)]">{d.label}</text>
-            <text x={x + barW/2} y={y - 4} fontSize="9" fill="var(--t2)" textAnchor="middle" fontFamily="var(--font-mono)" className="fill-[var(--t2)]">{d.value}</text>
-          </g>
-        );
-      })}
-    </svg>
+    <div ref={containerRef} style={{ width: '100%' }}>
+      {chart}
+    </div>
   );
 }
 

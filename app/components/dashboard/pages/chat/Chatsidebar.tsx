@@ -17,6 +17,7 @@ interface ChatSidebarProps {
   filtered: ConversationItem[];
   activeConvo: string;
   onSelectConvo: (id: string) => void;
+  onDeleteConvo?: (id: string) => void;
   search: string;
   onSearchChange: (v: string) => void;
   chatFilter: string;
@@ -34,6 +35,17 @@ interface ChatSidebarProps {
   availableMembers: WorkspaceMember[];
   currentUserId: string;
   collapsed?: boolean;
+}
+
+function TrashIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  );
 }
 
 function RenderEmojiSnippet({ text }: { text: string }) {
@@ -96,6 +108,7 @@ export default function ChatSidebar({
   filtered,
   activeConvo,
   onSelectConvo,
+  onDeleteConvo,
   search,
   onSearchChange,
   chatFilter,
@@ -114,6 +127,7 @@ export default function ChatSidebar({
   currentUserId,
   collapsed = false,
 }: ChatSidebarProps) {
+  const [deletingConvoId, setDeletingConvoId] = useState<string | null>(null);
 
   // ── Collapsed (icon-only) view ────────────────────────────────────────────
   if (collapsed) {
@@ -171,7 +185,7 @@ export default function ChatSidebar({
       <div style={{ padding: '16px 16px 12px' }} className="border-b border-[var(--b)]">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.12em] mb-0.5 font-mono">Workspace</div>
+            <div className="text-[12px] font-bold text-[var(--t3)] uppercase tracking-[0.12em] mb-0.5 font-mono">Workspace</div>
             <div className="text-sm font-bold text-[var(--t)] tracking-tight">Team Chat</div>
           </div>
           <button
@@ -203,7 +217,7 @@ export default function ChatSidebar({
               <button
                 key={f.key}
                 onClick={() => onFilterChange(f.key)}
-                className={`flex-1 min-w-0 px-2 py-1 text-[11px] font-bold rounded-md transition-all whitespace-nowrap cursor-pointer ${chatFilter === f.key ? 'bg-[var(--accent)] text-[var(--inv)]' : 'text-[var(--t2)] hover:text-[var(--t)] hover:bg-[var(--bg2)]'}`}
+                className={`flex-1 min-w-0 px-2 py-1 text-[12px] font-bold rounded-md transition-all whitespace-nowrap cursor-pointer ${chatFilter === f.key ? 'bg-[var(--accent)] text-[var(--inv)]' : 'text-[var(--t2)] hover:text-[var(--t)] hover:bg-[var(--bg2)]'}`}
               >
                 {f.label}
               </button>
@@ -240,7 +254,7 @@ export default function ChatSidebar({
               />
               <div className="overflow-hidden rounded-xl border border-[var(--b2)] bg-[var(--bg2)] flex-1 min-h-0 flex flex-col">
                 <div className="border-b border-[var(--b)] px-3 py-2 shrink-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--t3)] font-mono">Select Members</p>
+                  <p className="text-[12px] font-bold uppercase tracking-wider text-[var(--t3)] font-mono">Select Members</p>
                 </div>
                 <div className="flex-1 overflow-y-auto divide-y divide-[var(--b)]">
                   {availableMembers.map((member) => (
@@ -272,7 +286,7 @@ export default function ChatSidebar({
 
           {composeTab === 'direct' && (
             <div className="flex flex-col gap-1 flex-1 min-h-0 overflow-y-auto">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--t3)] px-1 mb-1 font-mono shrink-0">Workspace Members</p>
+              <p className="text-[12px] font-bold uppercase tracking-wider text-[var(--t3)] px-1 mb-1 font-mono shrink-0">Workspace Members</p>
               {availableMembers.map((member) => (
                 <button
                   key={member.userId}
@@ -282,7 +296,7 @@ export default function ChatSidebar({
                   <Avatar initials={getInitials(member.fullName)} src={member.avatarUrl || undefined} size="sm" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-bold text-[var(--t)]">{member.fullName}</p>
-                    <p className="text-[10px] text-[var(--t3)] font-semibold font-mono">Member</p>
+                    <p className="text-[12px] text-[var(--t3)] font-semibold font-mono">Member</p>
                   </div>
                   <svg className="shrink-0 text-[var(--t3)]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -297,57 +311,66 @@ export default function ChatSidebar({
       {/* ── Conversation List ── */}
       {sidebarMode === 'list' && (
         <div className="flex-1 overflow-y-auto py-2">
-          
+
           {/* ── Section: Channels (Groups) ── */}
           {channels.length > 0 && (
             <div className="mb-4">
-              <div className="px-4 py-1 text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">
+              <div className="px-4 py-1 text-[12px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">
                 Channels
               </div>
               <div className="flex flex-col">
                 {channels.map(c => {
                   const isActive = activeConvo === c.id;
                   return (
-                    <button
+                    <div
                       key={c.id}
-                      onClick={() => onSelectConvo(c.id)}
-                      className="w-full flex items-center gap-2.5 px-4 py-2 text-left cursor-pointer transition-colors"
+                      className="relative group flex items-center w-full transition-colors"
                       style={{
                         background: isActive ? 'var(--bg3)' : 'transparent',
                         borderLeft: isActive ? '3px solid var(--accent)' : '3px solid transparent',
                       }}
-                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--bg2)'; }}
-                      onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                      onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg2)'; }}
+                      onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                     >
-                      <div className="relative shrink-0">
-                        <Avatar initials={getInitials(c.name)} size="sm" src={c.avatarUrl || undefined} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <p className={`text-xs truncate ${isActive ? 'font-bold text-[var(--t)]' : 'font-medium text-[var(--t2)]'}`}>
-                            {c.name}
-                          </p>
-                          <span className="text-[9px] text-[var(--t3)] font-mono shrink-0 ml-1">
-                            {formatTime(c.lastAt)}
-                          </span>
+                      <button
+                        onClick={() => onSelectConvo(c.id)}
+                        className="flex-1 min-w-0 flex items-center gap-2.5 pl-4 pr-8 py-2 text-left cursor-pointer"
+                      >
+                        <div className="relative shrink-0">
+                          <Avatar initials={getInitials(c.name)} size="sm" src={c.avatarUrl || undefined} />
                         </div>
-                        <p className="text-[10px] text-[var(--t3)] truncate font-medium">
-                          <RenderEmojiSnippet text={c.lastMessage} />
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {c.mentionCount > 0 && (
-                          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white text-[8px] font-black leading-none">
-                            @
-                          </span>
-                        )}
-                        {c.unreadCount > 0 && (
-                          <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--inv)] px-1 py-0.5 text-[8px] font-black leading-none">
-                            {c.unreadCount}
-                          </span>
-                        )}
-                      </div>
-                    </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <p className={`text-xs truncate ${isActive ? 'font-bold text-[var(--t)]' : 'font-medium text-[var(--t2)]'}`}>
+                              {c.name}
+                            </p>
+                            <span className="text-[9px] text-[var(--t3)] font-mono shrink-0 ml-1">
+                              {formatTime(c.lastAt)}
+                            </span>
+                          </div>
+                          <p className="text-[12px] text-[var(--t3)] truncate font-medium">
+                            <RenderEmojiSnippet text={c.lastMessage} />
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {c.mentionCount > 0 && (
+                            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white text-[8px] font-black leading-none">@</span>
+                          )}
+                          {c.unreadCount > 0 && (
+                            <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--inv)] px-1 py-0.5 text-[8px] font-black leading-none">
+                              {c.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); setDeletingConvoId(c.id); }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-lg text-[var(--t4)] hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                        title="Delete channel"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -357,58 +380,67 @@ export default function ChatSidebar({
           {/* ── Section: Direct Messages ── */}
           {dms.length > 0 && (
             <div>
-              <div className="px-4 py-1 text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">
+              <div className="px-4 py-1 text-[12px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">
                 Direct Messages
               </div>
               <div className="flex flex-col">
                 {dms.map(c => {
                   const isActive = activeConvo === c.id;
                   return (
-                    <button
+                    <div
                       key={c.id}
-                      onClick={() => onSelectConvo(c.id)}
-                      className="w-full flex items-center gap-2.5 px-4 py-2 text-left cursor-pointer transition-colors"
+                      className="relative group flex items-center w-full transition-colors"
                       style={{
                         background: isActive ? 'var(--bg3)' : 'transparent',
                         borderLeft: isActive ? '3px solid var(--accent)' : '3px solid transparent',
                       }}
-                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--bg2)'; }}
-                      onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                      onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg2)'; }}
+                      onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                     >
-                      <div className="relative shrink-0">
-                        <Avatar initials={getInitials(c.name)} size="sm" src={c.avatarUrl || undefined} />
-                        {(() => {
-                          const peer = c.members.find(m => m.id !== currentUserId);
-                          if (!peer?.isOnline) return null;
-                          return <div className="absolute right-0 bottom-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-[var(--bg1)]" />;
-                        })()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <p className={`text-xs truncate ${isActive ? 'font-bold text-[var(--t)]' : 'font-medium text-[var(--t2)]'}`}>
-                            {c.name}
-                          </p>
-                          <span className="text-[9px] text-[var(--t3)] font-mono shrink-0 ml-1">
-                            {formatTime(c.lastAt)}
-                          </span>
+                      <button
+                        onClick={() => onSelectConvo(c.id)}
+                        className="flex-1 min-w-0 flex items-center gap-2.5 pl-4 pr-8 py-2 text-left cursor-pointer"
+                      >
+                        <div className="relative shrink-0">
+                          <Avatar initials={getInitials(c.name)} size="sm" src={c.avatarUrl || undefined} />
+                          {(() => {
+                            const peer = c.members.find(m => m.id !== currentUserId);
+                            if (!peer?.isOnline) return null;
+                            return <div className="absolute right-0 bottom-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-[var(--bg1)]" />;
+                          })()}
                         </div>
-                        <p className="text-[10px] text-[var(--t3)] truncate font-medium">
-                          <RenderEmojiSnippet text={c.lastMessage} />
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {c.mentionCount > 0 && (
-                          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white text-[8px] font-black leading-none">
-                            @
-                          </span>
-                        )}
-                        {c.unreadCount > 0 && (
-                          <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--inv)] px-1 py-0.5 text-[8px] font-black leading-none">
-                            {c.unreadCount}
-                          </span>
-                        )}
-                      </div>
-                    </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <p className={`text-xs truncate ${isActive ? 'font-bold text-[var(--t)]' : 'font-medium text-[var(--t2)]'}`}>
+                              {c.name}
+                            </p>
+                            <span className="text-[9px] text-[var(--t3)] font-mono shrink-0 ml-1">
+                              {formatTime(c.lastAt)}
+                            </span>
+                          </div>
+                          <p className="text-[12px] text-[var(--t3)] truncate font-medium">
+                            <RenderEmojiSnippet text={c.lastMessage} />
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {c.mentionCount > 0 && (
+                            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-white text-[8px] font-black leading-none">@</span>
+                          )}
+                          {c.unreadCount > 0 && (
+                            <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-[var(--accent)] text-[var(--inv)] px-1 py-0.5 text-[8px] font-black leading-none">
+                              {c.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); setDeletingConvoId(c.id); }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-lg text-[var(--t4)] hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                        title="Delete conversation"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -422,6 +454,71 @@ export default function ChatSidebar({
           )}
         </div>
       )}
+
+      {/* ── Delete conversation modal ── */}
+      {deletingConvoId && (() => {
+        const target = filtered.find(c => c.id === deletingConvoId);
+        return (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
+            onClick={() => setDeletingConvoId(null)}
+          >
+            <div
+              className="bg-[var(--bg1)] border border-[var(--b)] rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden animate-in zoom-in-95 duration-200"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3.5 px-5 pt-5 pb-4">
+                <div className="w-11 h-11 rounded-xl bg-red-500/10 flex items-center justify-center shrink-0">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6M14 11v6" />
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--t)]">
+                    Delete {target?.type === 'group' ? 'channel' : 'conversation'}?
+                  </h3>
+                  <p className="text-[11px] text-[var(--t3)] mt-0.5 font-medium">
+                    This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+
+              {/* Conversation preview */}
+              {target && (
+                <div className="mx-5 mb-4 px-3.5 py-2.5 bg-[var(--bg2)] border border-[var(--b)] rounded-xl flex items-center gap-2.5">
+                  <Avatar initials={getInitials(target.name)} size="sm" src={target.avatarUrl || undefined} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-[var(--t)] truncate">{target.name}</p>
+                    <p className="text-[10px] text-[var(--t3)] font-mono">
+                      {target.type === 'group' ? `${target.memberCount} members` : 'Direct message'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-2.5 px-5 pb-5">
+                <button
+                  onClick={() => setDeletingConvoId(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-[var(--b)] bg-[var(--bg2)] text-xs font-bold text-[var(--t2)] hover:bg-[var(--bg3)] transition-all cursor-pointer active:scale-[0.98]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { onDeleteConvo?.(deletingConvoId); setDeletingConvoId(null); }}
+                  className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-xs font-bold text-white transition-all cursor-pointer active:scale-[0.98] shadow-sm"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
