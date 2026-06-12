@@ -85,8 +85,7 @@ export default function SignInPage() {
         .eq('id', signedInUserId);
     }
 
-    setLoading(false);
-
+    // Keep loading=true — the spinner stays until the component unmounts on navigation
     router.push(safeRedirectTo || '/dashboard/overview');
     router.refresh();
   };
