@@ -38,6 +38,34 @@ const PREVIEW_COLS: Record<FileKey, string[]> = {
   nps_surveys_with_feedback: ['customer_id', 'nps_score', 'segment', 'feedback_category', 'feedback_text'],
 };
 
+const CSV_TEMPLATES: Record<FileKey, { headers: string[]; sample: string[]; instructions: string }> = {
+  customer_accounts: {
+    headers: ['customer_id', 'plan_type', 'contract_type', 'subscription_date', 'total_users', 'unsubscribed_date'],
+    sample: ['C001', 'Enterprise', 'Annual', '2023-01-15', '50', ''],
+    instructions: 'One row per customer. plan_type: Enterprise / Professional / Starter. contract_type: Annual / Monthly. Dates in YYYY-MM-DD. Leave unsubscribed_date blank if customer is still active.',
+  },
+  monthly_usage_metrics: {
+    headers: ['customer_id', 'monthly_usage_hrs', 'feature_adoption_pct', 'last_login_date'],
+    sample: ['C001', '120.5', '0.75', '2024-11-30'],
+    instructions: 'One row per customer per month. monthly_usage_hrs: total hours used that month. feature_adoption_pct: 0.0–1.0 scale (e.g. 0.75 = 75%). last_login_date in YYYY-MM-DD.',
+  },
+  billing_data: {
+    headers: ['customer_id', 'billing_date', 'payment_date', 'payment_value', 'record_type'],
+    sample: ['C001', '2024-11-01', '2024-11-05', '2500.00', 'invoice'],
+    instructions: 'One row per billing event. record_type: invoice / payment / credit. payment_date may be left blank if unpaid. payment_value as a decimal number.',
+  },
+  support_tickets: {
+    headers: ['ticket_id', 'customer_id', 'created_date', 'category', 'priority', 'status'],
+    sample: ['T001', 'C001', '2024-10-10', 'billing', 'high', 'resolved'],
+    instructions: 'One row per support ticket. category: billing / technical / onboarding / other. priority: low / medium / high / critical. status: open / in_progress / resolved / closed.',
+  },
+  nps_surveys_with_feedback: {
+    headers: ['survey_id', 'customer_id', 'nps_score', 'survey_date', 'plan_type', 'contract_type', 'segment', 'feedback_category', 'feedback_text'],
+    sample: ['S001', 'C001', '8', '2024-11-15', 'Enterprise', 'Annual', 'large', 'product', 'Great product overall'],
+    instructions: 'One row per survey response. nps_score: 0–10 integer. segment: small / medium / large / enterprise. feedback_category: product / support / pricing / other. feedback_text is free-form.',
+  },
+};
+
 // ── SVG Icons ─────────────────────────────────────────────────────────────────
 const DatabaseIcon = () => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -132,6 +160,7 @@ function DataManagementPageContent() {
   const [expandedDataset, setExpandedDataset] = useState<string | null>(null);
   const [datasetToDelete, setDatasetToDelete] = useState<DatasetRow | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
   const allFilesSelected = Object.keys(REQUIRED_FILES).every(k => files[k as FileKey]);
 
@@ -212,6 +241,20 @@ function DataManagementPageContent() {
 
     return () => clearInterval(interval);
   }, [datasets, fetchDatasets]);
+
+  // Auto-open guide when workspace has no datasets yet
+  useEffect(() => {
+    if (!loadingDatasets && totalDatasets === 0) {
+      setShowGuide(true);
+    }
+  }, [loadingDatasets, totalDatasets]);
+
+  // Close guide on ESC
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowGuide(false); };
+    if (showGuide) window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showGuide]);
 
   // Handle file multi-drop / select
   const handleMultipleFiles = useCallback((selectedFiles: FileList | File[]) => {
@@ -395,6 +438,18 @@ function DataManagementPageContent() {
     return 'Pending';
   };
 
+  const downloadTemplate = useCallback((key: FileKey) => {
+    const { headers, sample } = CSV_TEMPLATES[key];
+    const csv = [headers.join(','), sample.join(',')].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${key}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
   const latestDataset = datasets.find(ds => ds.status === 'done');
   const hasError = datasets.some(ds => ds.status === 'error');
 
@@ -415,7 +470,15 @@ function DataManagementPageContent() {
             </p>
           </div>
           <div className="flex items-center gap-2.5">
-            {/* Action buttons if any */}
+            <button
+              onClick={() => setShowGuide(true)}
+              className="inline-flex items-center gap-2 text-xs font-bold border border-[var(--b)] bg-[var(--surf)] text-[var(--t2)] hover:border-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] transition-all px-4 py-2 rounded-lg font-sans cursor-pointer whitespace-nowrap"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              Guides
+            </button>
           </div>
         </div>
 
@@ -729,6 +792,100 @@ function DataManagementPageContent() {
             </div>
           </Card>
         </div>
+
+        {/* ── CSV Format Guide Modal ── */}
+        {showGuide && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            onClick={(e) => { if (e.target === e.currentTarget) setShowGuide(false); }}
+          >
+            {/* Backdrop */}
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+
+            {/* Panel */}
+            <div className="relative z-10 w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl border border-[var(--b)] bg-[var(--bg)] shadow-2xl overflow-hidden">
+
+              {/* Modal header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--b)] shrink-0">
+                <div>
+                  <h2 className="text-sm font-bold text-[var(--t)] font-display">CSV Format Guide</h2>
+                  <p className="text-[11px] text-[var(--t3)] mt-0.5 font-mono">
+                    Download each template, fill in your data, then upload all 5 files to begin analysis.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => setShowGuide(false)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] border border-transparent hover:border-[var(--b)] transition-all cursor-pointer"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable file list */}
+              <div className="overflow-y-auto divide-y divide-[var(--b)]">
+                {(Object.keys(REQUIRED_FILES) as FileKey[]).map((key, idx) => {
+                  const meta = REQUIRED_FILES[key];
+                  const tmpl = CSV_TEMPLATES[key];
+                  return (
+                    <div key={key} className="flex flex-col md:flex-row md:items-start gap-3 px-6 py-4 hover:bg-[var(--bg1)]/50 transition-colors">
+                      {/* Index + file name */}
+                      <div className="flex items-center gap-3 md:w-52 shrink-0">
+                        <div className="w-7 h-7 rounded-lg flex items-center justify-center text-[11px] font-bold font-mono shrink-0 bg-[var(--bg2)] text-[var(--t3)]">
+                          {idx + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-bold text-[var(--t)] font-mono truncate">{meta.label}</p>
+                          <p className="text-[11px] text-[var(--t3)] truncate">{meta.desc}</p>
+                        </div>
+                      </div>
+
+                      {/* Columns + instructions */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.08em] mb-1.5">Columns</p>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {tmpl.headers.map(col => (
+                            <span key={col} className="inline-block font-mono text-[10px] bg-[var(--bg2)] border border-[var(--b)] text-[var(--t2)] px-1.5 py-0.5 rounded-md">
+                              {col}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-[var(--t3)] leading-relaxed">{tmpl.instructions}</p>
+                      </div>
+
+                      {/* Download template */}
+                      <div className="shrink-0 md:pt-5">
+                        <button
+                          onClick={() => downloadTemplate(key)}
+                          className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--t2)] border border-[var(--b)] bg-[var(--surf)] hover:border-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] transition-all px-3 py-1.5 rounded-lg cursor-pointer font-sans whitespace-nowrap"
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+                          </svg>
+                          Template
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Modal footer */}
+              <div className="px-6 py-3 border-t border-[var(--b)] bg-[var(--bg1)]/40 shrink-0 flex items-center justify-between">
+                <p className="text-[11px] text-[var(--t3)] font-mono">All 5 files must be uploaded together to start analysis</p>
+                <button
+                  onClick={() => setShowGuide(false)}
+                  className="inline-flex items-center gap-2 text-xs font-bold bg-[var(--t)] text-[var(--inv-t)] px-4 py-2 rounded-lg hover:opacity-90 transition-all cursor-pointer font-sans"
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Bottom row: CSV Preview ── */}
         {previewData && previewKey && (
