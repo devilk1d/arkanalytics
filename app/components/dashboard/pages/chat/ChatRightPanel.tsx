@@ -1,6 +1,6 @@
 import { ChangeEvent, JSX, useState, useRef, useEffect } from 'react';
 import Card from '../../ui/Card';
-import { AttachmentItem, ConversationItem, MessageItem, NoteItem, RightTab, TaskItem, formatTime } from './chat-types';
+import { AttachmentItem, ConversationItem, MessageItem, NoteItem, RightTab, TaskItem, formatTime, getMemberPresenceStatus } from './chat-types';
 import { getInitials, type WorkspaceMember } from '../../context/DashboardContext';
 import Avatar from '../../ui/Avatar';
 import MediaLightbox from '../../../ui/MediaLightbox';
@@ -161,22 +161,59 @@ function InfoPanel({
   onAvatarChange,
   groupInviteCandidates,
   workspaceMembers,
+  onRenameGroup,
 }: {
   convo: ConversationItem;
   currentUserId?: string;
   onInvite: (userId: string) => void;
-  onAvatarChange?: (file: File) => void;
+  onAvatarChange?: (file: File) => Promise<void>;
   groupInviteCandidates: WorkspaceMember[];
   workspaceMembers: WorkspaceMember[];
+  onRenameGroup?: (newName: string) => Promise<void>;
 }) {
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [memberSearch, setMemberSearch] = useState('');
   const [inviting, setInviting] = useState<string | null>(null);
 
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(convo.name);
+  const [renaming, setRenaming] = useState(false);
+
+  useEffect(() => {
+    setEditedName(convo.name);
+  }, [convo.name]);
+
+  const handleSaveName = async () => {
+    if (!editedName.trim() || editedName.trim() === convo.name) {
+      setIsEditingName(false);
+      return;
+    }
+    if (onRenameGroup) {
+      setRenaming(true);
+      try {
+        await onRenameGroup(editedName.trim());
+        setIsEditingName(false);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setRenaming(false);
+      }
+    }
+  };
+
+  const [avatarUploading, setAvatarUploading] = useState(false);
+
   const handleAvatarSelect = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !onAvatarChange) return;
-    onAvatarChange(file);
+    setAvatarUploading(true);
+    try {
+      await onAvatarChange(file);
+    } catch (err) {
+      console.error('Group avatar update failed:', err);
+    } finally {
+      setAvatarUploading(false);
+    }
   };
 
   const filteredCandidates = groupInviteCandidates.filter(m =>
@@ -201,12 +238,21 @@ function InfoPanel({
       {/* Avatar */}
       <div className="mb-6 mt-4 relative group/avatar">
         <div className="relative">
-          <Avatar
-            initials={getInitials(convo.name)}
-            size="xl"
-            src={convo.avatarUrl || undefined}
-          />
-          {convo.type === 'group' && onAvatarChange && (
+          <div className={avatarUploading ? 'opacity-40 scale-95 transition-all' : 'transition-all'}>
+            <Avatar
+              initials={getInitials(convo.name)}
+              size="xl"
+              src={convo.avatarUrl || undefined}
+            />
+          </div>
+          {avatarUploading ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <svg className="animate-spin h-6 w-6 text-[var(--accent)]" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            </div>
+          ) : convo.type === 'group' && onAvatarChange && (
             <label className="absolute bottom-0 right-0 p-2 bg-[var(--bg1)] rounded-full shadow-xl border border-[var(--b)] cursor-pointer hover:bg-[var(--bg2)] transition-all opacity-0 group-hover/avatar:opacity-100 translate-y-1 group-hover/avatar:translate-y-0">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-[var(--t2)]"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
               <input type="file" className="hidden" accept="image/*" onChange={handleAvatarSelect} />
@@ -216,7 +262,60 @@ function InfoPanel({
       </div>
 
       {/* Name */}
-      <h3 className="text-base font-bold text-[var(--t)] text-center tracking-tight">{convo.name}</h3>
+      {isEditingName ? (
+        <div className="flex items-center gap-2 mt-2 px-4 w-full justify-center">
+          <input
+            value={editedName}
+            onChange={e => setEditedName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') void handleSaveName();
+              if (e.key === 'Escape') {
+                setEditedName(convo.name);
+                setIsEditingName(false);
+              }
+            }}
+            disabled={renaming}
+            autoFocus
+            className="bg-[var(--bg2)] text-xs font-bold text-[var(--t)] text-center border border-[var(--accent)] rounded-xl px-2 py-1 outline-none w-full max-w-[180px]"
+          />
+          <button
+            onClick={() => void handleSaveName()}
+            disabled={renaming || !editedName.trim()}
+            className="p-1 hover:bg-[var(--bg3)] rounded-lg text-emerald-500 cursor-pointer shrink-0 disabled:opacity-50"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </button>
+          <button
+            onClick={() => {
+              setEditedName(convo.name);
+              setIsEditingName(false);
+            }}
+            disabled={renaming}
+            className="p-1 hover:bg-[var(--bg3)] rounded-lg text-red-500 cursor-pointer shrink-0"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center gap-1.5 group/name mt-2">
+          <h3 className="text-base font-bold text-[var(--t)] text-center tracking-tight">{convo.name}</h3>
+          {convo.type === 'group' && onRenameGroup && (
+            <button
+              onClick={() => setIsEditingName(true)}
+              className="p-1 rounded-md text-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg3)] opacity-0 group-hover/name:opacity-100 transition-all cursor-pointer"
+              title="Rename Channel"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Direct Info */}
       {convo.type === 'direct' && (
@@ -257,19 +356,24 @@ function InfoPanel({
           </div>
 
           <div className="rounded-2xl border border-[var(--b)] overflow-hidden divide-y divide-[var(--b)] bg-[var(--bg2)]">
-            {convo.members.length > 0 ? convo.members.map(m => (
-              <div key={m.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--bg3)] transition-colors">
-                <Avatar size="sm" initials={getInitials(m.name)} src={m.avatarUrl || undefined} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-bold text-[var(--t)] truncate">{m.name}</p>
-                  <p className="text-[10px] text-[var(--t3)] font-semibold font-mono">Member</p>
+            {convo.members.length > 0 ? convo.members.map(m => {
+              const status = getMemberPresenceStatus(m.isOnline, m.lastActiveAt);
+              const badgeColor = status === 'online' ? 'bg-emerald-500' : status === 'away' ? 'bg-amber-500' : 'bg-[var(--b2)]';
+              const statusLabel = status === 'online' ? 'Online' : status === 'away' ? 'Away' : 'Offline';
+              return (
+                <div key={m.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--bg3)] transition-colors">
+                  <Avatar size="sm" initials={getInitials(m.name)} src={m.avatarUrl || undefined} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-[var(--t)] truncate">{m.name}</p>
+                    <p className="text-[10px] text-[var(--t3)] font-semibold font-mono">Member</p>
+                  </div>
+                  <div
+                    className={`h-2 w-2 rounded-full shrink-0 ${badgeColor}`}
+                    title={statusLabel}
+                  />
                 </div>
-                <div
-                  className={`h-2 w-2 rounded-full shrink-0 ${m.isOnline ? 'bg-emerald-500' : 'bg-[var(--b2)]'}`}
-                  title={m.isOnline ? 'Online' : 'Offline'}
-                />
-              </div>
-            )) : (
+              );
+            }) : (
               <div className="px-4 py-6 text-center text-xs text-[var(--t3)] italic">
                 No members found
               </div>
@@ -1076,9 +1180,10 @@ interface ChatRightPanelProps {
   onInviteUserChange: (v: string) => void;
   onInvite: () => void;
   onInviteUser: (userId: string) => void;
-  onAvatarChange?: (file: File) => void;
+  onAvatarChange?: (file: File) => Promise<void>;
   groupInviteCandidates: WorkspaceMember[];
   workspaceMembers: WorkspaceMember[];
+  onRenameGroup?: (newName: string) => Promise<void>;
 }
 
 export default function ChatRightPanel({
@@ -1105,6 +1210,7 @@ export default function ChatRightPanel({
   groupInviteCandidates,
   workspaceMembers,
   onAvatarChange,
+  onRenameGroup,
 }: ChatRightPanelProps) {
 
   const emptyMessages: Record<RightTab, string> = {
@@ -1138,6 +1244,7 @@ export default function ChatRightPanel({
                 onAvatarChange={onAvatarChange}
                 groupInviteCandidates={groupInviteCandidates}
                 workspaceMembers={workspaceMembers}
+                onRenameGroup={onRenameGroup}
               />
             )}
 

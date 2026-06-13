@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Avatar from '../../ui/Avatar';
 import { Emoji, EmojiStyle } from 'emoji-picker-react';
 import { getInitials } from '../../context/DashboardContext';
-import { ConversationItem, formatTime } from './chat-types';
+import { ConversationItem, formatTime, getMemberPresenceStatus } from './chat-types';
 
 type WorkspaceMember = {
   userId: string;
@@ -405,8 +405,10 @@ export default function ChatSidebar({
                           <Avatar initials={getInitials(c.name)} size="sm" src={c.avatarUrl || undefined} />
                           {(() => {
                             const peer = c.members.find(m => m.id !== currentUserId);
-                            if (!peer?.isOnline) return null;
-                            return <div className="absolute right-0 bottom-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-[var(--bg1)]" />;
+                            const status = getMemberPresenceStatus(peer?.isOnline, peer?.lastActiveAt);
+                            if (status === 'offline') return null;
+                            const colorClass = status === 'online' ? 'bg-emerald-500' : 'bg-amber-500';
+                            return <div className={`absolute right-0 bottom-0 w-2 h-2 rounded-full ${colorClass} ring-1 ring-[var(--bg1)]`} />;
                           })()}
                         </div>
                         <div className="flex-1 min-w-0">

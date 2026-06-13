@@ -238,6 +238,7 @@ export default function ChatPage() {
           name: mInfo?.fullName || memberNameById[m.user_id] || 'User',
           avatarUrl: mInfo?.avatarUrl || memberAvatarById[m.user_id] || null,
           isOnline: mInfo?.isOnline ?? false,
+          lastActiveAt: mInfo?.lastActiveAt || null,
         };
       });
       const latest = latestByConversation.get(row.id);
@@ -777,6 +778,22 @@ export default function ChatPage() {
     }
   }, [activeConvo, fetchConversations, supabase, workspace?.id]);
 
+  const updateGroupName = useCallback(async (newName: string) => {
+    if (!activeConvo || !newName.trim()) return;
+
+    const { error } = await supabase
+      .from('workspace_conversations')
+      .update({ name: newName.trim() })
+      .eq('id', activeConvo);
+
+    if (error) {
+      console.error('Error updating group name:', error);
+      throw error;
+    } else {
+      void fetchConversations();
+    }
+  }, [activeConvo, fetchConversations, supabase]);
+
   const handleGroupMemberToggle = useCallback((userId: string, checked: boolean) => {
     setGroupMemberIds((prev) => (checked ? [...prev, userId] : prev.filter((id) => id !== userId)));
   }, []);
@@ -887,6 +904,7 @@ export default function ChatPage() {
                     groupInviteCandidates={groupInviteCandidates}
                     workspaceMembers={members}
                     onAvatarChange={updateGroupAvatar}
+                    onRenameGroup={updateGroupName}
                     tasks={tasks}
                     messages={messages}
                     notes={notes}
