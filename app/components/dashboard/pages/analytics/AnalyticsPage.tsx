@@ -843,14 +843,14 @@ function AnalyticsPageContent() {
                       <div className="flex items-center justify-start gap-1.5">
                         <button
                           onClick={() => setAnalyzeId(c.customer_id)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--t2)] hover:text-blue-500 hover:bg-blue-500/10 dark:hover:bg-blue-500/20 transition-all border border-transparent hover:border-blue-500/20"
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--t2)] hover:text-[var(--t)] hover:bg-[var(--bg2)] border border-transparent hover:border-[var(--b2)] hover:shadow-sm hover:scale-105 active:scale-95 transition-all duration-200"
                           title="Analyze Customer"
                         >
                           <AnalyzeIcon size={14} />
                         </button>
                         <button
                           onClick={() => handleSendToChat([c])}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--t2)] hover:text-purple-500 hover:bg-purple-500/10 dark:hover:bg-purple-500/20 transition-all border border-transparent hover:border-purple-500/20"
+                          className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--t2)] hover:text-[var(--t)] hover:bg-[var(--bg2)] border border-transparent hover:border-[var(--b2)] hover:shadow-sm hover:scale-105 active:scale-95 transition-all duration-200"
                           title="Share to Chat"
                         >
                           <SendIcon size={12} />
