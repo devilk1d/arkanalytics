@@ -5,6 +5,7 @@ export type MemberLite = {
   name: string;
   avatarUrl: string | null;
   isOnline?: boolean;
+  lastActiveAt?: string | null;
 };
 
 export type ConversationItem = {
@@ -129,4 +130,22 @@ export type ConversationReadRow = { conversation_id: string; user_id: string; la
 export function formatTime(ts: string | null): string {
   if (!ts) return '';
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+export function getMemberPresenceStatus(
+  isOnline: boolean | undefined,
+  lastActiveAt: string | null | undefined,
+): 'online' | 'away' | 'offline' {
+  if (!lastActiveAt || !isOnline) return 'offline';
+
+  const diffSec = Math.floor((Date.now() - new Date(lastActiveAt).getTime()) / 1000);
+
+  // Heartbeat fresh → ONLINE
+  if (diffSec < 120) return 'online';
+
+  // Heartbeat stale but within 1 hr → AWAY (tab hidden)
+  if (diffSec < 3600) return 'away';
+
+  // is_online=true but dead for 1+ hr → browser crash / killed; treat as OFFLINE
+  return 'offline';
 }
