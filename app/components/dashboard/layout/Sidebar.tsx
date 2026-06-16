@@ -103,7 +103,7 @@ const WORKSPACE_ITEMS: {
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { myPermissions, unreadChatCount } = useDashboardContext();
+  const { myPermissions, unreadChatCount, activeDataset } = useDashboardContext();
   // Sidebar lives in the Next.js layout so it only mounts once — no hydration mismatch risk.
   // Reading localStorage in the initializer is safe here.
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -158,7 +158,7 @@ export default function Sidebar() {
       <div className="flex items-center h-10 mb-6 px-4 relative">
         {/* Full Logo (Visible when expanded) — opacity-only transition, no visibility toggle */}
         <div className={`flex items-center gap-2.5 group hover:opacity-80 transition-opacity duration-300 absolute left-4 w-48 ${isCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-          <Link href="/dashboard/overview" className="flex items-center gap-2.5 w-full">
+          <Link href={activeDataset?.displayId ? `/dashboard/overview?d=${activeDataset.displayId}` : '/dashboard/overview'} className="flex items-center gap-2.5 w-full">
             <div className="w-8 h-8 rounded-xl bg-[var(--bg2)] border border-[var(--b)] flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:rotate-6">
               <img className="logo-theme-sensitive w-5 h-5 object-contain" alt="Arka" />
             </div>
@@ -214,10 +214,14 @@ export default function Sidebar() {
             <nav className="flex flex-col gap-0.5">
               {visibleInsightItems.map((item) => {
                 const isActive = pathname?.startsWith(item.href);
+                const href =
+                  item.href === '/dashboard/overview' && activeDataset?.displayId
+                    ? `/dashboard/overview?d=${activeDataset.displayId}`
+                    : item.href;
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={href}
                     title={isCollapsed ? item.label : undefined}
                     className={`relative flex items-center rounded-xl text-[13px] font-medium transition-all duration-300 group py-2.5 mx-2 ${
                       isCollapsed ? 'px-2.5 gap-0' : 'px-3 gap-3'

@@ -44,7 +44,7 @@ function OverviewSkeleton() {
 }
 
 // ── All data fetching lives here — streams in behind the skeleton ──────────────
-async function OverviewLoader() {
+async function OverviewLoader({ displayId }: { displayId?: string }) {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
@@ -65,6 +65,7 @@ async function OverviewLoader() {
   };
   let trajectorySummary = { avg: '0%', best: '0%', trend: '0 pts' };
   let trajectoryData: { label: string; value: number }[] = [];
+  let originalUploadedCount = 0;
 
   if (!authData.user) {
     return (
@@ -108,8 +109,24 @@ async function OverviewLoader() {
     datasetsHistory = fallback;
   }
 
-  const dataset     = datasetsHistory?.[0];
-  const prevDataset = datasetsHistory?.[1];
+  // If a specific dataset is requested via ?d=display_id, find and pin it as the active one
+  let dataset     = datasetsHistory?.[0];
+  let prevDataset = datasetsHistory?.[1];
+
+  if (displayId && datasetsHistory && datasetsHistory.length > 0) {
+    // First try to match by display_id (need to fetch it separately since it's not in the current query)
+    const { data: targeted } = await supabase
+      .from('datasets')
+      .select('id, total_customers, churn_rate_pct, created_at, storage_path')
+      .eq('display_id', displayId)
+      .not('total_customers', 'is', null)
+      .maybeSingle();
+    if (targeted) {
+      dataset     = targeted;
+      // prevDataset stays as datasetsHistory[0] if it's a different dataset, else [1]
+      prevDataset = datasetsHistory.find(d => d.id !== targeted.id) ?? datasetsHistory[1];
+    }
+  }
 
   if (dataset) {
     stats.totalCustomers = dataset.total_customers || 0;
@@ -147,6 +164,8 @@ async function OverviewLoader() {
         .eq('dataset_id', dataset.id)
         .order('avg_churn_score', { ascending: false }),
     ]);
+
+    originalUploadedCount = csvRows.length;
 
     stats.predictedChurn = highCount || Math.round(stats.totalCustomers * (stats.churnRisk / 100));
 
@@ -332,15 +351,17 @@ async function OverviewLoader() {
       deltas={deltas}
       trajectorySummary={trajectorySummary}
       trajectoryData={trajectoryData}
+      originalCount={originalUploadedCount}
     />
   );
 }
 
 // ── Default export — NOT async, renders skeleton immediately via Suspense ──────
-export default function Page() {
+export default async function Page({ searchParams }: { searchParams: Promise<{ d?: string }> }) {
+  const params = await searchParams;
   return (
     <Suspense fallback={<OverviewSkeleton />}>
-      <OverviewLoader />
+      <OverviewLoader displayId={params.d} />
     </Suspense>
   );
 }

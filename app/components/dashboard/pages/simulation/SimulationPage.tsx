@@ -28,17 +28,13 @@ function SimulationPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const { workspace } = useDashboardContext();
+  const { workspace, activeDatasetId } = useDashboardContext();
   const supabase = createClient();
 
   // ── Dataset ────────────────────────────────────────────────────────────────
-  const [datasetId, setDatasetId] = useState<string | null>(searchParams.get('dataset_id'));
-  useEffect(() => {
-    if (datasetId || !workspace) return;
-    supabase.from('datasets').select('id').eq('workspace_id', workspace.id).eq('status', 'done')
-      .order('created_at', { ascending: false }).limit(1)
-      .then(({ data }) => { if (data?.[0]) setDatasetId(data[0].id as string); });
-  }, [workspace]); // eslint-disable-line react-hooks/exhaustive-deps
+  // URL param ?dataset_id= takes priority over context (for legacy links); otherwise use active dataset from context.
+  const urlDatasetId = searchParams.get('dataset_id');
+  const datasetId = urlDatasetId || activeDatasetId;
 
   // ── Client-side Customer List ──────────────────────────────────────────────
   const [customersList, setCustomersList] = useState<PredictionRow[]>([]);
@@ -134,19 +130,19 @@ function SimulationPageInner() {
   const [showHistory,     setShowHistory]     = useState(false);
   const [wsHistory,       setWsHistory]       = useState<SimulationRecord[]>([]);
 
-  // Load workspace-wide history for the picker
+  // Load workspace-wide history for the picker (scoped to active dataset)
   useEffect(() => {
     if (!workspace?.id) return;
-    loadWorkspaceSimulations(workspace.id, 30).then(setWsHistory);
-  }, [workspace?.id]);
+    loadWorkspaceSimulations(workspace.id, 30, datasetId).then(setWsHistory);
+  }, [workspace?.id, datasetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load customer-specific history when customer changes
+  // Load customer-specific history when customer changes (scoped to active dataset)
   useEffect(() => {
     if (!workspace?.id || !selectedId) { setDbHistory([]); return; }
     setDbHistoryLoading(true);
-    loadCustomerSimulations(workspace.id, selectedId, 10)
+    loadCustomerSimulations(workspace.id, selectedId, 10, datasetId)
       .then(data => { setDbHistory(data); setDbHistoryLoading(false); });
-  }, [workspace?.id, selectedId]);
+  }, [workspace?.id, selectedId, datasetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const abortRef         = useRef<AbortController | null>(null);
   const scenarioRef      = useRef('');
@@ -261,7 +257,7 @@ function SimulationPageInner() {
       setRunIndex(i => i + 1);
     } else if (mode === 'scenario') {
       setPhase('chatting'); setNarrative('');
-      setAgents([]); setAgentRecs([]); setIsSynth(false); setViewingSnap(null);
+      setAgents([]); setIsSynth(false); setViewingSnap(null);
       scenarioRef.current = text;
       setRunIndex(i => i + 1);
     } else {
@@ -385,9 +381,9 @@ function SimulationPageInner() {
                   }).then(id => {
                     if (id) {
                       setSimId(id);
-                      // Refresh customer DB history
-                      if (workspace?.id) loadCustomerSimulations(workspace.id, customer.customer_id, 10).then(setDbHistory);
-                      if (workspace?.id) loadWorkspaceSimulations(workspace.id, 30).then(setWsHistory);
+                      // Refresh customer DB history (scoped to active dataset)
+                      if (workspace?.id) loadCustomerSimulations(workspace.id, customer.customer_id, 10, datasetId).then(setDbHistory);
+                      if (workspace?.id) loadWorkspaceSimulations(workspace.id, 30, datasetId).then(setWsHistory);
                     }
                   }).catch(console.error);
                 } else if (mode === 'scenario' && simId && latestSim) {

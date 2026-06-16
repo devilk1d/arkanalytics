@@ -84,7 +84,7 @@ export default function StatCard({
       {/* ── Change / context row ── */}
       {change ? (
         <p
-          className="text-[10px] font-semibold font-mono"
+          className="text-[11px] font-mono"
           style={{ color: changeColor }}
         >
           {arrow}{change} {changeSuffix}

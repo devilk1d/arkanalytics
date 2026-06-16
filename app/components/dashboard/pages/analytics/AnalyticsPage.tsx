@@ -45,10 +45,12 @@ interface CsvMetrics {
 function AnalyticsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const datasetId = searchParams.get('dataset_id');
-  const { workspace, profile, members } = useDashboardContext();
+  const displayParam = searchParams.get('d');
+  const legacyUuid   = searchParams.get('dataset_id'); // backward compat for old links
+  const { workspace, profile, members, activeDataset } = useDashboardContext();
   const supabase = createClient();
 
+  const [datasetId, setDatasetId] = useState<string | null>(null);
   const [rows, setRows] = useState<PredictionRow[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [totalCount, setTotalCount] = useState(0);
@@ -149,48 +151,67 @@ function AnalyticsPageContent() {
       return;
     }
     
-    // Calculate Churn Score Distribution (10 bins)
+    // Fallback labels for technical ML terms that may exist in older stored predictions
+    const LABEL_FALLBACK: Record<string, string> = {
+      'Contract Enc':  'Contract Type',
+      'Plan Enc':      'Subscription Plan',
+      'Tenure Days':   'Account Tenure',
+      'Topic 0':       'Feedback Topic Signal',
+      'Topic 1':       'Feedback Topic Signal',
+      'Topic 2':       'Feedback Topic Signal',
+      'Topic 3':       'Feedback Topic Signal',
+      'Topic 4':       'Feedback Topic Signal',
+    };
+
+    // Churn Score Distribution — histogram with 10 percentage-point bins
     const bins = [
-      { label: '0.0-0.1', value: 0, color: 'var(--g)' },
-      { label: '0.1-0.2', value: 0, color: 'var(--g)' },
-      { label: '0.2-0.3', value: 0, color: 'var(--g)' },
-      { label: '0.3-0.4', value: 0, color: 'var(--g)' },
-      { label: '0.4-0.5', value: 0, color: 'var(--o)' },
-      { label: '0.5-0.6', value: 0, color: 'var(--o)' },
-      { label: '0.6-0.7', value: 0, color: 'var(--o)' },
-      { label: '0.7-0.8', value: 0, color: 'var(--r)' },
-      { label: '0.8-0.9', value: 0, color: 'var(--r)' },
-      { label: '0.9-1.0', value: 0, color: 'var(--r)' }
+      { label: '0–10%',   value: 0, color: 'var(--g)' },
+      { label: '10–20%',  value: 0, color: 'var(--g)' },
+      { label: '20–30%',  value: 0, color: 'var(--g)' },
+      { label: '30–40%',  value: 0, color: 'var(--g)' },
+      { label: '40–50%',  value: 0, color: 'var(--o)' },
+      { label: '50–60%',  value: 0, color: 'var(--o)' },
+      { label: '60–70%',  value: 0, color: 'var(--o)' },
+      { label: '70–80%',  value: 0, color: 'var(--r)' },
+      { label: '80–90%',  value: 0, color: 'var(--r)' },
+      { label: '90–100%', value: 0, color: 'var(--r)' },
     ];
-    
-    const driversMap = new Map<string, { cumulativeImportance: number; count: number }>();
-    
+
+    // Track per-feature: total importance + how often it raises vs lowers risk
+    const driversMap = new Map<string, { cumulativeImportance: number; count: number; raisesCount: number }>();
+
     data.forEach((p: any) => {
       const score = p.churn_score || 0;
       const binIndex = Math.min(9, Math.floor(score / 10));
       bins[binIndex].value++;
-      
+
       const shap = p.shap_top5;
       if (Array.isArray(shap)) {
         shap.forEach((factor: any) => {
-          const label = factor.feature_label || factor.feature;
-          if (!label) return;
-          const entry = driversMap.get(label) || { cumulativeImportance: 0, count: 0 };
-          entry.cumulativeImportance += factor.importance || 0;
+          const rawLabel = factor.feature_label || factor.feature;
+          if (!rawLabel) return;
+          const label = LABEL_FALLBACK[rawLabel] || rawLabel;
+          const entry = driversMap.get(label) || { cumulativeImportance: 0, count: 0, raisesCount: 0 };
+          // importance is always the absolute SHAP value
+          entry.cumulativeImportance += factor.importance ?? Math.abs(factor.impact_score ?? 0);
           entry.count++;
+          // direction from stored field, fallback to sign of impact_score
+          const raises = factor.direction === 'raises_risk'
+            || factor.direction === 'increases_churn'
+            || (!factor.direction && (factor.impact_score ?? 0) > 0);
+          if (raises) entry.raisesCount++;
           driversMap.set(label, entry);
         });
       }
     });
-    
+
     setChurnDist(bins);
-    
+
     const compiledDrivers = Array.from(driversMap.entries()).map(([label, dData]) => {
       const avgImportance = dData.cumulativeImportance / dData.count;
-      let color = 'var(--p)';
-      if (avgImportance > 0.3) color = 'var(--r)';
-      else if (avgImportance > 0.2) color = 'var(--o)';
-      
+      // Color by predominant direction: red = mostly raises risk, green = mostly lowers risk
+      const predominantlyRaises = dData.raisesCount >= dData.count * 0.5;
+      const color = predominantlyRaises ? 'var(--r)' : 'var(--g)';
       return {
         label,
         value: Math.round(avgImportance * 100) / 100,
@@ -429,31 +450,68 @@ function AnalyticsPageContent() {
     setLoading(false);
   }, [supabase, csvMetrics]);
 
-  // 1. Initial Redirect & Analyze ID handle
+  // 1. Initial Redirect, UUID resolution & dataset list
   useEffect(() => {
     const aid = searchParams.get('analyze_id');
     if (aid) setAnalyzeId(aid);
+    if (!workspace) return;
 
-    if (!datasetId && workspace) {
-      async function findDefault() {
-        setLoading(true);
-        if (!workspace) return;
-        const { data } = await supabase.from('datasets').select('id')
-          .eq('workspace_id', workspace.id).eq('status', 'done')
-          .order('created_at', { ascending: false }).limit(1);
-        if (data && data.length > 0) {
-          const dsId = data[0].id;
+    async function init() {
+      // Legacy URL: ?dataset_id=UUID → redirect to clean ?d=display_id
+      if (!displayParam && legacyUuid) {
+        const { data: ds } = await supabase.from('datasets')
+          .select('id, display_id').eq('id', legacyUuid).single();
+        if (ds) {
           const params = new URLSearchParams(searchParams.toString());
-          params.set('dataset_id', dsId);
+          params.set('d', ds.display_id ?? ds.id);
+          params.delete('dataset_id');
           if (aid) params.set('analyze_id', aid);
           router.replace(`/dashboard/analytics?${params.toString()}`);
         } else {
           setLoading(false);
         }
+        return;
       }
-      findDefault();
+
+      if (!displayParam) {
+        // Use context's active dataset if available (respects sidebar switcher selection)
+        if (activeDataset?.displayId) {
+          setLoading(true);
+          const params = new URLSearchParams(searchParams.toString());
+          params.set('d', activeDataset.displayId);
+          if (aid) params.set('analyze_id', aid);
+          router.replace(`/dashboard/analytics?${params.toString()}`);
+          return;
+        }
+        // Fallback: query DB for latest
+        const { data: all } = await supabase.from('datasets')
+          .select('id, display_id')
+          .eq('workspace_id', workspace!.id).eq('status', 'done')
+          .order('created_at', { ascending: false }).limit(1);
+        if (all && all.length > 0) {
+          setLoading(true);
+          const params = new URLSearchParams(searchParams.toString());
+          params.set('d', all[0].display_id ?? all[0].id);
+          if (aid) params.set('analyze_id', aid);
+          router.replace(`/dashboard/analytics?${params.toString()}`);
+        } else {
+          setLoading(false);
+        }
+        return;
+      }
+
+      // Resolve display_id → internal UUID for all queries
+      const { data: ds } = await supabase.from('datasets')
+        .select('id').eq('display_id', displayParam).single();
+      if (ds) {
+        setDatasetId(ds.id);
+      } else {
+        setLoading(false);
+      }
     }
-  }, [datasetId, workspace, router, searchParams]);
+    init();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayParam, legacyUuid, workspace?.id]);
 
   useEffect(() => {
     if (datasetId) {
@@ -498,19 +556,19 @@ function AnalyticsPageContent() {
   if (!datasetId) {
     return (
       <div className="flex flex-col items-center justify-center h-[calc(100vh-200px)] gap-4">
-        <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center mb-2 shadow-sm">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <div className="w-16 h-16 rounded-2xl bg-[var(--bg2)] border border-[var(--b)] flex items-center justify-center mb-2 shadow-sm">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
             <line x1="9" y1="15" x2="15" y2="15" />
           </svg>
         </div>
         <div className="text-center">
-          <h3 className="text-sm font-bold text-black mb-1">No Dataset Selected</h3>
-          <p className="text-xs text-gray-400 max-w-[250px] mx-auto leading-relaxed">
+          <h3 className="text-sm font-bold text-[var(--t)] mb-1">No Dataset Selected</h3>
+          <p className="text-xs text-[var(--t3)] max-w-[250px] mx-auto leading-relaxed">
             Please select a dataset from the Data Management page to view customer analytics.
           </p>
         </div>
-        <a href="/dashboard/data-management" className="mt-2 inline-flex items-center justify-center h-9 px-4 rounded-xl bg-black text-white text-xs font-semibold hover:bg-gray-800 transition-colors shadow-sm">
+        <a href="/dashboard/data-management" className="mt-2 inline-flex items-center justify-center h-9 px-4 rounded-xl bg-[var(--t)] text-[var(--inv-t)] text-xs font-semibold hover:opacity-90 transition-opacity shadow-sm">
           Go to Data Management
         </a>
       </div>
@@ -579,7 +637,7 @@ function AnalyticsPageContent() {
               <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[var(--b)]">
                 <div>
                   <h3 className="text-[13px] font-bold text-[var(--t)] leading-tight">Churn score distribution</h3>
-                  <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">Probability bins · all customers</p>
+                  <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">% churn risk · customer count per band</p>
                 </div>
                 <div className="flex items-center gap-3 text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.08em] font-mono">
                   <span className="flex items-center gap-1.5">
@@ -612,11 +670,16 @@ function AnalyticsPageContent() {
               <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-[var(--b)]">
                 <div>
                   <h3 className="text-[13px] font-bold text-[var(--t)] leading-tight">Top churn drivers</h3>
-                  <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">Feature importance · SHAP values</p>
+                  <p className="text-[11px] text-[var(--t3)] font-mono mt-0.5">Signal strength · top 6 features</p>
                 </div>
-                <span className="text-[10px] font-bold font-mono text-[var(--t3)] uppercase tracking-[0.08em] bg-[var(--bg2)] border border-[var(--b)] rounded-md px-2 py-1">
-                  Top 6
-                </span>
+                <div className="flex items-center gap-3 text-[10px] font-bold text-[var(--t3)] uppercase tracking-[0.08em] font-mono">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ background: 'var(--r)' }} />Risk ↑
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ background: 'var(--g)' }} />Risk ↓
+                  </span>
+                </div>
               </div>
               <div className="px-4 pt-3 pb-4">
                 {loading ? (
@@ -1182,13 +1245,14 @@ function BarChart({ data, height = 220, color = "var(--p)", horizontal = false, 
 
           return (
             <g key={i}>
-              {/* Value label above bar */}
-              {bh > 18 && (
+              {/* Value label — always shown; shifts below bar-top when bar is very short */}
+              {d.value > 0 && (
                 <text
-                  x={x + barW / 2} y={y - 5}
-                  fontSize="10" textAnchor="middle"
-                  fill="var(--t2)" fontFamily="var(--font-mono)"
-                  className="fill-[var(--t2)]"
+                  x={x + barW / 2}
+                  y={bh > 16 ? y - 4 : y - 8}
+                  fontSize="9" textAnchor="middle"
+                  fill={bh > 16 ? 'var(--t2)' : 'var(--t3)'}
+                  fontFamily="var(--font-mono)"
                 >{d.value}</text>
               )}
 

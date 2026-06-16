@@ -302,6 +302,7 @@ export async function getScheduledReports(workspaceId: string) {
 export async function createScheduledReport(scheduleData: {
     workspace_id: string,
     user_id: string,
+    dataset_id?: string | null,
     name: string,
     frequency: 'daily' | 'weekly' | 'monthly',
     report_category: 'churn' | 'segmentation' | 'forecast',
@@ -339,6 +340,18 @@ export async function getDueScheduledReports() {
         .select('*')
         .eq('is_active', true)
         .lte('next_run_at', new Date().toISOString())
+    if (error) throw error
+    return data
+}
+
+export async function getActiveScheduledReports(workspaceId: string) {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+        .from('scheduled_reports')
+        .select('*')
+        .eq('workspace_id', workspaceId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
     if (error) throw error
     return data
 }

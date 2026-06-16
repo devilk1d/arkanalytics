@@ -45,116 +45,120 @@ function RenderCustomerProfile({ data }: { data: string; isMine: boolean }) {
   const customers = profile.customers || [];
   if (customers.length === 0) return null;
 
+  const datasetLabel = profile.datasetDisplayId ?? null;
+
+  // Consistent avatar color per customer ID
+  const avatarPalette = [
+    'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+    'bg-violet-500/15 text-violet-600 dark:text-violet-400',
+    'bg-amber-500/15 text-amber-600 dark:text-amber-400',
+    'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+    'bg-rose-500/15 text-rose-600 dark:text-rose-400',
+    'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
+  ];
+
   return (
-    <div className="min-w-[280px] max-w-[320px] rounded-2xl overflow-hidden border border-[var(--b2)] bg-[var(--surf)] shadow-lg hover:shadow-xl transition-shadow duration-200">
+    <div className="min-w-[272px] max-w-[310px] rounded-2xl overflow-hidden border border-[var(--b2)] bg-[var(--surf)] shadow-md">
       {/* Header */}
-      <div className="flex items-center gap-2.5 px-4 py-3.5 bg-[var(--bg1)] border-b border-[var(--b)]">
-        <div className="w-7 h-7 rounded-lg bg-blue-600/8 dark:bg-blue-400/10 flex items-center justify-center shrink-0 border border-blue-500/15">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-blue-600 dark:text-blue-400">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      <div className="flex items-center justify-between px-4 py-3 bg-[var(--bg1)] border-b border-[var(--b)]">
+        <div className="flex items-center gap-2">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--t3)]">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
           </svg>
+          <span className="text-[12px] font-semibold text-[var(--t2)]">
+            {customers.length > 1 ? `${customers.length} Customer Profiles` : 'Customer Profile'}
+          </span>
         </div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--t2)] font-mono">
-          {customers.length > 1 ? `Collaborate • ${customers.length} Profiles` : 'Collaborate • Customer Profile'}
-        </p>
+        {datasetLabel && (
+          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[var(--bg2)] text-[var(--t3)] border border-[var(--b)] leading-none">
+            {datasetLabel}
+          </span>
+        )}
       </div>
 
       {/* Customer rows */}
-      {customers.map((c: any, i: number) => (
-        <div key={c.id} className="p-4">
-          {i > 0 && <div className="h-px bg-[var(--b)] -mx-4 mb-4" />}
+      {customers.map((c: any, i: number) => {
+        const score = Number(c.score);
+        const isHighRisk = score >= 70;
+        const isMedRisk = score >= 40;
+        const riskColor = isHighRisk ? 'text-red-500' : isMedRisk ? 'text-amber-500' : 'text-emerald-500';
+        const barColor = isHighRisk ? 'bg-red-500' : isMedRisk ? 'bg-amber-500' : 'bg-emerald-500';
+        const riskBadge = isHighRisk
+          ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+          : isMedRisk
+            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+            : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
+        const avatarClass = avatarPalette[c.id.charCodeAt(0) % avatarPalette.length];
+        const segmentLabel = c.segment?.replace(/^(cluster\s*\d+\s*-\s*)/i, '') || null;
+        const analyzeUrl = profile.datasetDisplayId
+          ? `/dashboard/analytics?d=${profile.datasetDisplayId}&analyze_id=${c.id}`
+          : `/dashboard/analytics?dataset_id=${profile.datasetId || ''}&analyze_id=${c.id}`;
+        const simulateUrl = `/dashboard/simulation?dataset_id=${profile.datasetId || ''}&customer_id=${c.id}`;
 
-          {/* Customer Main Info */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-[var(--bg2)] border border-[var(--b)] flex items-center justify-center font-mono font-bold text-xs text-[var(--t)] shrink-0 shadow-sm">
-                {c.id.substring(0, 2)}
+        return (
+          <div key={c.id} className="px-4 pt-3.5 pb-4">
+            {i > 0 && <div className="h-px bg-[var(--b)] -mx-4 mb-3.5" />}
+
+            {/* Avatar + ID + segment */}
+            <div className="flex items-center gap-3 mb-3">
+              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm font-mono shrink-0 ${avatarClass}`}>
+                {c.id.slice(0, 2).toUpperCase()}
               </div>
-              <div>
-                <p className="text-[9px] font-bold text-[var(--t3)] uppercase tracking-wider">Customer ID</p>
-                <p className="text-xs font-bold text-[var(--t)] font-mono leading-tight">{c.id}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-[var(--t)] font-mono leading-tight truncate">{c.id}</p>
+                {segmentLabel && (
+                  <p className="text-[11px] text-[var(--t3)] mt-0.5 truncate">{segmentLabel}</p>
+                )}
               </div>
-            </div>
-            <div className="text-right">
-              <p className="text-[9px] font-bold text-[var(--t3)] uppercase tracking-wider">Risk Level</p>
-              <span className={`inline-flex items-center gap-1 text-[9px] font-extrabold px-2 py-0.5 rounded-md mt-0.5 border ${
-                c.risk === 'High'
-                  ? 'bg-red-500/8 text-red-600 border-red-500/20 dark:bg-red-500/12 dark:text-red-400'
-                  : c.risk === 'Medium'
-                    ? 'bg-amber-500/8 text-amber-600 border-amber-500/20 dark:bg-amber-500/12 dark:text-amber-400'
-                    : 'bg-emerald-500/8 text-emerald-600 border-emerald-500/20 dark:bg-emerald-500/12 dark:text-emerald-400'
-              }`}>
-                <span className={`w-1 h-1 rounded-full ${
-                  c.risk === 'High' ? 'bg-red-500' : c.risk === 'Medium' ? 'bg-amber-500' : 'bg-emerald-500'
-                }`} />
-                {c.risk}
+              <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full border ${riskBadge}`}>
+                {c.risk} risk
               </span>
             </div>
-          </div>
 
-          {/* Churn Prediction Inner Card */}
-          <div className="p-3 rounded-xl bg-[var(--bg1)] border border-[var(--b)] shadow-inner mb-3">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[9px] text-[var(--t3)] font-bold uppercase tracking-wider">Churn Probability</span>
-              <span className={`text-sm font-black font-mono leading-none ${
-                Number(c.score) >= 70 ? 'text-red-500' : Number(c.score) >= 40 ? 'text-amber-500' : 'text-emerald-500'
-              }`}>{c.score}%</span>
-            </div>
-            {/* Progress Bar */}
-            <div className="h-1.5 w-full bg-[var(--bg3)] rounded-full overflow-hidden">
-              <div 
-                className={`h-full rounded-full transition-all duration-500 ${
-                  Number(c.score) >= 70 ? 'bg-red-500' : Number(c.score) >= 40 ? 'bg-amber-500' : 'bg-emerald-500'
-                }`}
-                style={{ width: `${c.score}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Details Grid */}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 mb-4 text-xs">
-            <div>
-              <span className="text-[9px] text-[var(--t3)] font-bold uppercase tracking-wider block mb-0.5">Plan Type</span>
-              <span className="font-bold text-[var(--t)] capitalize">{c.plan || '—'}</span>
-            </div>
-            <div>
-              <span className="text-[9px] text-[var(--t3)] font-bold uppercase tracking-wider block mb-0.5">Usage Hours</span>
-              <span className="font-bold text-[var(--t)] font-mono">{c.usage ? `${Math.round(c.usage)}h` : '—'}</span>
-            </div>
-            {c.segment && (
-              <div className="col-span-2">
-                <span className="text-[9px] text-[var(--t3)] font-bold uppercase tracking-wider block mb-0.5">Segment Cluster</span>
-                <span className="font-bold text-[var(--t)] truncate block leading-normal" title={c.segment}>
-                  {c.segment.replace(/^(cluster\s*\d+\s*-\s*)/i, '')}
-                </span>
+            {/* Churn meter */}
+            <div className="mb-3.5">
+              <div className="flex items-baseline justify-between mb-1.5">
+                <span className="text-[11px] text-[var(--t3)]">Churn probability</span>
+                <span className={`text-xl font-black font-mono leading-none ${riskColor}`}>{score}%</span>
               </div>
-            )}
-          </div>
+              <div className="h-2 w-full bg-[var(--bg2)] rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${barColor}`} style={{ width: `${score}%`, transition: 'width .5s ease' }} />
+              </div>
+            </div>
 
-          {/* Actions */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                window.location.href = `/dashboard/analytics?dataset_id=${profile.datasetId || ''}&analyze_id=${c.id}`;
-              }}
-              className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-[11px] font-bold tracking-wide transition-all shadow-sm cursor-pointer text-center"
-            >
-              Analyze {customers.length > 1 ? c.id : ''}
-            </button>
-            <button
-              onClick={() => {
-                window.location.href = `/dashboard/simulation?dataset_id=${profile.datasetId || ''}&customer_id=${c.id}`;
-              }}
-              className="flex-1 py-2.5 rounded-xl bg-[var(--bg2)] hover:bg-[var(--bg3)] text-[var(--t)] active:scale-[0.98] border border-[var(--b2)] text-[11px] font-bold tracking-wide transition-all shadow-sm cursor-pointer text-center"
-            >
-              Simulate {customers.length > 1 ? c.id : ''}
-            </button>
+            {/* Meta pills */}
+            <div className="flex flex-wrap gap-1.5 mb-3.5">
+              {c.plan && (
+                <span className="text-[11px] px-2.5 py-1 rounded-full bg-[var(--bg2)] border border-[var(--b)] text-[var(--t2)] font-medium capitalize">
+                  {c.plan}
+                </span>
+              )}
+              {!!c.usage && (
+                <span className="text-[11px] px-2.5 py-1 rounded-full bg-[var(--bg2)] border border-[var(--b)] text-[var(--t2)] font-medium font-mono">
+                  {Math.round(c.usage)}h usage
+                </span>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { window.location.href = analyzeUrl; }}
+                className="flex-1 py-2 rounded-xl bg-[var(--t)] text-[var(--inv-t)] text-[11px] font-bold hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
+              >
+                Analyze{customers.length > 1 ? ` ${c.id.split('-')[1] ?? ''}` : ''}
+              </button>
+              <button
+                onClick={() => { window.location.href = simulateUrl; }}
+                className="flex-1 py-2 rounded-xl bg-[var(--bg2)] border border-[var(--b2)] text-[var(--t)] text-[11px] font-bold hover:bg-[var(--bg3)] active:scale-[0.98] transition-all cursor-pointer"
+              >
+                Simulate{customers.length > 1 ? ` ${c.id.split('-')[1] ?? ''}` : ''}
+              </button>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import PermissionGate from '../../ui/PermissionGate';
-import { useDashboardContext } from '../../context/DashboardContext';
+import { useDashboardContext, type DatasetSummary } from '../../context/DashboardContext';
 import { createClient } from '@/lib/supabase/client';
 import { toastSuccess, toastError, toastWarning, toastLoading } from '../../../ui/AppToast';
 import FilterDropdown from '../../ui/FilterDropdown';
@@ -19,11 +19,14 @@ type Report = {
   file_size: number | null;
   created_at: string;
   user_id: string;
+  dataset_id: string | null;
 };
+
 
 type ScheduledReport = {
   id: string;
   name: string;
+  dataset_id: string | null;
   frequency: 'daily' | 'weekly' | 'monthly';
   report_category: 'churn' | 'segmentation' | 'forecast';
   export_type: 'pdf' | 'csv' | 'xlsx';
@@ -118,7 +121,7 @@ const GridIcon = () => (
   </svg>
 );
 
-function ReportsPageContent({ datasetId }: { datasetId?: string }) {
+function ReportsPageContent() {
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => setIsMounted(true), []);
 
@@ -133,7 +136,8 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  const { workspace, myRole, profile, members } = useDashboardContext();
+  const { workspace, myRole, profile, members, activeDatasetId, availableDatasets } = useDashboardContext();
+  const datasetId = activeDatasetId;
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -152,15 +156,25 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'pdf' | 'csv' | 'xlsx'>('all');
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'churn' | 'segmentation' | 'forecast'>('all');
+  const [datasetFilter, setDatasetFilter] = useState<string>('all');
   const [reportPage, setReportPage] = useState(1);
   const reportPageSize = 10;
   const [mainTab, setMainTab] = useState<'reports' | 'schedules'>('reports');
+
+  // Batch selection state
+  const [selectedReportIds, setSelectedReportIds] = useState<Set<string>>(new Set());
+  const [selectedSchedIds, setSelectedSchedIds] = useState<Set<string>>(new Set());
+  const [showBatchDeleteReportsConfirm, setShowBatchDeleteReportsConfirm] = useState(false);
+  const [showBatchDeleteSchedsConfirm, setShowBatchDeleteSchedsConfirm] = useState(false);
+  const [batchDeletingReports, setBatchDeletingReports] = useState(false);
+  const [batchDeletingScheds, setBatchDeletingScheds] = useState(false);
   // Scheduled logs filters + pagination
   const [schedSearch, setSchedSearch] = useState('');
   const [schedFreqFilter, setSchedFreqFilter] = useState<'all' | 'daily' | 'weekly' | 'monthly'>('all');
   const [schedCatFilter, setSchedCatFilter] = useState<'all' | 'churn' | 'segmentation' | 'forecast'>('all');
   const [schedFmtFilter, setSchedFmtFilter] = useState<'all' | 'pdf' | 'csv' | 'xlsx'>('all');
   const [schedStatusFilter, setSchedStatusFilter] = useState<'all' | 'active' | 'paused'>('all');
+  const [schedDatasetFilter, setSchedDatasetFilter] = useState<string>('all');
   const [schedPage, setSchedPage] = useState(1);
   const schedPageSize = 10;
   const [templatesOpen, setTemplatesOpen] = useState(true);
@@ -376,6 +390,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workspace_id: workspace.id,
+          dataset_id: datasetId || null,
           name: schedName.trim(),
           frequency: schedFreq,
           report_category: schedCat,
@@ -422,15 +437,97 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
     }
   };
 
+  // Batch selection helpers
+  const toggleSelectAllReports = () => {
+    if (selectedReportIds.size === paginatedReports.length && paginatedReports.length > 0) {
+      setSelectedReportIds(new Set());
+    } else {
+      setSelectedReportIds(new Set(paginatedReports.map(r => r.id)));
+    }
+  };
+  const toggleSelectReport = (id: string) => {
+    const next = new Set(selectedReportIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedReportIds(next);
+  };
+  const toggleSelectAllScheds = () => {
+    if (selectedSchedIds.size === paginatedSchedules.length && paginatedSchedules.length > 0) {
+      setSelectedSchedIds(new Set());
+    } else {
+      setSelectedSchedIds(new Set(paginatedSchedules.map(s => s.id)));
+    }
+  };
+  const toggleSelectSched = (id: string) => {
+    const next = new Set(selectedSchedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelectedSchedIds(next);
+  };
+
+  const handleBatchDeleteReports = async () => {
+    if (selectedReportIds.size === 0) return;
+    setBatchDeletingReports(true);
+    const toastId = toastLoading(`Deleting ${selectedReportIds.size} report(s)...`);
+    try {
+      const ids = Array.from(selectedReportIds);
+      const results = await Promise.allSettled(
+        ids.map(id => fetch(`/api/reports?id=${id}`, { method: 'DELETE' }))
+      );
+      const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)).length;
+      const succeeded = ids.length - failed;
+      setReports(prev => prev.filter(r => !selectedReportIds.has(r.id)));
+      setSelectedReportIds(new Set());
+      setShowBatchDeleteReportsConfirm(false);
+      if (failed === 0) {
+        toastSuccess(`${succeeded} report(s) deleted`, undefined, { id: toastId });
+      } else {
+        toastError(`${succeeded} deleted, ${failed} failed`, undefined, { id: toastId });
+      }
+    } catch (err: any) {
+      toastError(err.message, undefined, { id: toastId });
+    } finally {
+      setBatchDeletingReports(false);
+    }
+  };
+
+  const handleBatchDeleteScheds = async () => {
+    if (selectedSchedIds.size === 0) return;
+    setBatchDeletingScheds(true);
+    const toastId = toastLoading(`Removing ${selectedSchedIds.size} schedule(s)...`);
+    try {
+      const ids = Array.from(selectedSchedIds);
+      const results = await Promise.allSettled(
+        ids.map(id => fetch(`/api/reports/schedule?id=${id}`, { method: 'DELETE' }))
+      );
+      const failed = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok)).length;
+      const succeeded = ids.length - failed;
+      setSchedules(prev => prev.filter(s => !selectedSchedIds.has(s.id)));
+      setSelectedSchedIds(new Set());
+      setShowBatchDeleteSchedsConfirm(false);
+      if (failed === 0) {
+        toastSuccess(`${succeeded} schedule(s) removed`, undefined, { id: toastId });
+      } else {
+        toastError(`${succeeded} removed, ${failed} failed`, undefined, { id: toastId });
+      }
+    } catch (err: any) {
+      toastError(err.message, undefined, { id: toastId });
+    } finally {
+      setBatchDeletingScheds(false);
+    }
+  };
+
   const handleTriggerScheduler = async () => {
     setRunningScheduler(true);
-    const toastId = toastLoading('Executing due schedules...');
+    const toastId = toastLoading('Executing schedules...');
     try {
-      const res = await fetch('/api/reports/scheduler', { method: 'POST' });
+      const res = await fetch('/api/reports/scheduler', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: workspace?.id, force: true }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Scheduler failed');
 
-      toastSuccess(`Executed ${data.executed_count || 0} scheduled reports`, undefined, { id: toastId });
+      toastSuccess(`Executed ${data.executed_count || 0} scheduled report(s)`, undefined, { id: toastId });
       fetchReports();
       fetchSchedules();
     } catch (err: any) {
@@ -496,6 +593,12 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
     return schedules.some(s => r.name.startsWith(s.name)) || r.name.toLowerCase().startsWith('auto:');
   };
 
+  const getDatasetName = (dsId: string | null) => {
+    if (!dsId) return null;
+    const ds = availableDatasets.find((d: DatasetSummary) => d.id === dsId);
+    return ds?.displayId || `DS-${dsId.slice(0, 6).toUpperCase()}`;
+  };
+
   // Dynamic calculations for KPI cards
   const reportsThisMonth = reports.filter(r => {
     const d = new Date(r.created_at);
@@ -537,7 +640,8 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
       (r.report_category && r.report_category.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesType = typeFilter === 'all' || r.type === typeFilter;
     const matchesCategory = categoryFilter === 'all' || r.report_category === categoryFilter;
-    return matchesSearch && matchesType && matchesCategory;
+    const matchesDataset = datasetFilter === 'all' || r.dataset_id === datasetFilter;
+    return matchesSearch && matchesType && matchesCategory && matchesDataset;
   });
 
   const totalReportPages = Math.ceil(filteredReports.length / reportPageSize);
@@ -550,11 +654,12 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
     const matchesCat  = schedCatFilter  === 'all' || s.report_category === schedCatFilter;
     const matchesFmt  = schedFmtFilter  === 'all' || s.export_type === schedFmtFilter;
     const matchesStatus = schedStatusFilter === 'all' || (schedStatusFilter === 'active' ? s.is_active : !s.is_active);
-    return matchesSearch && matchesFreq && matchesCat && matchesFmt && matchesStatus;
+    const matchesDataset = schedDatasetFilter === 'all' || s.dataset_id === schedDatasetFilter;
+    return matchesSearch && matchesFreq && matchesCat && matchesFmt && matchesStatus && matchesDataset;
   });
   const totalSchedPages = Math.ceil(filteredSchedules.length / schedPageSize);
   const paginatedSchedules = filteredSchedules.slice((schedPage - 1) * schedPageSize, schedPage * schedPageSize);
-  const hasSchedFilters = schedSearch || schedFreqFilter !== 'all' || schedCatFilter !== 'all' || schedFmtFilter !== 'all' || schedStatusFilter !== 'all';
+  const hasSchedFilters = schedSearch || schedFreqFilter !== 'all' || schedCatFilter !== 'all' || schedFmtFilter !== 'all' || schedStatusFilter !== 'all' || schedDatasetFilter !== 'all';
 
   // Upcoming schedules calculations
   const activeSchedules = schedules.filter(s => s.is_active);
@@ -622,29 +727,29 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
         {/* ── KPI Row (4 cards) ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[120px] transition-all hover:shadow-sm">
-            <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Reports this month</p>
+            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Reports this month</p>
             <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">{reportsThisMonth}</p>
-            <p className={`text-[11px] font-semibold font-mono mt-3 ${deltaResult.isUp ? 'text-[var(--s)]' : 'text-[var(--d)]'}`}>
+            <p className={`text-[11px] font-mono mt-3 ${deltaResult.isUp ? 'text-[var(--s)]' : 'text-[var(--d)]'}`}>
               {deltaResult.val} vs. last month
             </p>
           </div>
 
           <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[120px] transition-all hover:shadow-sm">
-            <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Auto-delivered</p>
+            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Auto-delivered</p>
             <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">{activeSchedulesCount}</p>
-            <p className="text-[11px] font-semibold text-[var(--t3)] font-mono mt-3">Active recurring schedules</p>
+            <p className="text-[11px] text-[var(--t3)] font-mono mt-3">Active recurring schedules</p>
           </div>
 
           <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[120px] transition-all hover:shadow-sm">
-            <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Pending review</p>
+            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Pending review</p>
             <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">{pendingReportsCount}</p>
-            <p className="text-[11px] font-semibold text-[var(--t3)] font-mono mt-3">Awaiting document completion</p>
+            <p className="text-[11px] text-[var(--t3)] font-mono mt-3">Awaiting document completion</p>
           </div>
 
           <div className="bg-[var(--surf)] border border-[var(--b)] rounded-2xl p-5 flex flex-col justify-between min-h-[120px] transition-all hover:shadow-sm">
-            <p className="text-[11px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Storage Used</p>
+            <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-1 font-mono">Storage Used</p>
             <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">{formattedStorage}</p>
-            <p className="text-[11px] font-semibold text-[var(--t3)] font-mono mt-3">Total files payload size</p>
+            <p className="text-[11px] text-[var(--t3)] font-mono mt-3">Total files payload size</p>
           </div>
         </div>
 
@@ -683,9 +788,9 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
               <div className="p-5 border-b border-[var(--b)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <p className="text-[11px] text-[var(--t3)] font-mono">{filteredReports.length} files · sorted by date</p>
-                  {(typeFilter !== 'all' || categoryFilter !== 'all') && (
+                  {(typeFilter !== 'all' || categoryFilter !== 'all' || datasetFilter !== 'all') && (
                     <button
-                      onClick={() => { setTypeFilter('all'); setCategoryFilter('all'); setReportPage(1); }}
+                      onClick={() => { setTypeFilter('all'); setCategoryFilter('all'); setDatasetFilter('all'); setReportPage(1); }}
                       className="text-[10px] text-[var(--p)] font-mono hover:underline mt-0.5"
                     >
                       Clear filters
@@ -755,8 +860,42 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                     size="sm"
                     showIcon={true}
                   />
+
+                  {/* Dataset Filter */}
+                  {availableDatasets.length > 1 && (
+                    <FilterDropdown
+                      options={[
+                        { label: 'All datasets', value: 'all' },
+                        ...availableDatasets.map((d: DatasetSummary) => ({
+                          label: d.displayId || `DS-${d.id.slice(0, 6).toUpperCase()}`,
+                          value: d.id,
+                        })),
+                      ]}
+                      value={datasetFilter}
+                      onChange={v => { setDatasetFilter(v); setReportPage(1); }}
+                      placeholder="All datasets"
+                      size="sm"
+                      showIcon={true}
+                    />
+                  )}
                 </div>
               </div>
+
+              {/* ── Reports Selection Bar ── */}
+              {selectedReportIds.size > 0 && (
+                <div className="flex items-center gap-3 px-5 py-2.5 bg-[var(--bg1)] border-b border-[var(--b)]">
+                  <span className="text-[11px] font-mono text-[var(--t2)]">{selectedReportIds.size} selected</span>
+                  {isAdmin && (
+                    <button
+                      onClick={() => setShowBatchDeleteReportsConfirm(true)}
+                      className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-semibold bg-[var(--d-bg)] border border-[var(--d-b)] text-[var(--d)] hover:bg-[var(--d)] hover:text-white transition-colors"
+                    >
+                      <TrashIcon /> Delete selected
+                    </button>
+                  )}
+                  <button onClick={() => setSelectedReportIds(new Set())} className="ml-auto text-[11px] text-[var(--t3)] hover:text-[var(--t)] font-medium">Clear</button>
+                </div>
+              )}
 
               {/* View Layouts */}
               {loading ? (
@@ -777,7 +916,16 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/40">
+                          <th className="px-4 py-3.5 w-8">
+                            <input
+                              type="checkbox"
+                              checked={paginatedReports.length > 0 && selectedReportIds.size === paginatedReports.length}
+                              onChange={toggleSelectAllReports}
+                              className="w-4 h-4 rounded border-[var(--b)] accent-[var(--t)] cursor-pointer"
+                            />
+                          </th>
                           <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Report</th>
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Dataset</th>
                           <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Category</th>
                           <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Format</th>
                           <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Size</th>
@@ -789,7 +937,16 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                         {paginatedReports.map(r => {
                           const isSched = getIsReportScheduled(r);
                           return (
-                            <tr key={r.id} className="hover:bg-[var(--bg1)]/50 transition-colors">
+                            <tr key={r.id} className={`hover:bg-[var(--bg1)]/50 transition-colors ${selectedReportIds.has(r.id) ? 'bg-[var(--bg1)]/70' : ''}`}>
+                              <td className="px-4 py-3.5">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedReportIds.has(r.id)}
+                                  onChange={() => toggleSelectReport(r.id)}
+                                  className="w-4 h-4 rounded border-[var(--b)] accent-[var(--t)] cursor-pointer"
+                                  style={{ accentColor: 'var(--t)' }}
+                                />
+                              </td>
                               <td className="px-5 py-3.5">
                                 <div className="flex items-center gap-3">
                                   {/* Thumbnail Mockup */}
@@ -816,6 +973,23 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                                     </div>
                                   </div>
                                 </div>
+                              </td>
+                              <td className="px-5 py-3.5">
+                                {(() => {
+                                  const dsName = getDatasetName(r.dataset_id);
+                                  const isActive = r.dataset_id === datasetId;
+                                  if (!dsName) return <span className="text-[11px] text-[var(--t4)] font-mono">—</span>;
+                                  return (
+                                    <span className={`inline-flex items-center gap-1.5 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border whitespace-nowrap ${
+                                      isActive
+                                        ? 'bg-[var(--p-bg)] border-[var(--p-b)] text-[var(--p)]'
+                                        : 'bg-[var(--bg2)] border-[var(--b)] text-[var(--t3)]'
+                                    }`}>
+                                      {isActive && <span className="w-1 h-1 rounded-full bg-[var(--p)] shrink-0" />}
+                                      {dsName}
+                                    </span>
+                                  );
+                                })()}
                               </td>
                               <td className="px-5 py-3.5">
                                 <span className="text-[11px] font-semibold capitalize text-[var(--t2)] font-sans">
@@ -966,9 +1140,16 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
 
                         {/* Bottom Row */}
                         <div className="flex items-center justify-between border-t border-[var(--b)] pt-2.5 mt-2 text-[11px] font-mono text-[var(--t2)]">
-                          <span className="truncate max-w-[100px] capitalize">
-                            {r.report_category || 'On demand'}
-                          </span>
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <span className="truncate max-w-[110px] capitalize">
+                              {r.report_category || 'On demand'}
+                            </span>
+                            {getDatasetName(r.dataset_id) && (
+                              <span className={`text-[9px] font-bold truncate max-w-[110px] ${r.dataset_id === datasetId ? 'text-[var(--p)]' : 'text-[var(--t4)]'}`}>
+                                {getDatasetName(r.dataset_id)}
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <span>{formatSize(r.file_size)}</span>
                             {isSched && (
@@ -1060,12 +1241,28 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                     size="sm"
                     showIcon={true}
                   />
+                  {availableDatasets.length > 1 && (
+                    <FilterDropdown
+                      options={[
+                        { label: 'All datasets', value: 'all' },
+                        ...availableDatasets.map((d: DatasetSummary) => ({
+                          label: d.displayId || `DS-${d.id.slice(0, 6).toUpperCase()}`,
+                          value: d.id,
+                        })),
+                      ]}
+                      value={schedDatasetFilter}
+                      onChange={v => { setSchedDatasetFilter(v); setSchedPage(1); }}
+                      placeholder="All datasets"
+                      size="sm"
+                      showIcon={true}
+                    />
+                  )}
                   {hasSchedFilters && (
                     <button
                       onClick={() => {
                         setSchedSearch(''); setSchedFreqFilter('all');
                         setSchedCatFilter('all'); setSchedFmtFilter('all');
-                        setSchedStatusFilter('all'); setSchedPage(1);
+                        setSchedStatusFilter('all'); setSchedDatasetFilter('all'); setSchedPage(1);
                       }}
                       className="text-[11px] font-mono font-bold text-[var(--p)] hover:underline ml-1"
                     >
@@ -1074,6 +1271,22 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                   )}
                   <span className="ml-auto text-[11px] font-mono text-[var(--t3)]">{filteredSchedules.length} schedules</span>
                 </div>
+
+                {/* ── Schedules Selection Bar ── */}
+                {selectedSchedIds.size > 0 && (
+                  <div className="flex items-center gap-3 px-5 py-2.5 bg-[var(--bg1)] border-b border-[var(--b)]">
+                    <span className="text-[11px] font-mono text-[var(--t2)]">{selectedSchedIds.size} selected</span>
+                    {isAdmin && (
+                      <button
+                        onClick={() => setShowBatchDeleteSchedsConfirm(true)}
+                        className="flex items-center gap-1.5 h-7 px-3 rounded-lg text-[11px] font-semibold bg-[var(--d-bg)] border border-[var(--d-b)] text-[var(--d)] hover:bg-[var(--d)] hover:text-white transition-colors"
+                      >
+                        <TrashIcon /> Delete selected
+                      </button>
+                    )}
+                    <button onClick={() => setSelectedSchedIds(new Set())} className="ml-auto text-[11px] text-[var(--t3)] hover:text-[var(--t)] font-medium">Clear</button>
+                  </div>
+                )}
 
                 {/* Table */}
                 {filteredSchedules.length === 0 ? (
@@ -1085,7 +1298,16 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="border-b border-[var(--b)] bg-[var(--bg1)]/40">
+                          <th className="px-4 py-3.5 w-8">
+                            <input
+                              type="checkbox"
+                              checked={paginatedSchedules.length > 0 && selectedSchedIds.size === paginatedSchedules.length}
+                              onChange={toggleSelectAllScheds}
+                              className="w-4 h-4 rounded border-[var(--b)] accent-[var(--t)] cursor-pointer"
+                            />
+                          </th>
                           <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Schedule</th>
+                          <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Dataset</th>
                           <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Frequency</th>
                           <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Category</th>
                           <th className="px-5 py-3.5 text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">Format</th>
@@ -1097,7 +1319,16 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                       </thead>
                       <tbody className="divide-y divide-[var(--b)]">
                         {paginatedSchedules.map(sched => (
-                          <tr key={sched.id} className="hover:bg-[var(--bg1)]/50 transition-colors">
+                          <tr key={sched.id} className={`hover:bg-[var(--bg1)]/50 transition-colors ${selectedSchedIds.has(sched.id) ? 'bg-[var(--bg1)]/70' : ''}`}>
+                            <td className="px-4 py-3.5">
+                              <input
+                                type="checkbox"
+                                checked={selectedSchedIds.has(sched.id)}
+                                onChange={() => toggleSelectSched(sched.id)}
+                                className="w-4 h-4 rounded border-[var(--b)] accent-[var(--t)] cursor-pointer"
+                                style={{ accentColor: 'var(--t)' }}
+                              />
+                            </td>
                             {/* Name */}
                             <td className="px-5 py-3.5">
                               <div className="flex items-center gap-2.5">
@@ -1109,6 +1340,24 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                                   <div className="text-[10px] text-[var(--t3)] font-mono mt-0.5">at {sched.time_of_day}</div>
                                 </div>
                               </div>
+                            </td>
+                            {/* Dataset */}
+                            <td className="px-5 py-3.5">
+                              {(() => {
+                                const dsName = getDatasetName(sched.dataset_id);
+                                const isActive = sched.dataset_id === datasetId;
+                                if (!dsName) return <span className="text-[11px] text-[var(--t4)] font-mono">—</span>;
+                                return (
+                                  <span className={`inline-flex items-center gap-1.5 text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border whitespace-nowrap ${
+                                    isActive
+                                      ? 'bg-[var(--p-bg)] border-[var(--p-b)] text-[var(--p)]'
+                                      : 'bg-[var(--bg2)] border-[var(--b)] text-[var(--t3)]'
+                                  }`}>
+                                    {isActive && <span className="w-1 h-1 rounded-full bg-[var(--p)] shrink-0" />}
+                                    {dsName}
+                                  </span>
+                                );
+                              })()}
                             </td>
                             {/* Frequency */}
                             <td className="px-5 py-3.5">
@@ -1384,7 +1633,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
       {showNewReportModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={e => { if (e.target === e.currentTarget) setShowNewReportModal(false); }}>
           <div className="bg-[var(--surf)] border border-[var(--b3)] rounded-2xl max-w-md w-full shadow-2xl animate-scale-in">
-            <div className="p-5 border-b border-[var(--b)] flex items-center justify-between bg-[var(--bg1)]/50">
+            <div className="p-5 border-b border-[var(--b)] flex items-center justify-between bg-[var(--bg1)]/50 rounded-t-2xl">
               <div>
                 <h3 className="text-sm font-bold text-[var(--t)]">Generate Custom Report</h3>
                 <p className="text-[11px] text-[var(--t3)] mt-0.5">Select scopes and target format parameters</p>
@@ -1400,13 +1649,13 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
 
             <div className="p-5 space-y-4 font-sans">
               <div>
-                <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Report Name <span className="normal-case text-[var(--t4)] font-normal">(optional)</span></label>
+                <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.08em] block mb-1.5 font-mono">Report Name <span className="normal-case text-[var(--t4)] font-normal">(optional)</span></label>
                 <input
                   type="text"
                   placeholder={`e.g. Q4 Growth Audit - ${new Date().toLocaleDateString('en-US')}`}
                   value={reportName}
                   onChange={e => setReportName(e.target.value)}
-                  className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl px-4 py-2.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors placeholder:text-[var(--t4)]"
+                  className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl px-4 h-10 text-sm text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors placeholder:text-[var(--t4)]"
                 />
               </div>
 
@@ -1491,10 +1740,15 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
       {showScheduleModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" onClick={e => { if (e.target === e.currentTarget) setShowScheduleModal(false); }}>
           <div className="bg-[var(--surf)] border border-[var(--b3)] rounded-2xl max-w-md w-full shadow-2xl animate-scale-in overflow-y-auto max-h-[90vh]">
-            <div className="p-5 border-b border-[var(--b)] flex items-center justify-between bg-[var(--bg1)]/50">
+            <div className="p-5 border-b border-[var(--b)] flex items-center justify-between bg-[var(--bg1)]/50 rounded-t-2xl">
               <div>
                 <h3 className="text-sm font-bold text-[var(--t)]">New Scheduled Delivery</h3>
-                <p className="text-[11px] text-[var(--t3)] mt-0.5">Configure automated recurring deliveries</p>
+                <p className="text-[11px] text-[var(--t3)] mt-0.5">
+                  Configure automated recurring deliveries
+                  {datasetId && (
+                    <> · Dataset: <span className="font-bold text-[var(--p)]">{getDatasetName(datasetId) || '—'}</span></>
+                  )}
+                </p>
               </div>
               <button
                 type="button"
@@ -1523,14 +1777,14 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
               )}
 
               <div>
-                <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Schedule Name</label>
+                <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.08em] block mb-1.5 font-mono">Schedule Name</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Weekly Retention Audit"
                   value={schedName}
                   onChange={e => setSchedName(e.target.value)}
-                  className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl px-4 py-2.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors"
+                  className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl px-4 h-10 text-sm text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors placeholder:text-[var(--t4)]"
                 />
               </div>
 
@@ -1539,7 +1793,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                   label="Format"
                   value={schedExport}
                   onChange={v => setSchedExport(v as 'pdf' | 'csv' | 'xlsx')}
-                  size="sm"
+                  size="md"
                   options={[
                     { label: 'PDF', value: 'pdf' },
                     { label: 'CSV', value: 'csv' },
@@ -1551,7 +1805,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                   label="Category"
                   value={schedCat}
                   onChange={v => setSchedCat(v as 'churn' | 'segmentation' | 'forecast')}
-                  size="sm"
+                  size="md"
                   options={[
                     { label: 'Churn', value: 'churn' },
                     { label: 'Segments', value: 'segmentation' },
@@ -1563,7 +1817,7 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                   label="Frequency"
                   value={schedFreq}
                   onChange={v => setSchedFreq(v as 'daily' | 'weekly' | 'monthly')}
-                  size="sm"
+                  size="md"
                   options={[
                     { label: 'Daily', value: 'daily' },
                     { label: 'Weekly', value: 'weekly' },
@@ -1574,13 +1828,13 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Execution Time</label>
+                  <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.08em] block mb-1.5 font-mono">Execution Time</label>
                   <input
                     type="time"
                     required
                     value={schedTime}
                     onChange={e => setSchedTime(e.target.value)}
-                    className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl px-3 py-2 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors font-mono"
+                    className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl px-3 h-10 text-sm text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors font-mono"
                   />
                 </div>
 
@@ -1614,8 +1868,8 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
                   />
                 ) : (
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Day Schedule</label>
-                    <div className="w-full border border-[var(--b)] bg-[var(--bg2)] text-[var(--t3)] rounded-lg px-3 h-10 flex items-center text-[11px] font-semibold select-none">
+                    <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.08em] block mb-1.5 font-mono">Day Schedule</label>
+                    <div className="w-full border border-[var(--b)] bg-[var(--bg2)] text-[var(--t3)] rounded-lg px-3 h-10 flex items-center text-sm font-medium select-none">
                       Runs Every Day
                     </div>
                   </div>
@@ -1634,13 +1888,13 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
               />
 
               <div>
-                <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-wider block mb-1.5 font-mono">Notification Emails <span className="normal-case text-[var(--d)] font-semibold">(required)</span></label>
+                <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.08em] block mb-1.5 font-mono">Notification Emails <span className="normal-case text-[var(--d)] font-semibold">(required)</span></label>
                 <input
                   type="text"
                   placeholder="e.g. boss@corp.com, partner@corp.com"
                   value={schedRecipients}
                   onChange={e => setSchedRecipients(e.target.value)}
-                  className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl px-4 py-2.5 text-xs text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors placeholder:text-[var(--t4)]"
+                  className="w-full bg-[var(--bg1)] border border-[var(--b)] rounded-xl px-4 h-10 text-sm text-[var(--t)] outline-none focus:border-[var(--b3)] transition-colors placeholder:text-[var(--t4)]"
                 />
                 <p className="text-[11px] text-[var(--t4)] mt-1.5 leading-normal">Separate multiple emails with commas</p>
               </div>
@@ -1706,6 +1960,30 @@ function ReportsPageContent({ datasetId }: { datasetId?: string }) {
         isLoading={!!deletingSchedId}
         onConfirm={handleDeleteSchedule}
       />
+
+      {/* ── BATCH DELETE REPORTS CONFIRMATION ── */}
+      <ActionConfirmation
+        isOpen={showBatchDeleteReportsConfirm}
+        onClose={() => setShowBatchDeleteReportsConfirm(false)}
+        title="Delete Reports"
+        description={`Are you sure you want to delete ${selectedReportIds.size} selected report(s)? This action cannot be undone.`}
+        actionLabel={`Delete ${selectedReportIds.size} Report(s)`}
+        isDangerous={true}
+        isLoading={batchDeletingReports}
+        onConfirm={handleBatchDeleteReports}
+      />
+
+      {/* ── BATCH DELETE SCHEDULES CONFIRMATION ── */}
+      <ActionConfirmation
+        isOpen={showBatchDeleteSchedsConfirm}
+        onClose={() => setShowBatchDeleteSchedsConfirm(false)}
+        title="Remove Schedules"
+        description={`Are you sure you want to remove ${selectedSchedIds.size} selected schedule(s)? Automated deliveries will stop immediately.`}
+        actionLabel={`Remove ${selectedSchedIds.size} Schedule(s)`}
+        isDangerous={true}
+        isLoading={batchDeletingScheds}
+        onConfirm={handleBatchDeleteScheds}
+      />
     </div>
   );
 }
@@ -1726,10 +2004,10 @@ function ReportChevronRightIcon() {
   );
 }
 
-export default function ReportsPage({ datasetId }: { datasetId?: string }) {
+export default function ReportsPage() {
   return (
     <PermissionGate permission="export_reports">
-      <ReportsPageContent datasetId={datasetId} />
+      <ReportsPageContent />
     </PermissionGate>
   );
 }

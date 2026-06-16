@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { 
-    getDueScheduledReports, 
-    updateScheduledReportNextRun, 
-    createReport, 
-    updateReport, 
-    getAllPredictions, 
-    getSegments 
+import {
+    getDueScheduledReports,
+    getActiveScheduledReports,
+    updateScheduledReportNextRun,
+    createReport,
+    updateReport,
+    getAllPredictions,
+    getSegments
 } from '@/lib/supabase/db';
+import { buildReportFileName } from '@/lib/report-filename';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -29,28 +31,47 @@ export async function POST(req: NextRequest) {
         }
     }
 
+    // Parse body for manual force-trigger
+    let bodyWorkspaceId: string | null = null;
+    let force = false;
     try {
-        const dueSchedules = await getDueScheduledReports();
-        console.log(`[SCHEDULER] Found ${dueSchedules.length} due schedule(s)`);
+        const body = await req.json();
+        bodyWorkspaceId = body?.workspace_id ?? null;
+        force = body?.force === true;
+    } catch {
+        // cron trigger sends no body — that's fine
+    }
+
+    try {
+        const dueSchedules = (force && bodyWorkspaceId)
+            ? await getActiveScheduledReports(bodyWorkspaceId)
+            : await getDueScheduledReports();
+        console.log(`[SCHEDULER] Found ${dueSchedules.length} schedule(s) to run (force=${force})`);
         const results = [];
 
         for (const schedule of dueSchedules) {
             console.log(`[SCHEDULER] Processing: ${schedule.name} | recipients: ${JSON.stringify(schedule.recipients)} | next_run_at: ${schedule.next_run_at}`);
             try {
-                // 1. Cari dataset terbaru yang valid untuk workspace/user ini
-                const { data: dataset } = await supabase
-                    .from('datasets')
-                    .select('id')
-                    .not('total_customers', 'is', null)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
+                // 1. Resolve dataset: use schedule's dataset_id if set, else latest done dataset for workspace
+                let dataset_id: string;
+                if (schedule.dataset_id) {
+                    dataset_id = schedule.dataset_id;
+                } else {
+                    const { data: dataset } = await supabase
+                        .from('datasets')
+                        .select('id')
+                        .eq('workspace_id', schedule.workspace_id)
+                        .eq('status', 'done')
+                        .not('total_customers', 'is', null)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
 
-                if (!dataset?.id) {
-                    throw new Error('No valid dataset found to generate scheduled report');
+                    if (!dataset?.id) {
+                        throw new Error('No valid dataset found to generate scheduled report');
+                    }
+                    dataset_id = dataset.id;
                 }
-
-                const dataset_id = dataset.id;
                 const type = schedule.export_type;
                 const report_category = schedule.report_category;
                 const include_segments = schedule.include_segments;
@@ -84,7 +105,8 @@ export async function POST(req: NextRequest) {
                 const highRiskCount = predictions.filter(p => p.risk_level === 'High' || p.risk_level === 'Critical' || p.churn_score > 0.7).length;
 
                 let fileBuffer: Buffer;
-                const fileName = `${report.id}.${type}`;
+                const now = new Date();
+                const fileName = buildReportFileName(report_category, schedule.name, type, now);
 
                 // 4. Pembentukan Dokumen (Sesuai format ekspor)
                 if (type === 'csv') {
@@ -214,7 +236,7 @@ export async function POST(req: NextRequest) {
                 }
 
                 // 5. Upload ke Supabase Storage
-                const storagePath = `workspace_${schedule.workspace_id}/${fileName}`;
+                const storagePath = `workspace_${schedule.workspace_id}/${report.id}/${fileName}`;
                 const { error: uploadError } = await supabase.storage.from('reports').upload(storagePath, fileBuffer, {
                     contentType: type === 'pdf' ? 'application/pdf' : type === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv'
                 });

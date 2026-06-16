@@ -36,6 +36,14 @@ export type WorkspaceMember = {
   isOnline: boolean;
 };
 
+export type DatasetSummary = {
+  id: string;
+  displayId: string | null;
+  totalCustomers: number | null;
+  churnRatePct: number | null;
+  createdAt: string;
+};
+
 type RoleSummary = {
   role: string;
   users: number;
@@ -75,6 +83,10 @@ type DashboardContextValue = {
   saveUserProfile: (payload: { fullName: string }) => Promise<{ error?: string }>;
   uploadUserAvatar: (file: File) => Promise<{ error?: string; avatarUrl?: string }>;
   unreadChatCount: number;
+  availableDatasets: DatasetSummary[];
+  activeDatasetId: string | null;
+  activeDataset: DatasetSummary | null;
+  setActiveDataset: (id: string) => void;
 };
 
 type DashboardInitialState = {
@@ -116,6 +128,8 @@ export function DashboardProvider({ children, initialState }: { children: React.
   const [members, setMembers] = useState<WorkspaceMember[]>(initialState?.members ?? []);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [availableDatasets, setAvailableDatasets] = useState<DatasetSummary[]>([]);
+  const [activeDatasetId, setActiveDatasetIdState] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -302,6 +316,36 @@ export function DashboardProvider({ children, initialState }: { children: React.
     }));
 
     setMembers(mappedMembers);
+
+    // Fetch available done datasets for the active dataset switcher
+    const { data: dsData } = await supabase
+      .from('datasets')
+      .select('id, display_id, total_customers, churn_rate_pct, created_at')
+      .eq('workspace_id', activeMembership.workspace_id)
+      .eq('status', 'done')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (dsData && dsData.length > 0) {
+      const datasets: DatasetSummary[] = dsData.map((d: any) => ({
+        id: d.id,
+        displayId: d.display_id ?? null,
+        totalCustomers: d.total_customers ?? null,
+        churnRatePct: d.churn_rate_pct ?? null,
+        createdAt: d.created_at,
+      }));
+      setAvailableDatasets(datasets);
+      const storageKey = `arkanalytics-active-dataset-${activeMembership.workspace_id}`;
+      setActiveDatasetIdState(prev => {
+        if (prev && datasets.some(d => d.id === prev)) return prev;
+        const saved = typeof window !== 'undefined' ? localStorage.getItem(storageKey) : null;
+        if (saved && datasets.some(d => d.id === saved)) return saved;
+        return datasets[0].id;
+      });
+    } else {
+      setAvailableDatasets([]);
+    }
+
     setLoading(false);
 
     // Initial unread fetch
@@ -931,6 +975,18 @@ export function DashboardProvider({ children, initialState }: { children: React.
       .sort((a, b) => a.role.localeCompare(b.role));
   }, [members]);
 
+  const setActiveDataset = useCallback((id: string) => {
+    setActiveDatasetIdState(id);
+    if (workspace?.id && typeof window !== 'undefined') {
+      localStorage.setItem(`arkanalytics-active-dataset-${workspace.id}`, id);
+    }
+  }, [workspace?.id]);
+
+  const activeDataset = useMemo(
+    () => availableDatasets.find(d => d.id === activeDatasetId) ?? null,
+    [availableDatasets, activeDatasetId]
+  );
+
   const myPermissions = useMemo(
     () => resolvePermissions(myRole, customRoles),
     [myRole, customRoles]
@@ -961,9 +1017,16 @@ export function DashboardProvider({ children, initialState }: { children: React.
       saveUserProfile,
       uploadUserAvatar,
       unreadChatCount,
+      availableDatasets,
+      activeDatasetId,
+      activeDataset,
+      setActiveDataset,
     }),
     [
       actionLoading,
+      activeDataset,
+      activeDatasetId,
+      availableDatasets,
       createCustomRole,
       customRoles,
       deleteCustomRole,
@@ -980,6 +1043,7 @@ export function DashboardProvider({ children, initialState }: { children: React.
       roleSummary,
       saveCompanyInfo,
       saveUserProfile,
+      setActiveDataset,
       updateCustomRole,
       updateMemberRole,
       uploadCompanyLogo,

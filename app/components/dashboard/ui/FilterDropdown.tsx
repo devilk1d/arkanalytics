@@ -135,7 +135,7 @@ export default function FilterDropdown({
   return (
     <div ref={rootRef} className={`flex flex-col gap-1.5 ${className}`}>
       {label && (
-        <label className="text-[10px] font-bold text-[var(--t3)] uppercase tracking-wider font-mono">
+        <label className="text-[11px] font-bold text-[var(--t3)] uppercase tracking-[0.08em] font-mono">
           {label}
         </label>
       )}
