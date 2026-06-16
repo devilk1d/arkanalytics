@@ -24,14 +24,15 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json();
-    const { 
-        workspace_id, 
-        name, 
-        frequency, 
-        report_category, 
-        export_type, 
-        include_segments, 
-        recipients 
+    const {
+        workspace_id,
+        dataset_id,
+        name,
+        frequency,
+        report_category,
+        export_type,
+        include_segments,
+        recipients
     } = body;
 
     if (!workspace_id || !name || !frequency || !report_category || !export_type) {
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
         const schedule = await createScheduledReport({
             workspace_id,
             user_id: user.id,
+            dataset_id: dataset_id || null,
             name,
             frequency,
             report_category,

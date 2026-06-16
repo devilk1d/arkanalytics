@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { createClient } from '@/lib/supabase/client';
 import { getFallbackPalette, normalizeSegmentLabel } from '../pages/segmentation/SegmentationPage';
@@ -31,9 +30,7 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
-export default function ClusterChart({ segmentOrder, activeSegment }: { segmentOrder?: string[], activeSegment?: string }) {
-  const searchParams = useSearchParams();
-  const datasetId = searchParams.get('dataset_id');
+export default function ClusterChart({ segmentOrder, activeSegment, datasetId }: { segmentOrder?: string[], activeSegment?: string, datasetId?: string | null }) {
 
   const [clusters, setClusters] = useState<{name: string, color: string, data: any[], count: number}[]>([]);
   const [loading, setLoading] = useState(true);

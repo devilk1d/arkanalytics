@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getReports, createReport, updateReport, deleteReport, getAllPredictions, getSegments } from '@/lib/supabase/db';
+import { buildReportFileName } from '@/lib/report-filename';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -43,7 +44,9 @@ export async function POST(req: NextRequest) {
 
     try {
         let fileBuffer: Buffer;
-        let fileName = `${report.id}.${type}`;
+        const now = new Date();
+        const reportName = name || report_category || 'report';
+        let fileName = buildReportFileName(report_category || 'analytics', reportName, type, now);
         let predictions = await getAllPredictions(dataset_id);
         let segments = await getSegments(dataset_id);
 
@@ -207,7 +210,7 @@ export async function POST(req: NextRequest) {
             throw new Error('Unsupported export type');
         }
 
-        const storagePath = `workspace_${workspace_id}/${fileName}`;
+        const storagePath = `workspace_${workspace_id}/${report.id}/${fileName}`;
         const { error: uploadError } = await supabase.storage.from('reports').upload(storagePath, fileBuffer, {
             contentType: type === 'pdf' ? 'application/pdf' : type === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv'
         });

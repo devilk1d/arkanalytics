@@ -148,10 +148,12 @@ const SegmentationPageContent = memo(() => {
   useEffect(() => setIsMounted(true), []);
   const searchParams = useSearchParams();
   const router = useRouter();
-  const datasetId = searchParams.get('dataset_id');
-  const { workspace } = useDashboardContext();
+  const displayParam = searchParams.get('d');
+  const legacyUuid   = searchParams.get('dataset_id');
+  const { workspace, activeDataset } = useDashboardContext();
   const supabase = createClient();
 
+  const [datasetId, setDatasetId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [dataset, setDataset] = useState<any>(null);
   const [segmentStats, setSegmentStats] = useState<any[]>([]);
@@ -168,23 +170,54 @@ const SegmentationPageContent = memo(() => {
   const [campaignSent, setCampaignSent] = useState(false);
 
   useEffect(() => {
+    if (!workspace) return;
     async function init() {
-      if (!datasetId) {
-        if (!workspace) return;
-        setLoading(true);
-        const { data } = await supabase.from('datasets').select('id')
-          .eq('workspace_id', workspace.id).eq('status', 'done')
-          .order('created_at', { ascending: false }).limit(1);
-        if (data && data.length > 0) {
-          router.replace(`/dashboard/segmentation?dataset_id=${data[0].id}`);
+      // Legacy URL: ?dataset_id=UUID → redirect to clean ?d=display_id
+      if (!displayParam && legacyUuid) {
+        const { data: ds } = await supabase.from('datasets')
+          .select('id, display_id').eq('id', legacyUuid).single();
+        if (ds) {
+          const params = new URLSearchParams(searchParams.toString());
+          params.set('d', ds.display_id ?? ds.id);
+          params.delete('dataset_id');
+          router.replace(`/dashboard/segmentation?${params.toString()}`);
         } else {
           setLoading(false);
         }
         return;
       }
+
+      if (!displayParam) {
+        // Use context's active dataset if available (respects sidebar switcher selection)
+        if (activeDataset?.displayId) {
+          router.replace(`/dashboard/segmentation?d=${activeDataset.displayId}`);
+          return;
+        }
+        // Fallback: query DB for latest
+        const { data: all } = await supabase.from('datasets')
+          .select('id, display_id')
+          .eq('workspace_id', workspace!.id).eq('status', 'done')
+          .order('created_at', { ascending: false }).limit(1);
+        if (all && all.length > 0) {
+          router.replace(`/dashboard/segmentation?d=${all[0].display_id ?? all[0].id}`);
+        } else {
+          setLoading(false);
+        }
+        return;
+      }
+
+      // Resolve display_id → UUID for internal queries
+      const { data: ds } = await supabase.from('datasets')
+        .select('id').eq('display_id', displayParam).single();
+      if (ds) {
+        setDatasetId(ds.id);
+      } else {
+        setLoading(false);
+      }
     }
     init();
-  }, [datasetId, workspace, router, supabase]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayParam, legacyUuid, workspace?.id]);
 
   const loadData = useCallback(async (dsId: string) => {
     setLoading(true);
@@ -416,7 +449,7 @@ const SegmentationPageContent = memo(() => {
 
                 <div>
                   <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight mb-1">{s.value}</p>
-                  <p className="text-[10px] font-mono text-[var(--t3)] mb-3">
+                  <p className="text-[11px] font-mono text-[var(--t3)] mb-3">
                     {s.share}% share · {s.badge} high risk
                   </p>
                   <div className="h-1 bg-[var(--bg3)] w-full rounded-full overflow-hidden">
@@ -460,7 +493,7 @@ const SegmentationPageContent = memo(() => {
 
               {/* chart — fills all remaining space */}
               <div className="flex-1 min-h-0">
-                <ClusterChart segmentOrder={segmentStats.map(s => s.label)} activeSegment={activeSegLabel} />
+                <ClusterChart segmentOrder={segmentStats.map(s => s.label)} activeSegment={activeSegLabel} datasetId={datasetId} />
               </div>
 
               {/* stacked bar — pinned below chart */}
@@ -611,7 +644,7 @@ const SegmentationPageContent = memo(() => {
 
                 <div className="flex gap-3 pt-4 border-t border-[var(--b)]">
                   <button
-                    onClick={() => router.push(`/dashboard/analytics?dataset_id=${datasetId}&segment=${encodeURIComponent(activeSegmentObj.rawLabel || activeSegmentObj.label)}`)}
+                    onClick={() => router.push(`/dashboard/analytics?d=${displayParam}&segment=${encodeURIComponent(activeSegmentObj.rawLabel || activeSegmentObj.label)}`)}
                     className="flex-1 inline-flex justify-center items-center gap-1.5 text-[11px] font-bold text-[var(--t2)] border border-[var(--b2)] rounded-lg px-3 py-2 hover:bg-[var(--bg2)] hover:text-[var(--t)] transition-all"
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

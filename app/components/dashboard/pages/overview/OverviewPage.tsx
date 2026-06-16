@@ -20,6 +20,7 @@ export type OverviewStats = {
 function KpiCard({
   label,
   value,
+  detail,
   change,
   changeSuffix,
   changePositive,
@@ -28,6 +29,7 @@ function KpiCard({
 }: {
   label: string;
   value: string;
+  detail?: string;
   change?: string;
   changeSuffix?: string;
   changePositive?: boolean;
@@ -39,12 +41,14 @@ function KpiCard({
       <div>
         <p className="text-[10px] font-semibold text-[var(--t3)] uppercase tracking-[0.08em] mb-2">{label}</p>
         <p className="font-display text-3xl font-black text-[var(--t)] leading-none tracking-tight">{value}</p>
+        {detail && (
+          <p className="text-[11px] text-[var(--t3)] font-mono mt-1.5 leading-snug">{detail}</p>
+        )}
       </div>
-      
-      {/* Description with Arrow - Above Sparkline */}
+
       {(change || changeSuffix) && (
         <div className="flex items-center gap-2 mt-2 mb-2">
-          {change && change.trim() && (
+          {change && change.trim() && change !== '-' && (
             <span
               className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded-md"
               style={{
@@ -56,12 +60,11 @@ function KpiCard({
             </span>
           )}
           {changeSuffix && (
-            <span className="text-[10px] font-medium text-[var(--t3)]">{changeSuffix}</span>
+            <span className="text-[11px] font-mono mt-1.5 leading-snug text-[var(--t3)]">{changeSuffix}</span>
           )}
         </div>
       )}
-      
-      {/* Sparkline Chart */}
+
       {sparklineData && sparklineData.length > 0 && (
         <div className="mt-auto overflow-hidden">
           <SparklineChart
@@ -87,6 +90,7 @@ const OverviewPage = ({
   segmentData,
   sparklines,
   deltas,
+  originalCount,
   // trajectorySummary and trajectoryData are unused but kept in props type to match caller signature
 }: {
   stats?: OverviewStats;
@@ -108,6 +112,7 @@ const OverviewPage = ({
   };
   trajectorySummary?: { avg: string; best: string; trend: string };
   trajectoryData?: { label: string; value: number }[];
+  originalCount?: number;
 }) => {
   const { workspace } = useDashboardContext();
 
@@ -118,9 +123,17 @@ const OverviewPage = ({
     predictedChurn: 0,
   }, [stats]);
 
-  const safeRate = data.totalCustomers > 0
+  const retentionRate = data.totalCustomers > 0
     ? (data.safeCustomers / data.totalCustomers * 100).toFixed(1)
     : '0';
+
+  const droppedRows = originalCount && originalCount > data.totalCustomers
+    ? originalCount - data.totalCustomers
+    : 0;
+
+  const churnThresholdSuffix = data.churnRisk <= 10
+    ? 'within 10% safe threshold'
+    : `${(data.churnRisk - 10).toFixed(1)} pts above threshold`;
 
   const segments = segmentData && segmentData.length > 0 ? segmentData : [];
   const hasSegments = segments.length > 0;
@@ -205,19 +218,25 @@ const OverviewPage = ({
         {/* ── KPI Row ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <KpiCard
-            label="Total Customers"
+            label="Customers Analyzed"
             value={data.totalCustomers.toLocaleString('en-US')}
+            detail={
+              droppedRows > 0 && originalCount
+                ? `of ${originalCount.toLocaleString('en-US')} uploaded · ${droppedRows} excluded`
+                : originalCount
+                  ? `of ${originalCount.toLocaleString('en-US')} uploaded · all records valid`
+                  : undefined
+            }
             change={deltas?.totalCustomers.change}
-            changeSuffix="vs. previous run"
             changePositive={deltas?.totalCustomers.positive}
             sparklineData={sparklines?.totalCustomers}
             sparklineColor="#22c55e"
           />
           <KpiCard
-            label="Safe Customers"
-            value={data.safeCustomers.toLocaleString('en-US')}
+            label="Retention Rate"
+            value={`${retentionRate}%`}
+            detail={`${data.safeCustomers.toLocaleString('en-US')} customers retained`}
             change={deltas?.safeCustomers.change}
-            changeSuffix={`${safeRate}% retention`}
             changePositive={deltas?.safeCustomers.positive}
             sparklineData={sparklines?.safeCustomers}
             sparklineColor="#22c55e"
@@ -225,17 +244,21 @@ const OverviewPage = ({
           <KpiCard
             label="Churn Risk Rate"
             value={`${data.churnRisk}%`}
+            detail={churnThresholdSuffix}
             change={deltas?.churnRisk.change}
-            changeSuffix="below 10% limit"
             changePositive={deltas?.churnRisk.positive}
             sparklineData={sparklines?.churnRisk}
             sparklineColor="#ef4444"
           />
           <KpiCard
-            label="Predicted Churn"
+            label="High Risk Customers"
             value={data.predictedChurn.toLocaleString('en-US')}
+            detail={
+              data.totalCustomers > 0
+                ? `${((data.predictedChurn / data.totalCustomers) * 100).toFixed(1)}% of analyzed — flagged for intervention`
+                : undefined
+            }
             change={deltas?.predictedChurn.change}
-            changeSuffix="customers flagged"
             changePositive={deltas?.predictedChurn.positive}
             sparklineData={sparklines?.predictedChurn}
             sparklineColor="#f59e0b"

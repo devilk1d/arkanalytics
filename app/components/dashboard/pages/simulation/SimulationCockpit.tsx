@@ -578,7 +578,7 @@ export function SimulationCockpit(props: SimulationCockpitProps) {
             <Icons.Sparkle />
             <span>{scenarioText ? 'Scenario Analysis' : 'AI Summary'}</span>
             <span className="ml-auto text-[var(--t4)] font-mono text-[10px]">
-              {narrativeLines.length}/4 paragraphs
+              {narrativeLines.length}/2 paragraphs
             </span>
           </div>
 
@@ -607,7 +607,7 @@ export function SimulationCockpit(props: SimulationCockpitProps) {
             <div key={i} className="narrative-para">{renderMd(line)}</div>
           ))}
 
-          {isLoading && narrativeLines.length > 0 && narrativeLines.length < 4 && (
+          {isLoading && narrativeLines.length > 0 && narrativeLines.length < 2 && (
             <span className="inline-flex items-center gap-2 text-[var(--t3)] text-[11px] font-mono uppercase tracking-[0.08em]">
               <span className="dot-pulse" /> Drafting paragraph {narrativeLines.length + 1}…
             </span>

@@ -140,19 +140,23 @@ export async function appendChatMessages(
 export async function loadWorkspaceSimulations(
   workspaceId: string,
   limit = 30,
+  datasetId?: string | null,
 ): Promise<SimulationRecord[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from('simulations')
     .select('id, workspace_id, dataset_id, created_by, customer_id, label, horizon_weeks, churn_score, risk_level, segment_label, sim_data, narrative, agents, recommendations, scenario, scenario_turns, chat_messages, created_at')
     .eq('workspace_id', workspaceId)
     .not('sim_data', 'is', null)
-    .neq('sim_data', '{}')
+    .neq('sim_data', '{}');
+
+  if (datasetId) query = query.eq('dataset_id', datasetId);
+
+  const { data, error } = await query
     .order('created_at', { ascending: false })
     .limit(limit);
 
   if (error) { console.error('[sim-db] load workspace error:', error.message); return []; }
-  // Extra client-side guard: only records with a proper baseline array
   return (data ?? []).filter(r => Array.isArray((r.sim_data as SimData | null)?.baseline) && (r.sim_data as SimData).baseline.length > 0) as SimulationRecord[];
 }
 
@@ -161,15 +165,20 @@ export async function loadCustomerSimulations(
   workspaceId: string,
   customerId: string,
   limit = 10,
+  datasetId?: string | null,
 ): Promise<SimulationRecord[]> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from('simulations')
     .select('id, workspace_id, dataset_id, created_by, customer_id, label, horizon_weeks, churn_score, risk_level, segment_label, sim_data, narrative, agents, recommendations, scenario, scenario_turns, chat_messages, created_at')
     .eq('workspace_id', workspaceId)
     .eq('customer_id', customerId)
     .not('sim_data', 'is', null)
-    .neq('sim_data', '{}')
+    .neq('sim_data', '{}');
+
+  if (datasetId) query = query.eq('dataset_id', datasetId);
+
+  const { data, error } = await query
     .order('created_at', { ascending: false })
     .limit(limit);
 

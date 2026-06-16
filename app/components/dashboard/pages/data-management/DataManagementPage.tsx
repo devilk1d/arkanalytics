@@ -12,6 +12,7 @@ import ActionConfirmation from '../../ui/ActionConfirmation';
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface DatasetRow {
   id: string;
+  display_id: string | null;
   status: 'pending' | 'analyzing' | 'done' | 'error';
   storage_path: string;
   total_customers: number | null;
@@ -178,7 +179,7 @@ function DataManagementPageContent() {
     // Paginated results
     const { data, error } = await supabase
       .from('datasets')
-      .select('id,status,storage_path,total_customers,churn_rate_pct,created_at,error_message')
+      .select('id,display_id,status,storage_path,total_customers,churn_rate_pct,created_at,error_message')
       .eq('workspace_id', workspace.id)
       .order('created_at', { ascending: false })
       .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
@@ -188,6 +189,7 @@ function DataManagementPageContent() {
     } else {
       setDatasets(data as DatasetRow[]);
     }
+
     setLoadingDatasets(false);
   }, [supabase, workspace?.id, page]);
 
@@ -472,7 +474,7 @@ function DataManagementPageContent() {
           <div className="flex items-center gap-2.5">
             <button
               onClick={() => setShowGuide(true)}
-              className="inline-flex items-center gap-2 text-xs font-bold border border-[var(--b)] bg-[var(--surf)] text-[var(--t2)] hover:border-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] transition-all px-4 py-2 rounded-lg font-sans cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-2 text-xs font-bold border border-[var(--b)] bg-[var(--surf)] text-[var(--t3)] hover:border-[var(--t3)] hover:text-[var(--t)] hover:bg-[var(--bg2)] transition-all px-4 py-2 rounded-lg font-mono mt-3 cursor-pointer whitespace-nowrap"
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
@@ -485,17 +487,17 @@ function DataManagementPageContent() {
         {/* ── StatCards Row (4 cards) ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
-            label="Total Datasets"
+            label="Total Uploads"
             value={totalDatasets.toString()}
-            change="Uploaded"
-            changeSuffix="workspaces"
+            change={`${totalDatasets * Object.keys(REQUIRED_FILES).length} CSV files`}
+            changeSuffix="across all uploads"
             changeNeutral={true}
           />
           <StatCard
             label="Active Records"
             value={latestDataset?.total_customers ? latestDataset.total_customers.toLocaleString('en-US') : '—'}
-            change="Latest"
-            changeSuffix="dataset"
+            change="From latest"
+            changeSuffix="analysis run"
             changeNeutral={true}
           />
           <StatCard
@@ -653,7 +655,12 @@ function DataManagementPageContent() {
                       <Fragment key={ds.id}>
                         <tr className="cursor-pointer transition-colors hover:bg-[var(--bg1)]">
                           <td className="px-4 py-3">
-                            <span className="font-mono text-[12px] text-[var(--t)]">{ds.id.slice(0, 8)}…</span>
+                            <div>
+                              <span className="font-mono text-[12px] font-bold text-[var(--t)]">
+                                {ds.display_id ?? '—'}
+                              </span>
+                              
+                            </div>
                           </td>
                           <td className="px-4 py-3 font-mono text-xs text-[var(--t)] whitespace-nowrap">
                             {formatDate(ds.created_at)}
@@ -679,7 +686,7 @@ function DataManagementPageContent() {
                             <div className="flex items-center gap-1.5">
                               {ds.status === 'done' && (
                                 <a
-                                  href={`/dashboard/analytics?dataset_id=${ds.id}`}
+                                  href={`/dashboard/analytics?d=${ds.display_id ?? ds.id}`}
                                   className="text-xs font-semibold text-[var(--p)] hover:underline"
                                 >
                                   View →
@@ -977,7 +984,7 @@ function DataManagementPageContent() {
         isOpen={!!datasetToDelete}
         onClose={() => setDatasetToDelete(null)}
         title="Delete Dataset"
-        description={`Are you sure you want to delete dataset ${datasetToDelete?.id.slice(0, 8)}? This action cannot be undone and will remove all associated analytics.`}
+        description={`Are you sure you want to delete ${datasetToDelete?.display_id ?? 'this dataset'}? This action cannot be undone and will remove all associated analytics.`}
         actionLabel="Delete"
         isDangerous={true}
         isLoading={isDeleting}

@@ -5,7 +5,7 @@ import Modal from '../../ui/Modal';
 import Button from '../../ui/Button';
 import Avatar from '../../ui/Avatar';
 import { createClient } from '@/lib/supabase/client';
-import { getInitials, type WorkspaceMember } from '../../context/DashboardContext';
+import { getInitials, type WorkspaceMember, useDashboardContext } from '../../context/DashboardContext';
 import { useRouter } from 'next/navigation';
 
 /* ─── Send To Chat Modal ─── */
@@ -30,6 +30,7 @@ interface ChatRoom {
 
 export function SendToChatModal({ open, onClose, customers, workspaceId, userId, members, maxUsage }: SendToChatModalProps) {
   const router = useRouter();
+  const { activeDataset } = useDashboardContext();
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'personal' | 'groups'>('all');
   const [rawRooms, setRawRooms] = useState<any[]>([]);
@@ -133,11 +134,6 @@ export function SendToChatModal({ open, onClose, customers, workspaceId, userId,
   }, [rooms, search, filter]);
 
   const handleShare = (room: ChatRoom) => {
-    // We send a structured string that will be rendered as a card in ChatMessages
-    // Get datasetId from searchParams if not passed (though we might want to pass it explicitly)
-    const urlParams = new URLSearchParams(window.location.search);
-    const dsId = urlParams.get('dataset_id');
-
     const shareData = {
       customers: customers.map(c => ({
         id: c.customer_id,
@@ -147,7 +143,8 @@ export function SendToChatModal({ open, onClose, customers, workspaceId, userId,
         usage: c.usage_hrs ?? c.usage ?? 0,
         segment: c.segment_label ?? c.segment ?? ''
       })),
-      datasetId: dsId,
+      datasetId: activeDataset?.id ?? null,
+      datasetDisplayId: activeDataset?.displayId ?? null,
       maxUsage: maxUsage,
       timestamp: new Date().toISOString()
     };

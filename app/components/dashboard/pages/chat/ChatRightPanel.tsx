@@ -943,10 +943,11 @@ function CustomersPanel({ messages }: { messages: MessageItem[] }) {
 
         data.customers.forEach((c: any) => {
           const normUsage = Number(c.usage ?? c.usage_hrs ?? 0);
-          customersMap.set(c.id, { 
-            ...c, 
+          customersMap.set(c.id, {
+            ...c,
             usage: normUsage,
-            datasetId: data.datasetId 
+            datasetId: data.datasetId,
+            datasetDisplayId: data.datasetDisplayId ?? null,
           });
           if (normUsage > maxUsage) maxUsage = normUsage;
         });
@@ -1004,7 +1005,7 @@ function CustomersPanel({ messages }: { messages: MessageItem[] }) {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2 mb-1">
-                    <div className="min-w-0 cursor-pointer hover:opacity-75 transition-opacity" onClick={() => window.location.href = `/dashboard/analytics?dataset_id=${c.datasetId}&analyze_id=${c.id}`}>
+                    <div className="min-w-0 cursor-pointer hover:opacity-75 transition-opacity" onClick={() => { window.location.href = c.datasetDisplayId ? `/dashboard/analytics?d=${c.datasetDisplayId}&analyze_id=${c.id}` : `/dashboard/analytics?dataset_id=${c.datasetId}&analyze_id=${c.id}`; }}>
                       <p className="text-xs font-bold text-[var(--t)] truncate tracking-tight font-mono">{c.id}</p>
                       <p className="text-[10px] text-[var(--t3)] font-bold truncate capitalize">{c.plan} Plan</p>
                     </div>
