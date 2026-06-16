@@ -12,7 +12,6 @@ html { scroll-behavior: smooth; }
 
 /* ─── Base ─── */
 * { box-sizing: border-box; }
-body { background: var(--bg); transition: background .35s; }
 
 /* ══════════════════════════════════════════
    DESIGN TOKENS — LIGHT (default)

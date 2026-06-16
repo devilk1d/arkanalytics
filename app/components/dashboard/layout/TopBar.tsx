@@ -43,10 +43,11 @@ function ThemeToggle() {
       const stored = localStorage.getItem('theme') as 'light' | 'dark' | null;
       const initial = stored || (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
       setTheme(initial);
-      // Re-apply the attribute in case React's hydration reconciliation removed it.
-      // The inline <script> in layout.tsx sets it before first paint, but React may
-      // strip attributes that aren't in the JSX even with suppressHydrationWarning.
       document.documentElement.setAttribute('data-theme', initial);
+      // Keep the cookie in sync so the server renders the matching data-theme on
+      // the next load (the cookie is the source of truth for SSR). This also
+      // migrates existing users who only had the theme in localStorage.
+      document.cookie = `arka_theme=${initial}; path=/; max-age=31536000; SameSite=Lax`;
     };
 
     updateTheme();
@@ -61,6 +62,7 @@ function ThemeToggle() {
     setTheme(next);
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('theme', next);
+    document.cookie = `arka_theme=${next}; path=/; max-age=31536000; SameSite=Lax`;
     window.dispatchEvent(new Event('themechange'));
   };
 
