@@ -251,7 +251,6 @@ export async function POST(req: NextRequest) {
                 });
 
                 // 6. Hitung & perbarui waktu eksekusi jadwal berikutnya
-                const now = new Date();
                 let nextRunAt = new Date(schedule.next_run_at);
                 
                 // Pastikan menggunakan jam dan menit yang konsisten dari konfigurasi
