@@ -100,20 +100,17 @@ const WORKSPACE_ITEMS: {
     },
   ];
 
-export default function Sidebar() {
+export default function Sidebar({ initialCollapsed = false }: { initialCollapsed?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const { myPermissions, unreadChatCount, activeDataset } = useDashboardContext();
-  // Sidebar lives in the Next.js layout so it only mounts once — no hydration mismatch risk.
-  // Reading localStorage in the initializer is safe here.
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsCollapsed(localStorage.getItem('arkanalytics-sidebar-collapsed') === 'true');
-    }
-    // Delay enabling transitions so the sidebar doesn't animate on first paint.
+    // Sync with localStorage in case it differs from the cookie used for SSR.
+    const saved = localStorage.getItem('arkanalytics-sidebar-collapsed') === 'true';
+    if (saved !== isCollapsed) setIsCollapsed(saved);
     const timer = setTimeout(() => setIsMounted(true), 50);
     return () => clearTimeout(timer);
   }, []);
@@ -122,6 +119,7 @@ export default function Sidebar() {
     const nextVal = !isCollapsed;
     setIsCollapsed(nextVal);
     localStorage.setItem('arkanalytics-sidebar-collapsed', String(nextVal));
+    document.cookie = `arka_sidebar=${nextVal}; path=/; max-age=31536000; SameSite=Lax`;
   };
 
   const filterNavItems = <T extends { requiredPermission?: Permission }>(items: T[]): T[] => {
@@ -152,7 +150,7 @@ export default function Sidebar() {
     <aside
       className={`bg-[var(--surf)] border-r border-[var(--b)] flex flex-col py-4 shrink-0 h-screen sticky top-0 z-30 overflow-hidden ${
         isCollapsed ? 'w-[72px]' : 'w-[240px]'
-      } ${isMounted ? 'transition-all duration-300 ease-in-out' : ''}`}
+      } ${isMounted ? 'transition-all duration-300 ease-in-out' : '[&_*]:!transition-none'}`}
     >
       {/* Logo Section */}
       <div className="flex items-center h-10 mb-6 px-4 relative">

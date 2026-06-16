@@ -43,6 +43,10 @@ function ThemeToggle() {
       const stored = localStorage.getItem('theme') as 'light' | 'dark' | null;
       const initial = stored || (document.documentElement.getAttribute('data-theme') as 'light' | 'dark') || 'light';
       setTheme(initial);
+      // Re-apply the attribute in case React's hydration reconciliation removed it.
+      // The inline <script> in layout.tsx sets it before first paint, but React may
+      // strip attributes that aren't in the JSX even with suppressHydrationWarning.
+      document.documentElement.setAttribute('data-theme', initial);
     };
 
     updateTheme();

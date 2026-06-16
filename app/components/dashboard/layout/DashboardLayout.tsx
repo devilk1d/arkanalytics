@@ -6,12 +6,13 @@ import TopBar from './TopBar';
 
 interface DashboardLayoutProps {
   children: ReactNode;
+  initialSidebarCollapsed?: boolean;
 }
 
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default function DashboardLayout({ children, initialSidebarCollapsed }: DashboardLayoutProps) {
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg)]" style={{ transition: 'background .35s' }}>
-      <Sidebar />
+      <Sidebar initialCollapsed={initialSidebarCollapsed} />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <TopBar />
         <main className="flex-1 overflow-y-auto p-6 relative animate-in fade-in duration-500 ease-in-out">

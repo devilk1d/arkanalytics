@@ -471,6 +471,9 @@ h1, h2, h3, h4, h5, h6, .font-display {
   --font-sans: var(--app-font-sans), sans-serif;
   --font-mono: ui-monospace, "JetBrains Mono", monospace;
   --sidebar-w: 224px;
+  /* Explicit background so transparent children (e.g. welcome-intro) don't
+     inherit the outer layout's white/light background and cause a white-side bug */
+  background:  var(--bg);
 }
 
 [data-theme="light"] .page-cockpit,
