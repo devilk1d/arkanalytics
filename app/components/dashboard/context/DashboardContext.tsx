@@ -980,12 +980,27 @@ export function DashboardProvider({ children, initialState }: { children: React.
     if (workspace?.id && typeof window !== 'undefined') {
       localStorage.setItem(`arkanalytics-active-dataset-${workspace.id}`, id);
     }
-  }, [workspace?.id]);
+    // Persist displayId to a long-lived cookie so the server-rendered overview page
+    // can read it on the next request (e.g., after logout → re-login) even without
+    // a ?d= URL param.
+    const ds = availableDatasets.find(d => d.id === id);
+    if (ds?.displayId && typeof window !== 'undefined') {
+      document.cookie = `arka_ds=${encodeURIComponent(ds.displayId)}; path=/; max-age=31536000; SameSite=Lax`;
+    }
+  }, [workspace?.id, availableDatasets]);
 
   const activeDataset = useMemo(
     () => availableDatasets.find(d => d.id === activeDatasetId) ?? null,
     [availableDatasets, activeDatasetId]
   );
+
+  // Keep the arka_ds cookie in sync with activeDataset so the overview server component
+  // can read the last-selected dataset even when no ?d= URL param is present
+  // (e.g. navigating back after logout → re-login).
+  useEffect(() => {
+    if (!activeDataset?.displayId || typeof window === 'undefined') return;
+    document.cookie = `arka_ds=${encodeURIComponent(activeDataset.displayId)}; path=/; max-age=31536000; SameSite=Lax`;
+  }, [activeDataset?.displayId]);
 
   const myPermissions = useMemo(
     () => resolvePermissions(myRole, customRoles),

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { DashboardProvider } from '../components/dashboard/context/DashboardContext';
 import DashboardShell from '../components/dashboard/layout/DashboardLayout';
@@ -84,6 +85,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     lastActiveAt: row.last_active_at,
   }));
 
+  const cookieStore = await cookies();
+  const sidebarCollapsed = cookieStore.get('arka_sidebar')?.value === 'true';
+
   return (
     <DashboardProvider
       initialState={{
@@ -102,7 +106,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         myRole: activeMembership?.role || '',
       }}
     >
-      <DashboardShell>
+      <DashboardShell initialSidebarCollapsed={sidebarCollapsed}>
         {children}
       </DashboardShell>
     </DashboardProvider>

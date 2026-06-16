@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import OverviewPage from "../../components/dashboard/pages/overview/OverviewPage";
 
@@ -45,6 +46,15 @@ function OverviewSkeleton() {
 
 // ── All data fetching lives here — streams in behind the skeleton ──────────────
 async function OverviewLoader({ displayId }: { displayId?: string }) {
+  // If no ?d= param was supplied, fall back to the arka_ds cookie that the client
+  // sets whenever the user switches datasets.  This ensures that after a
+  // logout → re-login the server renders the previously-selected dataset rather
+  // than always defaulting to the latest one.
+  if (!displayId) {
+    const cookieStore = await cookies();
+    const cookieDs = cookieStore.get('arka_ds')?.value;
+    if (cookieDs) displayId = decodeURIComponent(cookieDs);
+  }
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getUser();
 
