@@ -315,7 +315,8 @@ function SimulationPageInner() {
           } else if (evt.type === 'agent_token') {
             setAgents(prev => { const n = prev.map(a => a.name === evt.agent as string ? { ...a, content: a.content + (evt.content as string) } : a); latestAgents = n; return n; });
           } else if (evt.type === 'agent_done') {
-            setAgents(prev => { const n = prev.map(a => a.name === evt.agent as string ? { ...a, done: true } : a); latestAgents = n; return n; });
+            const fc = (evt.content as string) ?? '';
+            setAgents(prev => { const n = prev.map(a => a.name === evt.agent as string ? { ...a, done: true, content: fc.trim() ? fc : a.content } : a); latestAgents = n; return n; });
           } else if (evt.type === 'agent_recommendations') {
             const recs = (evt.recommendations as string[]) ?? [];
             setAgentRecs(recs); latestRecs = recs;

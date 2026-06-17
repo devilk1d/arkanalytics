@@ -993,7 +993,7 @@ function ReportsPageContent() {
                               </td>
                               <td className="px-5 py-3.5">
                                 <span className="text-[11px] font-semibold capitalize text-[var(--t2)] font-sans">
-                                  {r.report_category ? (r.report_category === 'churn' ? 'churn analysis' : r.report_category) : 'On demand'}
+                                  {r.report_category ?? 'On demand'}
                                 </span>
                               </td>
                               <td className="px-5 py-3.5">

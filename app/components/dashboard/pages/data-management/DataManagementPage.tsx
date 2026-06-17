@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect, Fragment } from 'react';
+import { useRouter } from 'next/navigation';
 import Card from '../../ui/Card';
 import Badge from '../../ui/Badge';
 import StatCard from '../../ui/StatCard';
@@ -132,7 +133,8 @@ function formatDate(iso: string): string {
 // ── Component ─────────────────────────────────────────────────────────────────
 function DataManagementPageContent() {
   const supabase = createClient();
-  const { workspace } = useDashboardContext();
+  const router = useRouter();
+  const { workspace, setActiveDataset } = useDashboardContext();
 
   // Files state — keyed by file type
   const [files, setFiles] = useState<Partial<Record<FileKey, File>>>({});
@@ -653,14 +655,14 @@ function DataManagementPageContent() {
                   ) : (
                     datasets.map(ds => (
                       <Fragment key={ds.id}>
-                        <tr className="cursor-pointer transition-colors hover:bg-[var(--bg1)]">
+                        <tr
+                          className="cursor-pointer transition-colors hover:bg-[var(--bg1)]"
+                          onClick={() => setExpandedDataset(p => p === ds.id ? null : ds.id)}
+                        >
                           <td className="px-4 py-3">
-                            <div>
-                              <span className="font-mono text-[12px] font-bold text-[var(--t)]">
-                                {ds.display_id ?? '—'}
-                              </span>
-                              
-                            </div>
+                            <span className="font-mono text-[12px] font-bold text-[var(--t)]">
+                              {ds.display_id ?? '—'}
+                            </span>
                           </td>
                           <td className="px-4 py-3 font-mono text-xs text-[var(--t)] whitespace-nowrap">
                             {formatDate(ds.created_at)}
@@ -682,28 +684,45 @@ function DataManagementPageContent() {
                               </span>
                             ) : <span className="font-mono text-xs text-[var(--t3)]">—</span>}
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center gap-1.5">
-                              {ds.status === 'done' && (
-                                <a
-                                  href={`/dashboard/analytics?d=${ds.display_id ?? ds.id}`}
-                                  className="text-xs font-semibold text-[var(--p)] hover:underline"
-                                >
-                                  View →
-                                </a>
-                              )}
+                              {/* Eye: preview dataset files inline */}
                               <button
                                 onClick={() => setExpandedDataset(p => p === ds.id ? null : ds.id)}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--t2)] hover:text-[var(--t)] hover:bg-[var(--bg2)] transition-all border border-transparent hover:border-[var(--b)]"
-                                title="Show files"
+                                className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${
+                                  expandedDataset === ds.id
+                                    ? 'bg-[var(--t)] text-[var(--inv-t)] border-[var(--t)]'
+                                    : 'border-[var(--b)] text-[var(--t2)] hover:text-[var(--t)] hover:bg-[var(--bg2)] hover:border-[var(--b3)]'
+                                }`}
+                                title="Preview dataset files"
                               >
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={`transition-transform duration-200 ${expandedDataset === ds.id ? 'rotate-180' : ''}`}>
-                                  <polyline points="6 9 12 15 18 9" />
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                  <circle cx="12" cy="12" r="3" />
                                 </svg>
                               </button>
+                              {/* Chart: go to analytics (only when ready) */}
+                              {ds.status === 'done' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveDataset(ds.id);
+                                    router.push(`/dashboard/analytics?d=${ds.display_id ?? ds.id}`);
+                                  }}
+                                  className="w-7 h-7 flex items-center justify-center rounded-lg border border-[var(--b)] text-[var(--t2)] hover:text-[var(--p)] hover:bg-[var(--p-bg)] hover:border-[var(--p-b)] transition-all"
+                                  title="Open analytics"
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="18" y1="20" x2="18" y2="10" />
+                                    <line x1="12" y1="20" x2="12" y2="4" />
+                                    <line x1="6" y1="20" x2="6" y2="14" />
+                                  </svg>
+                                </button>
+                              )}
+                              {/* Trash: delete */}
                               <button
                                 onClick={(e) => { e.stopPropagation(); setDatasetToDelete(ds); }}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg text-[var(--t2)] hover:text-[var(--d)] hover:bg-[var(--d)]/10 transition-all border border-transparent hover:border-[var(--d)]/20"
+                                className="w-7 h-7 flex items-center justify-center rounded-lg border border-[var(--b)] text-[var(--t2)] hover:text-[var(--d)] hover:bg-[var(--d)]/10 hover:border-[var(--d)]/30 transition-all"
                                 title="Delete dataset"
                               >
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

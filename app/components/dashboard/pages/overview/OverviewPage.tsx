@@ -56,7 +56,7 @@ function KpiCard({
                 color: changePositive ? 'var(--accent-d)' : 'var(--danger)',
               }}
             >
-              {changePositive ? '↑' : '↓'} {change}
+              {change.startsWith('-') || change.startsWith('−') ? '↓' : '↑'} {change}
             </span>
           )}
           {changeSuffix && (

@@ -304,11 +304,15 @@ async function OverviewLoader({ displayId }: { displayId?: string }) {
       const prevPred   = Math.round((prevDataset.total_customers || 0) * ((prevDataset.churn_rate_pct || 0) / 100));
       const diffPred   = stats.predictedChurn - prevPred;
 
+      const latestRetentionRate = stats.totalCustomers > 0 ? (latestSafe / stats.totalCustomers) * 100 : 0;
+      const prevRetentionRate   = (prevDataset.total_customers || 0) > 0 ? (prevSafe / (prevDataset.total_customers || 0)) * 100 : 0;
+      const diffRetention       = latestRetentionRate - prevRetentionRate;
+
       deltas = {
-        totalCustomers:  { change: `${diffCust >= 0 ? '+' : ''}${pctCust.toFixed(1)}%`,             positive: diffCust  >= 0 },
-        safeCustomers:   { change: `${diffSafe >= 0 ? '+' : ''}${pctSafe.toFixed(1)}%`,             positive: diffSafe  >= 0 },
-        churnRisk:       { change: `${diffChurn >= 0 ? '+' : '−'}${Math.abs(diffChurn).toFixed(1)} pts`, positive: diffChurn <= 0 },
-        predictedChurn:  { change: `${diffPred >= 0 ? '+' : ''}${diffPred}`,                         positive: diffPred  <= 0 },
+        totalCustomers:  { change: `${diffCust >= 0 ? '+' : ''}${diffCust.toLocaleString('en-US')}`,           positive: diffCust  >= 0 },
+        safeCustomers:   { change: `${diffRetention >= 0 ? '+' : '−'}${Math.abs(diffRetention).toFixed(1)} pts`, positive: diffRetention >= 0 },
+        churnRisk:       { change: `${diffChurn >= 0 ? '+' : '−'}${Math.abs(diffChurn).toFixed(1)} pts`,        positive: diffChurn <= 0 },
+        predictedChurn:  { change: `${diffPred >= 0 ? '+' : ''}${diffPred.toLocaleString('en-US')}`,            positive: diffPred  <= 0 },
       };
     } else {
       deltas = {
