@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
             dataset_id,
             name: name || `Report ${new Date().toLocaleDateString()}`,
             type,
+            report_category,
             status: 'pending'
         });
     } catch (error: any) {

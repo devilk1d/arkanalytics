@@ -251,6 +251,7 @@ export async function createReport(reportData: {
     dataset_id?: string,
     name: string,
     type: 'pdf' | 'csv' | 'xlsx',
+    report_category?: 'churn' | 'segmentation' | 'forecast',
     status: 'pending' | 'ready' | 'error'
 }) {
     const supabase = await createClient()
